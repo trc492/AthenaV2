@@ -60,6 +60,21 @@ Use this template structure:
     "autonomous": {},
     "teleoperated": {},
     "endgame": {}
+  },
+  "matchupCardConfig": {
+    "autoIcon": "Flame",
+    "autoMetrics": [],
+    "teleopIcon": "Flame",
+    "teleopMetrics": [],
+    "endgame": { "states": [] }
+  },
+  "teamPageConfig": {
+    "kpis": { "auto": {}, "teleop": {} },
+    "autoPerformance": { "metrics": [] },
+    "teleopPerformance": { "metrics": [] },
+    "scoringBreakdownChart": { "items": [] },
+    "endgame": { "states": [] },
+    "penalties": {}
   }
 }
 ```

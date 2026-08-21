@@ -1,8 +1,10 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
-
 export default async function middleware(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  });
   const isAuth = !!token;
   const isAuthPage =
     req.nextUrl.pathname.startsWith("/login") ||
@@ -10,16 +12,16 @@ export default async function middleware(req: NextRequest) {
   const isApiAuth = req.nextUrl.pathname.startsWith("/api/auth");
   const isApiRegister = req.nextUrl.pathname.startsWith("/api/auth/register");
   const isHomePage = req.nextUrl.pathname === "/";
+  const isSetupPage =
+    req.nextUrl.pathname.startsWith("/setup") ||
+    req.nextUrl.pathname.startsWith("/api/setup");
   const isSEO =
     req.nextUrl.pathname === "/robots.txt" ||
     req.nextUrl.pathname === "/sitemap.xml";
   const isAsset = req.nextUrl.pathname.startsWith("/_next/static") || req.nextUrl.pathname.startsWith("/assets");
 
-  // Debug logging
-  // console.log(`Middleware - Path: ${req.nextUrl.pathname}, IsAuth: ${isAuth}, IsAuthPage: ${isAuthPage}`)
-
-  // Allow access to auth pages, API routes, and home page
-  if (isAuthPage || isApiAuth || isApiRegister || isHomePage || isSEO || isAsset) {
+  // Allow access to auth pages, setup pages, API routes, and home page
+  if (isAuthPage || isSetupPage || isApiAuth || isApiRegister || isHomePage || isSEO || isAsset) {
     return NextResponse.next();
   }
 

@@ -24,6 +24,11 @@ vi.mock("@/db/cosmos-database-service", () => ({
   },
 }));
 
+vi.mock("@/lib/server/env-file", () => ({
+  loadPersistedDatabaseConfig: vi.fn(() => null),
+  savePersistedDatabaseConfig: vi.fn(),
+}));
+
 const ORIGINAL_ENV = process.env;
 
 function resetEnv() {
@@ -50,22 +55,22 @@ describe("DatabaseManager provider selection", () => {
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON = "{}";
 
     const manager = await loadManager();
-    expect(manager.getConfig().provider).toBe("firebase");
+    expect(manager.getConfig()?.provider).toBe("firebase");
   });
 
   it("uses azuresql when AZURE_SQL_CONNECTION_STRING is set", async () => {
     process.env.AZURE_SQL_CONNECTION_STRING = "Server=local;Database=athena;";
 
     const manager = await loadManager();
-    expect(manager.getConfig().provider).toBe("azuresql");
+    expect(manager.getConfig()?.provider).toBe("azuresql");
   });
 
-  it("uses local SQL when configured and no higher-priority providers exist", async () => {
-    process.env.LOCAL_SQL_CONNECTION_STRING = "Server=local;Database=athena;";
+  it("uses mariadb when configured and no higher-priority providers exist", async () => {
+    process.env.MARIADB_CONNECTION_STRING = "Server=local;Database=athena;";
 
     const manager = await loadManager();
-    expect(manager.getConfig().provider).toBe("local");
-    expect(manager.getConfig().local?.connectionString).toBe(
+    expect(manager.getConfig()?.provider).toBe("mariadb");
+    expect(manager.getConfig()?.mariadb?.connectionString).toBe(
       "Server=local;Database=athena;",
     );
   });

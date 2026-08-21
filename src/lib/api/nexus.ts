@@ -1,4 +1,5 @@
 import { fetchJSON } from "../fetcher";
+import { loadApiKeys } from "@/lib/server/api-keys";
 import type {
   EventStatus,
   PitAddresses,
@@ -8,12 +9,11 @@ import type {
 } from "./nexus-types";
 
 const BASE = "https://frc.nexus/api/v1/";
-const AUTH_KEY = process.env.NEXUS_API_KEY!;
 
 async function getFromNexus<T>(path: string): Promise<T> {
   const url = `${BASE}${path}`;
   return fetchJSON<T>(url, {
-    headers: { "Nexus-Api-Key": AUTH_KEY },
+    headers: { "Nexus-Api-Key": loadApiKeys().nexusApiKey },
   });
 }
 

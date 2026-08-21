@@ -37,7 +37,7 @@ export default function Page() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome back! Here&apos;s your scouting overview for the current
+            Welcome back! Here's your scouting overview for the current
             event.
           </p>
         </div>
@@ -92,19 +92,6 @@ export default function Page() {
           </CardContent>
         </Card>
 
-        {/* <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 -pb-2">
-            <CardTitle className="text-sm font-medium">Data Quality</CardTitle>
-            <TrendingUp className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{loading ? "..." : `${stats.dataQuality}%`}</div>
-            <p className="text-xs text-muted-foreground">
-              {loading ? "Loading..." : "Teams with complete data"}
-            </p>
-          </CardContent>
-        </Card> */}
-
         <Card className="gap-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 -pb-2">
             <CardTitle className="text-sm font-medium">Ranking</CardTitle>
@@ -120,9 +107,6 @@ export default function Page() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Event Information */}
-      {/* <EventInfoCard /> */}
 
       {/* Quick Actions & Event Progress */}
       <div className="grid gap-6 lg:grid-cols-2">

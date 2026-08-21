@@ -2,14 +2,16 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Database, Users, Info } from "lucide-react";
+import { Settings, Database, Users, Info, KeyRound } from "lucide-react";
 import { DatabaseSyncComponent } from "@/components/sync/database-sync";
+import { DatabaseConfigurationComponent } from "@/components/settings/database-configuration";
 import { OfflinePrecache } from "@/components/sync/offline-precache";
 import { DataExportImportComponent } from "@/components/settings/data-export-import";
 import { DatabaseResetComponent } from "@/components/settings/database-reset";
 import { CacheRevalidationComponent } from "@/components/cache-revalidation";
 import { NotificationSender } from "@/components/notification-sender";
 import { TeamManagement } from "@/components/settings/team-management";
+import { ApiKeysConfiguration } from "@/components/settings/api-keys-configuration";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { PERMISSIONS } from "@/lib/auth/roles";
 
@@ -29,7 +31,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="database" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto p-1">
           <TabsTrigger
             value="database"
             className="flex items-center gap-2 text-xs sm:text-sm"
@@ -43,16 +45,22 @@ export default function SettingsPage() {
             className="flex items-center gap-2 text-xs sm:text-sm"
           >
             <Users className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Team</span>
-            <span className="sm:hidden">Team</span>
+            <span>Team</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="api-keys"
+            className="flex items-center gap-2 text-xs sm:text-sm"
+          >
+            <KeyRound className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">API Keys</span>
+            <span className="sm:hidden">Keys</span>
           </TabsTrigger>
           <TabsTrigger
             value="about"
             className="flex items-center gap-2 text-xs sm:text-sm"
           >
             <Info className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">About</span>
-            <span className="sm:hidden">About</span>
+            <span>About</span>
           </TabsTrigger>
           <TabsTrigger
             value="notification-examples"
@@ -66,6 +74,9 @@ export default function SettingsPage() {
 
         <TabsContent value="database" className="space-y-4">
           <DatabaseSyncComponent />
+          <PermissionGuard permission={PERMISSIONS.MANAGE_SYSTEM_CONFIG}>
+            <DatabaseConfigurationComponent />
+          </PermissionGuard>
           <OfflinePrecache />
           <PermissionGuard
             permissions={[PERMISSIONS.IMPORT_DATA, PERMISSIONS.EXPORT_DATA]}
@@ -82,6 +93,12 @@ export default function SettingsPage() {
 
         <TabsContent value="team" className="space-y-4">
           <TeamManagement />
+        </TabsContent>
+
+        <TabsContent value="api-keys" className="space-y-4">
+          <PermissionGuard permission={PERMISSIONS.MANAGE_SYSTEM_CONFIG}>
+            <ApiKeysConfiguration />
+          </PermissionGuard>
         </TabsContent>
 
         <TabsContent value="about" className="space-y-4">

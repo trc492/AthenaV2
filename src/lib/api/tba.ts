@@ -1,4 +1,5 @@
 import { fetchJSON } from "../fetcher";
+import { loadApiKeys } from "@/lib/server/api-keys";
 import {
   TbaStatus,
   TbaEventSimple,
@@ -16,12 +17,11 @@ export type Team = { id: string; name: string };
 export type TeamImage = { url: string };
 
 const BASE = "https://thebluealliance.com/api/v3/";
-const AUTH_KEY = process.env.TBA_API_KEY!;
 
 async function getFromTba<T>(path: string): Promise<T> {
   const url = `${BASE}${path}`;
   return fetchJSON<T>(url, {
-    headers: { "X-TBA-Auth-Key": AUTH_KEY },
+    headers: { "X-TBA-Auth-Key": loadApiKeys().tbaApiKey },
   });
 }
 

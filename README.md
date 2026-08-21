@@ -104,6 +104,8 @@ Use a local SQL Server or any SQL Server-compatible instance:
 - or `AZURE_SQL_SERVER`, `AZURE_SQL_DATABASE`, `AZURE_SQL_USER`, `AZURE_SQL_PASSWORD`
 - `AZURE_SQL_USE_MANAGED_IDENTITY` (optional)
 
+Database changes made from the settings UI are also saved to `/.runtime/database-config.json` so Docker deployments can persist them across restarts when that path is mounted as a volume.
+
 ### Firebase
 
 - `FIREBASE_SERVICE_ACCOUNT_PATH` (path to JSON file)

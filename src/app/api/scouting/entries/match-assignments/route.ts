@@ -38,21 +38,23 @@ export async function GET(request: NextRequest) {
     }
 
     const service = databaseManager.getService();
-    const pool = await service.getPool?.();
-    if (!pool) {
+    if (!service.query) {
       return NextResponse.json([]);
     }
 
-    const mssql = await import("mssql");
-    const result = await pool
-      .request()
-      .input("eventCode", mssql.NVarChar, eventCode)
-      .input("year", mssql.Int, year).query(`
+    const result = await service.query<{
+      eventCode: string;
+      year: number;
+      matchNumber: number;
+      alliance: string;
+      position: number;
+      userId: string | null;
+    }>(`
         SELECT eventCode, year, matchNumber, alliance, position, userId
         FROM matchAssignments
         WHERE eventCode = @eventCode AND year = @year
         ORDER BY matchNumber, alliance, position
-      `);
+      `, { eventCode, year });
 
     return NextResponse.json(result.recordset);
   } catch (error) {
@@ -97,16 +99,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     const service = databaseManager.getService();
-    const pool = await service.getPool?.();
-    if (pool) {
-      const mssql = await import("mssql");
-      await pool
-        .request()
-        .input("eventCode", mssql.NVarChar, eventCode)
-        .input("year", mssql.Int, year)
-        .query(
-          "DELETE FROM matchAssignments WHERE eventCode = @eventCode AND year = @year",
-        );
+    if (service.query) {
+      await service.query(
+        "DELETE FROM matchAssignments WHERE eventCode = @eventCode AND year = @year",
+        { eventCode, year },
+      );
     }
 
     return NextResponse.json({ success: true });

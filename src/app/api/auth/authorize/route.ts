@@ -34,21 +34,24 @@ export async function POST(request: NextRequest) {
     }
 
     const db = databaseManager.getService();
-
-    // For Azure SQL, we need to get the pool directly
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service does not support direct SQL queries" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
-
-    const result = await pool.request().input("username", username).query(`
+    const result = await db.query<{
+      id: string;
+      name: string;
+      username: string;
+      role: string;
+      password_hash: string;
+      avatarUrl: string | null;
+    }>(`
         SELECT id, name, username, role, password_hash, avatarUrl
         FROM users
         WHERE username = @username
-      `);
+      `, { username });
 
     if (result.recordset.length === 0) {
       return NextResponse.json(

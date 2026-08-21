@@ -243,5 +243,143 @@
         }
       }
     ]
+  },
+  "matchupCardConfig": {
+    "autoIcon": "Flame",
+    "autoMetrics": [
+      { "key": "autonomous.fuel_scored", "label": "Avg Fuel" },
+      { "key": "autonomous.climb", "label": "Climb Rate", "type": "badge", "threshold": 50, "unit": "%" },
+      { "key": "autonomous.fuel_missed", "label": "Missed", "hideIfZero": true },
+      { "key": "autonomous.fuel_shuttled", "label": "Shuttled", "hideIfZero": true }
+    ],
+    "teleopIcon": "Flame",
+    "teleopMetrics": [
+      { "key": "teleop.fuel_scored", "label": "Fuel Scored" },
+      { "key": "teleop.fuel_accuracy", "label": "Accuracy", "type": "badge", "threshold": 60, "unit": "%" },
+      { "key": "teleop.fuel_passed", "label": "Passed" },
+      { "key": "teleop.fuel_corraled", "label": "Corraled" },
+      { "key": "teleop.fuel_shuttled", "label": "Shuttled", "hideIfZero": true }
+    ],
+    "endgame": {
+      "stateKey": "endgame.ending_robot_state",
+      "bestClimbKey": "ending_robot_state",
+      "states": [
+        { "key": "L3", "label": "L3 Rate" },
+        { "key": "L2", "label": "L2 Rate" },
+        { "key": "L1", "label": "L1 Rate" }
+      ]
+    },
+    "warnings": {
+      "breakdownThreshold": 15,
+      "techFoulThreshold": 0.5,
+      "foulThreshold": 1.0
+    },
+    "playstyleKey": "endgame.robot_playstyle",
+    "pitHighlights": [
+      { "section": "endgame", "field": "climbCapability", "label": "Climb" },
+      { "section": "teleoperated", "field": "intakeType", "label": "Intake" },
+      { "section": "teleoperated", "field": "cycleTime", "label": "Cycle", "unit": "s" },
+      { "section": "driveTeam", "field": "humanPlayerAccuracy", "label": "HP Acc" }
+    ]
+  },
+  "teamPageConfig": {
+    "kpis": {
+      "auto": {
+        "key": "autonomous.fuel_scored",
+        "label": "Avg Fuel (Auto)",
+        "subKey": "autonomous.climb",
+        "subLabel": "Climb rate",
+        "subFormat": "percent",
+        "icon": "Activity"
+      },
+      "teleop": {
+        "key": "teleop.fuel_scored",
+        "label": "Avg Fuel Scored",
+        "subKey": "teleop.fuel_accuracy",
+        "subLabel": "Accuracy",
+        "subFormat": "percent",
+        "icon": "Flame"
+      }
+    },
+    "autoPerformance": {
+      "metrics": [
+        { "key": "autonomous.fuel_scored", "label": "Avg Fuel Scored" },
+        { "key": "autonomous.fuel_missed", "label": "Avg Fuel Missed" },
+        { "key": "autonomous.fuel_shuttled", "label": "Avg Fuel Shuttled" },
+        { "key": "autonomous.climb", "label": "Auto L1 Climb Rate", "type": "badge", "unit": "%" }
+      ],
+      "showPointsEstimate": true,
+      "pointsFormula": [
+        { "key": "autonomous.fuel_scored", "points": 1 },
+        { "key": "autonomous.climb", "points": 15 }
+      ]
+    },
+    "teleopPerformance": {
+      "metrics": [
+        { "key": "teleop.fuel_scored", "label": "Fuel Scored" },
+        { "key": "teleop.fuel_missed", "label": "Fuel Missed" },
+        { "key": "teleop.fuel_passed", "label": "Fuel Passed" },
+        { "key": "teleop.fuel_corraled", "label": "Fuel Corraled" },
+        { "key": "teleop.fuel_shuttled", "label": "Fuel Shuttled" },
+        { "key": "teleop.fuel_accuracy", "label": "Accuracy", "type": "badge", "unit": "%" }
+      ],
+      "showPointsEstimate": true,
+      "pointsFormula": [
+        { "key": "teleop.fuel_scored", "points": 1 }
+      ]
+    },
+    "scoringBreakdownChart": {
+      "title": "Fuel Scoring Breakdown",
+      "description": "Average fuel actions per match",
+      "items": [
+        { "name": "Auto Scored", "key": "autonomous.fuel_scored", "fill": "#f97316" },
+        { "name": "Auto Missed", "key": "autonomous.fuel_missed", "fill": "#fdba74" },
+        { "name": "Auto Shuttled", "key": "autonomous.fuel_shuttled", "fill": "#fde68a" },
+        { "name": "Teleop Scored", "key": "teleop.fuel_scored", "fill": "#ef4444" },
+        { "name": "Teleop Missed", "key": "teleop.fuel_missed", "fill": "#94a3b8" },
+        { "name": "Teleop Passed", "key": "teleop.fuel_passed", "fill": "#3b82f6" },
+        { "name": "Teleop Corraled", "key": "teleop.fuel_corraled", "fill": "#22c55e" },
+        { "name": "Teleop Shuttled", "key": "teleop.fuel_shuttled", "fill": "#a3e635" }
+      ]
+    },
+    "endgame": {
+      "title": "Endgame Climb Distribution",
+      "description": "Percentage of matches at each climb level",
+      "displayType": "chart",
+      "stateKey": "endgame.ending_robot_state",
+      "breakdownKey": "endgame.robot_broke_down",
+      "states": [
+        { "value": "none", "label": "None", "points": 0 },
+        { "value": "L1", "label": "L1", "points": 10 },
+        { "value": "L2", "label": "L2", "points": 20 },
+        { "value": "L3", "label": "L3", "points": 30 }
+      ]
+    },
+    "penalties": {
+      "title": "Reliability & Penalties",
+      "description": "Robot reliability and penalty averages",
+      "minorKey": "fouls.fouls",
+      "minorLabel": "Avg Fouls per Match",
+      "minorPoints": -3,
+      "majorKey": "fouls.tech_fouls",
+      "majorLabel": "Avg Tech Fouls per Match",
+      "majorPoints": -10,
+      "techFoulAlertThreshold": 0.5,
+      "breakdownAlertThreshold": 20
+    },
+    "customSections": [
+      {
+        "id": "playstyle",
+        "title": "Robot Playstyle",
+        "description": "Scouted playstyle distribution across matches",
+        "type": "distribution",
+        "fieldKey": "endgame.robot_playstyle",
+        "items": [
+          { "key": "defensive", "label": "Defensive" },
+          { "key": "balanced", "label": "Balanced" },
+          { "key": "offensive", "label": "Offensive" }
+        ]
+      }
+    ]
   }
 }

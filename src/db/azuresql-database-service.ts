@@ -108,6 +108,21 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
   }
 
+  public async query<T = unknown>(
+    sql: string,
+    params: Record<string, unknown> = {},
+  ): Promise<{ recordset: T[] }> {
+    const pool = await this.getPool();
+    const request = pool.request();
+
+    for (const [name, value] of Object.entries(params)) {
+      request.input(name, value as any);
+    }
+
+    const result = await request.query(sql);
+    return { recordset: result.recordset as T[] };
+  }
+
   private isTokenExpired(): boolean {
     if (!this.tokenExpiresAt) return false;
     return new Date() >= this.tokenExpiresAt;
@@ -704,7 +719,7 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
 
     const result = await request.query(query);
-
+    
     return result.recordset.map((row: MatchEntryRow) => {
       const matchRow = row as unknown as MatchEntryRow;
       return {

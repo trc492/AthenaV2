@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-// import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { GameConfigProvider } from "@/hooks/use-game-config";
@@ -7,16 +6,10 @@ import { EventProvider } from "@/hooks/use-event-config";
 import { ServiceWorkerManager } from "@/components/sync/service-worker-manager";
 import { SessionProvider } from "@/components/session-provider";
 import { SonnerToaster } from "@/components/sonner-toaster";
-import { Geist, Inter } from "next/font/google";
+import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
-
-
-// const inter = Inter({
-//   variable: "--font-inter",
-//   subsets: ["latin"],
-// })
 
 export const metadata: Metadata = {
   title: "TRC Scouting",

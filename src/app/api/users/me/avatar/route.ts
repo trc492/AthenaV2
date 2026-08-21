@@ -13,19 +13,20 @@ export async function GET() {
     }
 
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service not available" },
         { status: 500 },
       );
     }
-
-    const pool = await db.getPool();
-    const result = await pool.request().input("userId", session.user.id).query(`
+    const result = await db.query<{
+      avatarData: Buffer | null;
+      avatarMimeType: string | null;
+    }>(`
       SELECT avatarData, avatarMimeType
       FROM users
       WHERE id = @userId
-    `);
+    `, { userId: session.user.id });
 
     if (result.recordset.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -98,24 +99,23 @@ export async function POST(request: NextRequest) {
 
     // Persist avatar bytes and metadata directly in DB
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service not available" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
     const urlPath = "/api/users/me/avatar";
 
-    await pool
-      .request()
-      .input("avatarData", buffer)
-      .input("avatarMimeType", mime)
-      .input("avatarUrl", urlPath)
-      .input("userId", session.user.id)
-      .query(
-        "UPDATE users SET avatarData = @avatarData, avatarMimeType = @avatarMimeType, avatarUrl = @avatarUrl, updated_at = GETDATE() WHERE id = @userId",
-      );
+    await db.query(
+      "UPDATE users SET avatarData = @avatarData, avatarMimeType = @avatarMimeType, avatarUrl = @avatarUrl, updated_at = GETDATE() WHERE id = @userId",
+      {
+        avatarData: buffer,
+        avatarMimeType: mime,
+        avatarUrl: urlPath,
+        userId: session.user.id,
+      },
+    );
 
     return NextResponse.json({
       success: true,

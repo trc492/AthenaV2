@@ -21,10 +21,16 @@ vi.mock("mssql", () => ({
   Int: "Int",
 }));
 
-describe("/api/schedule/assignments", () => {
-  let pool: any;
-  let service: any;
+let serviceMock: any;
+let pool: any;
 
+vi.mock("@/db/database-manager", () => ({
+  databaseManager: {
+    getService: () => serviceMock,
+  },
+}));
+
+describe("/api/schedule/assignments", () => {
   beforeEach(() => {
     vi.resetModules();
     permissionResult = true;
@@ -39,13 +45,10 @@ describe("/api/schedule/assignments", () => {
       request: vi.fn().mockReturnValue(request),
     };
 
-    service = {
+    serviceMock = {
       getPool: vi.fn().mockResolvedValue(pool),
+      query: vi.fn().mockResolvedValue(undefined),
     };
-
-    vi.doMock("@/db/database-manager", () => ({
-      databaseManager: { getService: () => service },
-    }));
   });
 
   it("rejects missing fields", async () => {
@@ -61,7 +64,7 @@ describe("/api/schedule/assignments", () => {
   });
 
   it("returns 400 when provider not sql", async () => {
-    service.getPool.mockResolvedValue(undefined);
+    serviceMock = {};
     const route = await import("@/app/api/scouting/schedule/assignments/route");
     const req = new Request("http://test/api/scouting/schedule/assignments", {
       method: "POST",
@@ -102,7 +105,7 @@ describe("/api/schedule/assignments", () => {
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(pool.request).toHaveBeenCalled();
+    expect(serviceMock.query).toHaveBeenCalled();
   });
 
   it("clears assignments on delete", async () => {

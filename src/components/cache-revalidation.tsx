@@ -54,7 +54,7 @@ export function CacheRevalidationComponent() {
           <p className="text-sm text-muted-foreground">
             Force revalidation of all Next.js cached routes and data. Use this
             if you notice stale data or after making configuration changes that
-            aren&apos;t reflecting immediately.
+            aren't reflecting immediately.
           </p>
         </div>
 

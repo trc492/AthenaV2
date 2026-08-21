@@ -68,8 +68,8 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       environment: env,
       databaseConfig: {
-        provider: config.provider,
-        useManagedIdentity: config.azuresql?.useManagedIdentity || false,
+        provider: config?.provider ?? "unknown",
+        useManagedIdentity: config?.azuresql?.useManagedIdentity || false,
       },
       tests: {
         connection: connectionTest,

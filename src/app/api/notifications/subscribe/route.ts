@@ -27,19 +27,18 @@ export async function POST(request: NextRequest) {
     }
 
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service does not support direct SQL queries" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
-
     // Get current subscriptions for the user
-    const userResult = await pool
-      .request()
-      .input("userId", session.user.id)
-      .query("SELECT push_subscriptions FROM users WHERE id = @userId");
+    const userResult = await db.query<{
+      push_subscriptions: string | null;
+    }>("SELECT push_subscriptions FROM users WHERE id = @userId", {
+      userId: session.user.id,
+    });
 
     let subscriptions: StoredSubscription[] = [];
     if (
@@ -67,13 +66,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Save back to database
-    await pool
-      .request()
-      .input("userId", session.user.id)
-      .input("subscriptions", JSON.stringify(subscriptions))
-      .query(
-        "UPDATE users SET push_subscriptions = @subscriptions WHERE id = @userId",
-      );
+    await db.query(
+      "UPDATE users SET push_subscriptions = @subscriptions WHERE id = @userId",
+      {
+        userId: session.user.id,
+        subscriptions: JSON.stringify(subscriptions),
+      },
+    );
 
     console.log(
       "Push subscription saved for user:",

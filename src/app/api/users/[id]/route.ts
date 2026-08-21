@@ -36,19 +36,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service does not support direct SQL queries" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
-
-    const result = await pool.request().input("id", id).query(`
+    const result = await db.query<{
+      id: string;
+      name: string;
+      username: string;
+      role: string;
+      created_at: string;
+      updated_at: string;
+    }>(`
         SELECT id, name, username, role, created_at, updated_at
         FROM users
         WHERE id = @id
-      `);
+      `, { id });
 
     if (result.recordset.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -130,19 +135,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service does not support direct SQL queries" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
-
     // Check if user exists
-    const existingUserResult = await pool
-      .request()
-      .input("id", id)
-      .query("SELECT id, username FROM users WHERE id = @id");
+    const existingUserResult = await db.query<{ id: string; username: string }>(
+      "SELECT id, username FROM users WHERE id = @id",
+      { id },
+    );
 
     if (existingUserResult.recordset.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -152,12 +155,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Check if username is already taken by another user
     if (username && username !== existingUser.username) {
-      const usernameCheckResult = await pool
-        .request()
-        .input("username", username)
-        .query(
-          "SELECT id FROM users WHERE username = @username AND id != @userId",
-        );
+      const usernameCheckResult = await db.query<{ id: string }>(
+        "SELECT id FROM users WHERE username = @username AND id != @userId",
+        { username, userId: id },
+      );
 
       if (usernameCheckResult.recordset.length > 0) {
         return NextResponse.json(
@@ -191,16 +192,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     updateFields.push("updated_at = GETDATE()");
 
-    let sqlRequest = pool.request().input("userId", id);
+    const updateParams: Record<string, unknown> = { userId: id };
     requestInputs.forEach((input) => {
-      sqlRequest = sqlRequest.input(input.name, input.value);
+      updateParams[input.name] = input.value;
     });
 
-    await sqlRequest.query(`
+    await db.query(
+      `
       UPDATE users
       SET ${updateFields.join(", ")}
       WHERE id = @userId
-    `);
+      `,
+      updateParams,
+    );
 
     return NextResponse.json({ message: "User updated successfully" });
   } catch (error) {
@@ -234,29 +238,24 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service does not support direct SQL queries" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
-
     // Check if user exists
-    const existingUserResult = await pool
-      .request()
-      .input("id", id)
-      .query("SELECT id FROM users WHERE id = @id");
+    const existingUserResult = await db.query<{ id: string }>(
+      "SELECT id FROM users WHERE id = @id",
+      { id },
+    );
 
     if (existingUserResult.recordset.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Delete user (this will cascade to team_permissions due to foreign key constraint)
-    await pool
-      .request()
-      .input("id", id)
-      .query("DELETE FROM users WHERE id = @id");
+    await db.query("DELETE FROM users WHERE id = @id", { id });
 
     return NextResponse.json({ message: "User deleted successfully" });
   } catch (error) {

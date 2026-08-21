@@ -1,7 +1,60 @@
 import type { NextConfig } from "next";
 import { withSerwist } from "@serwist/turbopack";
+import { randomBytes } from "crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+// ---------------------------------------------------------------------------
+// Ensure NEXTAUTH_SECRET is always available, even without an .env file.
+// This runs in the Node.js context (not the Edge runtime), so filesystem I/O
+// is fine.  We inject it via the `env` key so that Next.js bakes it into
+// every runtime, including the Edge middleware.
+// ---------------------------------------------------------------------------
+function resolveAuthSecret(): string {
+  if (process.env.NEXTAUTH_SECRET) return process.env.NEXTAUTH_SECRET;
+  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
+
+  const runtimeDir = join(process.cwd(), ".runtime");
+  const secretPath = join(runtimeDir, "auth-secret.json");
+
+  if (existsSync(secretPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(secretPath, "utf8")) as {
+        secret: string;
+      };
+      if (parsed?.secret) return parsed.secret;
+    } catch {
+      // fall through to generate
+    }
+  }
+
+  const newSecret = randomBytes(64).toString("hex");
+  try {
+    mkdirSync(runtimeDir, { recursive: true });
+    writeFileSync(
+      secretPath,
+      JSON.stringify({ secret: newSecret }, null, 2) + "\n",
+      "utf8",
+    );
+    console.log(
+      "[next.config] Generated new NEXTAUTH_SECRET → .runtime/auth-secret.json",
+    );
+  } catch (err) {
+    console.error("[next.config] Failed to persist auth secret:", err);
+  }
+  return newSecret;
+}
+
+const authSecret = resolveAuthSecret();
 
 const nextConfig: NextConfig = {
+  // Inject the auth secret and trust host flag so every runtime (including Edge middleware) can
+  // read it without needing manual .env configuration or AUTH_URL.
+  env: {
+    NEXTAUTH_SECRET: authSecret,
+    AUTH_SECRET: authSecret,
+    AUTH_TRUST_HOST: "true",
+  },
   output: "standalone",
   reactStrictMode: true,
   experimental: {

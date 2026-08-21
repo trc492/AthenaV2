@@ -1,9 +1,13 @@
-import { getServerSession } from "next-auth/next";
-import type { NextAuthOptions } from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { databaseManager } from "@/db/database-manager";
+import { getOrCreateAuthSecret } from "@/lib/server/env-file";
 import "./types";
 
-export const authOptions: NextAuthOptions = {
+export const authConfig: NextAuthConfig = {
+  secret: getOrCreateAuthSecret(),
+  trustHost: true,
   providers: [
     Credentials({
       name: "credentials",
@@ -17,42 +21,50 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Call the API route for authentication
-          const baseUrl =
-            process.env.AUTH_URL ||
-            process.env.NEXTAUTH_URL ||
-            (typeof window !== "undefined"
-              ? window.location.origin
-              : "http://localhost:3000");
-          const response = await fetch(`${baseUrl}/api/auth/authorize`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              username: credentials.username,
-              password: credentials.password,
-            }),
-          });
+          const username = credentials.username as string;
+          const password = credentials.password as string;
 
-          if (!response.ok) {
-            console.error(
-              "Auth response not OK:",
-              response.status,
-              response.statusText,
-            );
+          const db = databaseManager.getService();
+          if (!db.query) {
+            console.error("Database service does not support direct SQL queries");
             return null;
           }
 
-          const user = await response.json();
+          const result = await db.query<{
+            id: string;
+            name: string;
+            username: string;
+            role: string;
+            password_hash: string;
+            avatarUrl: string | null;
+          }>(
+            `
+            SELECT id, name, username, role, password_hash, avatarUrl
+            FROM users
+            WHERE username = @username
+          `,
+            { username },
+          );
 
-          if (!user || !user.id) {
-            console.error("Invalid user response:", user);
+          if (result.recordset.length === 0) {
+            return null;
+          }
+
+          const user = result.recordset[0];
+          const passwordHash = String(user.password_hash || "");
+
+          if (!passwordHash) {
+            return null;
+          }
+
+          const isValidPassword = await bcrypt.compare(password, passwordHash);
+
+          if (!isValidPassword) {
             return null;
           }
 
           return {
-            id: user.id,
+            id: user.id.toString(),
             name: user.name,
             username: user.username,
             role: user.role,
@@ -66,22 +78,6 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
-  // basePath: "/api/auth",
-  // trustHost: true,
-  cookies: {
-    sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
@@ -94,13 +90,12 @@ export const authOptions: NextAuthOptions = {
     async jwt({
       token,
       user,
-      trigger,
     }: {
       token: any;
       user: any;
-      trigger?: string;
     }) {
       if (user) {
+        token.id = user.id;
         token.username = user.username;
         token.role = user.role;
         token.image = user.image || user.avatarUrl || null;
@@ -111,7 +106,7 @@ export const authOptions: NextAuthOptions = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async session({ session, token }: { session: any; token: any }) {
       if (token && session.user) {
-        session.user.id = token.sub!;
+        session.user.id = token.id || token.sub;
         session.user.username = token.username;
         session.user.role = token.role;
         session.user.image = token.image;
@@ -130,6 +125,5 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-export function auth() {
-  return getServerSession(authOptions);
-}
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+export const authOptions = authConfig;

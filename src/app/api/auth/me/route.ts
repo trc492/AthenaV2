@@ -10,19 +10,23 @@ export async function GET() {
     }
 
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service does not support direct SQL queries" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
-
-    const result = await pool.request().input("userId", session.user.id).query(`
+    const result = await db.query<{
+      id: string;
+      name: string;
+      username: string;
+      role: string;
+      avatarUrl: string | null;
+    }>(`
         SELECT id, name, username, role, avatarUrl
         FROM users
         WHERE id = @userId
-      `);
+      `, { userId: session.user.id });
 
     if (result.recordset.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -75,22 +79,17 @@ export async function PUT(request: NextRequest) {
     }
 
     const db = databaseManager.getService();
-    if (!db.getPool) {
+    if (!db.query) {
       return NextResponse.json(
         { error: "Database service does not support direct SQL queries" },
         { status: 500 },
       );
     }
-    const pool = await db.getPool();
-
     // Check if username is already taken by another user
-    const existingUser = await pool
-      .request()
-      .input("username", username)
-      .input("userId", session.user.id).query(`
+    const existingUser = await db.query<{ id: string }>(`
         SELECT id FROM users
         WHERE username = @username AND id != @userId
-      `);
+      `, { username, userId: session.user.id });
 
     if (existingUser.recordset.length > 0) {
       return NextResponse.json(
@@ -100,15 +99,14 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update the user
-    await pool
-      .request()
-      .input("name", name.trim())
-      .input("username", username.trim())
-      .input("userId", session.user.id).query(`
+    await db.query(
+      `
         UPDATE users
         SET name = @name, username = @username, updated_at = GETDATE()
         WHERE id = @userId
-      `);
+      `,
+      { name: name.trim(), username: username.trim(), userId: session.user.id },
+    );
 
     return NextResponse.json({
       success: true,

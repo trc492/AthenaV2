@@ -7,7 +7,11 @@ import type {
 } from "../picklist/picklist";
 
 export interface DatabaseService {
-  getPool?(): Promise<import("mssql").ConnectionPool>;
+  getPool?(): Promise<any>;
+  query?<T = any>(
+    sql: string,
+    params?: Record<string, unknown>,
+  ): Promise<{ recordset: T[] }>;
 
   addPitEntry(entry: Omit<PitEntry, "id">): Promise<number>;
   getPitEntry(
@@ -126,7 +130,11 @@ export interface DatabaseService {
   syncFromCloud?(): Promise<void>;
 }
 
-export type DatabaseProvider = "azuresql" | "firebase" | "local" | "cosmos";
+export type DatabaseProvider =
+  | "azuresql"
+  | "firebase"
+  | "cosmos"
+  | "mariadb";
 
 export interface AzureSqlConfig {
   server?: string;
@@ -149,17 +157,18 @@ export interface CosmosConfig {
   databaseId?: string;
   containerId?: string;
 }
-
+export interface MariaDbConfig {
+  connectionString?: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
+}
 export interface DatabaseConfig {
   provider: DatabaseProvider;
-  local?: {
-    connectionString?: string;
-    server?: string;
-    database?: string;
-    user?: string;
-    password?: string;
-  };
   azuresql?: AzureSqlConfig;
   firebase?: FirebaseConfig;
   cosmos?: CosmosConfig;
+  mariadb?: MariaDbConfig;
 }

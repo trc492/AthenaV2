@@ -274,7 +274,7 @@ export default function SPRPage() {
               <CardDescription>
                 Ranked by error contribution — lower error value means more
                 accurate scouting. SPR uses a least-squares method similar to
-                OPR to isolate each scouter&apos;s accuracy.
+                OPR to isolate each scouter's accuracy.
               </CardDescription>
             </CardHeader>
             <CardContent className="">
@@ -560,7 +560,7 @@ export default function SPRPage() {
                 observed alliance error.
               </p>
               <p>
-                2. Solve for each scouter&apos;s error contribution using
+                2. Solve for each scouter's error contribution using
                 ridge-regularized normal equations.
               </p>
               <p>

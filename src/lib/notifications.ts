@@ -44,16 +44,15 @@ export async function loadAllSubscriptions(): Promise<
   Map<string, StoredSubscription>
 > {
   const db = databaseManager.getService();
-  if (!db.getPool) {
+  if (!db.query) {
     throw new Error("Database service does not support direct SQL queries");
   }
-  const pool = await db.getPool();
-
-  const result = await pool
-    .request()
-    .query(
-      "SELECT id, push_subscriptions FROM users WHERE push_subscriptions IS NOT NULL",
-    );
+  const result = await db.query<{
+    id: string;
+    push_subscriptions: string | null;
+  }>(
+    "SELECT id, push_subscriptions FROM users WHERE push_subscriptions IS NOT NULL",
+  );
 
   const subscriptions = new Map<string, StoredSubscription>();
 
@@ -82,14 +81,13 @@ export async function loadSubscriptionsForUser(
   userId: string,
 ): Promise<StoredSubscription[]> {
   const db = databaseManager.getService();
-  const pool = await db.getPool?.();
-  if (!pool) return [];
+  if (!db.query) return [];
 
-  const mssql = await import("mssql");
-  const result = await pool
-    .request()
-    .input("userId", mssql.NVarChar, userId)
-    .query("SELECT push_subscriptions FROM users WHERE id = @userId");
+  const result = await db.query<{
+    push_subscriptions: string | null;
+  }>("SELECT push_subscriptions FROM users WHERE id = @userId", {
+    userId,
+  });
 
   const raw = result.recordset?.[0]?.push_subscriptions;
   if (!raw) return [];

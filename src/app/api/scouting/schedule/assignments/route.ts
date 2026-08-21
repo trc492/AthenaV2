@@ -22,14 +22,12 @@ async function sendAssignmentNotification(params: {
 
     if (targetUserId) {
       const service = databaseManager.getService();
-      const pool = await service.getPool?.();
-      if (!pool) return;
+      if (!service.query) return;
 
-      const mssql = await import("mssql");
-      const result = await pool
-        .request()
-        .input("userId", mssql.NVarChar, targetUserId)
-        .query("SELECT push_subscriptions FROM users WHERE id = @userId");
+      const result = await service.query<{ push_subscriptions: string | null }>(
+        "SELECT push_subscriptions FROM users WHERE id = @userId",
+        { userId: targetUserId },
+      );
 
       const raw = result.recordset?.[0]?.push_subscriptions;
       if (raw) {
@@ -156,32 +154,32 @@ export async function POST(request: NextRequest) {
     }
 
     const service = databaseManager.getService();
-    const pool = await service.getPool?.();
-    if (!pool) {
+    if (!service.query) {
       return NextResponse.json(
         { error: "Schedule assignments require a SQL-backed provider" },
         { status: 400 },
       );
     }
 
-    const mssql = await import("mssql");
-
     // Always delete first (overwrite semantics)
-    await pool
-      .request()
-      .input("eventCode", mssql.NVarChar, eventCode)
-      .input("year", mssql.Int, yearNum)
-      .input("startMatch", mssql.Int, start)
-      .input("endMatch", mssql.Int, end)
-      .input("alliance", mssql.NVarChar, alliance)
-      .input("position", mssql.Int, positionNum).query(`
+    await service.query(
+      `
         DELETE FROM matchAssignments
         WHERE eventCode = @eventCode
           AND year = @year
           AND matchNumber BETWEEN @startMatch AND @endMatch
           AND alliance = @alliance
           AND position = @position
-      `);
+      `,
+      {
+        eventCode,
+        year: yearNum,
+        startMatch: start,
+        endMatch: end,
+        alliance,
+        position: positionNum,
+      },
+    );
 
     if (userId !== null && userId !== undefined && userId !== "") {
       const values: string[] = [];
@@ -191,16 +189,19 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      await pool
-        .request()
-        .input("eventCode", mssql.NVarChar, eventCode)
-        .input("year", mssql.Int, yearNum)
-        .input("alliance", mssql.NVarChar, alliance)
-        .input("position", mssql.Int, positionNum)
-        .input("userId", mssql.NVarChar, userId).query(`
+      await service.query(
+        `
           INSERT INTO matchAssignments (eventCode, year, matchNumber, alliance, position, userId)
           VALUES ${values.join(", ")}
-        `);
+        `,
+        {
+          eventCode,
+          year: yearNum,
+          alliance,
+          position: positionNum,
+          userId,
+        },
+      );
 
       // Notifications are triggered based on match timing (e.g., 2 matches before),
       // not when the assignment is created.
@@ -250,17 +251,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     const service = databaseManager.getService();
-    const pool = await service.getPool?.();
 
-    if (pool) {
-      const mssql = await import("mssql");
-      await pool
-        .request()
-        .input("eventCode", mssql.NVarChar, eventCode)
-        .input("year", mssql.Int, year)
-        .query(
-          "DELETE FROM matchAssignments WHERE eventCode = @eventCode AND year = @year",
-        );
+    if (service.query) {
+      await service.query(
+        "DELETE FROM matchAssignments WHERE eventCode = @eventCode AND year = @year",
+        { eventCode, year },
+      );
     }
 
     return NextResponse.json({ success: true });

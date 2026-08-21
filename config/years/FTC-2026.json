@@ -123,5 +123,139 @@
         "options": ["Full base", "Partial base", "No base capability"]
       }
     }
+  },
+  "matchupCardConfig": {
+    "autoIcon": "Package",
+    "autoMetrics": [
+      { "key": "autonomous.artifacts_classified", "label": "Classified" },
+      { "key": "autonomous.artifacts_overflow", "label": "Overflow" },
+      { "key": "autonomous.patterns", "label": "Patterns", "type": "badge", "threshold": 0 },
+      { "key": "autonomous.leave", "label": "Leave Rate", "type": "badge", "threshold": 80, "unit": "%" }
+    ],
+    "teleopIcon": "Puzzle",
+    "teleopMetrics": [
+      { "key": "teleop.artifacts_classified", "label": "Classified" },
+      { "key": "teleop.artifacts_overflow", "label": "Overflow" },
+      { "key": "teleop.artifacts_depot", "label": "Depot" },
+      { "key": "teleop.patterns", "label": "Patterns", "type": "badge", "threshold": 0 }
+    ],
+    "endgame": {
+      "stateKey": "endgame.ending_based_state",
+      "states": [
+        { "key": "full", "label": "Full", "threshold": 50 },
+        { "key": "partial", "label": "Partial" },
+        { "key": "none", "label": "None" }
+      ]
+    },
+    "warnings": {
+      "majorPenaltyThreshold": 0.3,
+      "minorPenaltyThreshold": 1.0
+    },
+    "pitHighlights": [
+      { "section": "endgame", "field": "baseCapability", "label": "Base" },
+      { "section": "teleoperated", "field": "artifactIntake", "label": "Intake" },
+      { "section": "teleoperated", "field": "shootingReliability", "label": "Shooting" },
+      { "section": "teleoperated", "field": "cycleTime", "label": "Cycle", "unit": "s" }
+    ]
+  },
+  "teamPageConfig": {
+    "kpis": {
+      "auto": {
+        "key": "calculated.auto_artifacts",
+        "label": "Auto Artifacts",
+        "subKey": "autonomous.leave",
+        "subLabel": "Leave rate",
+        "subFormat": "percent",
+        "icon": "Activity"
+      },
+      "teleop": {
+        "key": "calculated.teleop_artifacts",
+        "label": "Teleop Artifacts",
+        "icon": "BarChart"
+      }
+    },
+    "autoPerformance": {
+      "metrics": [
+        { "key": "autonomous.artifacts_classified", "label": "Artifacts Classified" },
+        { "key": "autonomous.artifacts_overflow", "label": "Artifacts Overflow" },
+        { "key": "autonomous.patterns", "label": "Patterns Completed" }
+      ],
+      "showPointsEstimate": true,
+      "pointsFormula": [
+        { "key": "autonomous.artifacts_classified", "points": 3 },
+        { "key": "autonomous.artifacts_overflow", "points": 1 },
+        { "key": "autonomous.patterns", "points": 6 }
+      ]
+    },
+    "teleopPerformance": {
+      "metrics": [
+        { "key": "teleop.artifacts_classified", "label": "Artifacts Classified" },
+        { "key": "teleop.artifacts_overflow", "label": "Artifacts Overflow" },
+        { "key": "teleop.artifacts_depot", "label": "Artifacts in Depot" },
+        { "key": "teleop.patterns", "label": "Patterns Completed" }
+      ],
+      "showPointsEstimate": true,
+      "pointsFormula": [
+        { "key": "teleop.artifacts_classified", "points": 3 },
+        { "key": "teleop.artifacts_overflow", "points": 1 },
+        { "key": "teleop.artifacts_depot", "points": 1 },
+        { "key": "teleop.patterns", "points": 6 }
+      ]
+    },
+    "scoringBreakdownChart": {
+      "title": "Artifact Scoring Breakdown",
+      "description": "Average artifacts by scoring method",
+      "items": [
+        { "name": "Auto Classified", "key": "autonomous.artifacts_classified", "fill": "#8b5cf6" },
+        { "name": "Auto Overflow", "key": "autonomous.artifacts_overflow", "fill": "#a78bfa" },
+        { "name": "Teleop Classified", "key": "teleop.artifacts_classified", "fill": "#3b82f6" },
+        { "name": "Teleop Overflow", "key": "teleop.artifacts_overflow", "fill": "#60a5fa" },
+        { "name": "Teleop Depot", "key": "teleop.artifacts_depot", "fill": "#93c5fd" }
+      ]
+    },
+    "endgame": {
+      "title": "Endgame Base Distribution",
+      "description": "Percentage of matches at each base state",
+      "displayType": "cards",
+      "stateKey": "endgame.ending_based_state",
+      "states": [
+        { "value": "none", "label": "None", "points": 0 },
+        { "value": "partial", "label": "Partial Base", "points": 5 },
+        { "value": "full", "label": "Full Base", "points": 10, "highlightThreshold": 50 }
+      ]
+    },
+    "penalties": {
+      "title": "Penalties",
+      "description": "Penalty averages per match",
+      "minorKey": "fouls.minor_penalties",
+      "minorLabel": "Avg Minor Penalties",
+      "minorPoints": -5,
+      "majorKey": "fouls.major_penalties",
+      "majorLabel": "Avg Major Penalties",
+      "majorPoints": -15,
+      "techFoulAlertThreshold": 0.3
+    },
+    "customSections": [
+      {
+        "id": "patterns",
+        "title": "Pattern Completion Performance",
+        "description": "Patterns completed during matches",
+        "type": "summaryCards",
+        "items": [
+          {
+            "key": "autonomous.patterns",
+            "label": "Autonomous Patterns",
+            "pointsMultiplier": 6,
+            "pointsLabel": "Points Contribution"
+          },
+          {
+            "key": "teleop.patterns",
+            "label": "Teleop Patterns",
+            "pointsMultiplier": 6,
+            "pointsLabel": "Points Contribution"
+          }
+        ]
+      }
+    ]
   }
 }

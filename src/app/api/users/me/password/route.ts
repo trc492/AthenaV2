@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import bcrypt from "bcryptjs";
-import sql from "mssql";
 import { databaseManager } from "@/db/database-manager";
 
 // PUT /api/users/me/password - Change own password
@@ -30,19 +29,18 @@ export async function PUT(request: NextRequest) {
     }
 
     const service = databaseManager.getService();
-    if (!service.getPool) {
+    if (!service.query) {
       return NextResponse.json(
         { error: "Database operation not supported" },
         { status: 500 },
       );
     }
-    const pool = await service.getPool();
 
     // Get current password hash
-    const result = await pool
-      .request()
-      .input("id", sql.NVarChar, session.user.id)
-      .query("SELECT password_hash FROM users WHERE id = @id");
+    const result = await service.query<{ password_hash: string }>(
+      "SELECT password_hash FROM users WHERE id = @id",
+      { id: session.user.id },
+    );
 
     if (result.recordset.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -63,13 +61,10 @@ export async function PUT(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update password
-    await pool
-      .request()
-      .input("id", sql.NVarChar, session.user.id)
-      .input("password_hash", sql.NVarChar, hashedPassword)
-      .query(
-        "UPDATE users SET password_hash = @password_hash, updated_at = GETDATE() WHERE id = @id",
-      );
+    await service.query(
+      "UPDATE users SET password_hash = @password_hash, updated_at = GETDATE() WHERE id = @id",
+      { id: session.user.id, password_hash: hashedPassword },
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -203,8 +203,8 @@ export function NotificationSettings() {
                   <AlertDescription>
                     <div>
                       <p>
-                        You&apos;re subscribed to push notifications.
-                        You&apos;ll receive notifications about:
+                        You're subscribed to push notifications.
+                        You'll receive notifications about:
                       </p>
                       <ul className="list-disc list-inside mt-2 text-sm space-y-1">
                         <li>Scouting Schedule Reminders</li>

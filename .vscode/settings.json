@@ -1,5 +1,25 @@
 {
   "appService.defaultWebAppToDeploy": "undefined/subscriptions/b1a468a4-dd80-4bc2-9aa3-d68381646047/resourceGroups/appsvc_linux_westus_basic/providers/Microsoft.Web/sites/TRCAthenaV2",
   "appService.deploySubpath": ".",
-  "appService.zipIgnorePattern": ["node_modules{,/**}", ".vscode{,/**}"]
+  "appService.zipIgnorePattern": [
+    "node_modules{,/**}",
+    ".vscode{,/**}"
+  ],
+  "sqltools.connections": [
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 3306,
+      "driver": "MariaDB",
+      "name": "Athena",
+      "database": "frcathenadb",
+      "username": "root",
+      "password": "492"
+    }
+  ],
 }

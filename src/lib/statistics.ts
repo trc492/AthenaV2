@@ -1,4 +1,4 @@
-import type { MatchEntry, TeamStats, EPABreakdown, YearConfig, ScoringDefinition } from "../lib/types";
+import type { MatchEntry, TeamStats, EPABreakdown, YearConfig, ScoringDefinition, TeamData, PitEntry } from "../lib/types";
 
 /**
  * Calculate Expected Points Added (EPA) for a team based on their match performance
@@ -754,3 +754,303 @@ function solveLinearSystem(A: number[][], b: number[]): number[] | null {
 
   return solution;
 }
+
+/**
+ * Detailed game statistics structure computed dynamically from year configs and match data
+ */
+export interface DetailedGameStats {
+  matchCount: number;
+  epa: number;
+  averages: Record<string, number>;
+  rates: Record<string, number>;
+  ratios: Record<string, number>;
+  points: {
+    autoEstimatedPoints: number;
+    teleopEstimatedPoints: number;
+    penaltyPoints: number;
+  };
+  bestEndgame: string;
+  bestClimb: string;
+  getMetricValue: (key: string) => number;
+}
+
+/**
+ * Calculate detailed game statistics for a team based on year configuration
+ */
+export function calculateDetailedGameStats(
+  matches: MatchEntry[] | undefined,
+  config: YearConfig,
+  teamData?: TeamData | null,
+): DetailedGameStats | null {
+  if (!matches || matches.length === 0) return null;
+
+  const count = matches.length;
+  const numTotals: Record<string, number> = {};
+  const boolCounts: Record<string, number> = {};
+  const enumCounts: Record<string, Record<string, number>> = {};
+
+  for (const match of matches) {
+    const periods = ["autonomous", "teleop", "endgame", "fouls"] as const;
+
+    for (const period of periods) {
+      const data =
+        (match.gameSpecificData?.[period] as Record<
+          string,
+          number | string | boolean
+        >) || {};
+
+      for (const [rawKey, val] of Object.entries(data)) {
+        const fullKey = `${period}.${rawKey}`;
+        const shortKey = rawKey;
+
+        if (typeof val === "number" || (!isNaN(Number(val)) && typeof val === "string" && val.trim() !== "")) {
+          const num = Number(val);
+          numTotals[fullKey] = (numTotals[fullKey] || 0) + num;
+          numTotals[shortKey] = (numTotals[shortKey] || 0) + num;
+        } else if (typeof val === "boolean") {
+          if (val) {
+            boolCounts[fullKey] = (boolCounts[fullKey] || 0) + 1;
+            boolCounts[shortKey] = (boolCounts[shortKey] || 0) + 1;
+          }
+        } else if (typeof val === "string" && val !== "") {
+          if (!enumCounts[fullKey]) enumCounts[fullKey] = {};
+          if (!enumCounts[shortKey]) enumCounts[shortKey] = {};
+          enumCounts[fullKey][val] = (enumCounts[fullKey][val] || 0) + 1;
+          enumCounts[shortKey][val] = (enumCounts[shortKey][val] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const averages: Record<string, number> = {};
+  for (const [k, v] of Object.entries(numTotals)) {
+    averages[k] = parseFloat((v / count).toFixed(1));
+  }
+
+  const rates: Record<string, number> = {};
+  for (const [k, v] of Object.entries(boolCounts)) {
+    rates[k] = parseFloat(((v / count) * 100).toFixed(1));
+  }
+
+  for (const [fieldKey, states] of Object.entries(enumCounts)) {
+    for (const [stateVal, stateCount] of Object.entries(states)) {
+      const rateKey = `${fieldKey}.${stateVal}`;
+      rates[rateKey] = parseFloat(((stateCount / count) * 100).toFixed(1));
+    }
+  }
+
+  // Precompute specific composite metrics
+  const ratios: Record<string, number> = {};
+
+  // Fuel accuracy
+  const totalTeleopFuelAttempts =
+    (numTotals["teleop.fuel_scored"] || 0) +
+    (numTotals["teleop.fuel_missed"] || 0);
+  if (totalTeleopFuelAttempts > 0) {
+    ratios["teleop.fuel_accuracy"] = parseFloat(
+      (
+        ((numTotals["teleop.fuel_scored"] || 0) / totalTeleopFuelAttempts) *
+        100
+      ).toFixed(1),
+    );
+  } else {
+    ratios["teleop.fuel_accuracy"] = 0;
+  }
+
+  // Coral / Algae aggregates
+  averages["calculated.auto_coral"] = parseFloat(
+    (
+      ((numTotals["autonomous.L1_coral"] || 0) +
+        (numTotals["autonomous.L2_coral"] || 0) +
+        (numTotals["autonomous.L3_coral"] || 0) +
+        (numTotals["autonomous.L4_coral"] || 0)) /
+      count
+    ).toFixed(1),
+  );
+
+  averages["calculated.auto_algae"] = parseFloat(
+    (
+      ((numTotals["autonomous.processor_algae"] || 0) +
+        (numTotals["autonomous.net_algae"] || 0)) /
+      count
+    ).toFixed(1),
+  );
+
+  averages["calculated.teleop_coral"] = parseFloat(
+    (
+      ((numTotals["teleop.L1_coral"] || 0) +
+        (numTotals["teleop.L2_coral"] || 0) +
+        (numTotals["teleop.L3_coral"] || 0) +
+        (numTotals["teleop.L4_coral"] || 0)) /
+      count
+    ).toFixed(1),
+  );
+
+  averages["calculated.teleop_algae"] = parseFloat(
+    (
+      ((numTotals["teleop.processor_algae"] || 0) +
+        (numTotals["teleop.net_algae"] || 0)) /
+      count
+    ).toFixed(1),
+  );
+
+  // Artifact aggregates
+  averages["calculated.auto_artifacts"] = parseFloat(
+    (
+      ((numTotals["autonomous.artifacts_classified"] || 0) +
+        (numTotals["autonomous.artifacts_overflow"] || 0)) /
+      count
+    ).toFixed(1),
+  );
+
+  averages["calculated.teleop_artifacts"] = parseFloat(
+    (
+      ((numTotals["teleop.artifacts_classified"] || 0) +
+        (numTotals["teleop.artifacts_overflow"] || 0) +
+        (numTotals["teleop.artifacts_depot"] || 0)) /
+      count
+    ).toFixed(1),
+  );
+
+  // Determine best endgame state
+  const allEndgameStates = matches.map((m) => {
+    const eg = (m.gameSpecificData?.endgame as Record<string, string>) || {};
+    return (
+      eg.cage_climb ||
+      eg.ending_robot_state ||
+      eg.ending_based_state ||
+      eg.climb_state ||
+      "none"
+    );
+  });
+  const stateFrequency: Record<string, number> = {};
+  allEndgameStates.forEach((s) => {
+    stateFrequency[s] = (stateFrequency[s] || 0) + 1;
+  });
+  const bestEndgame =
+    Object.entries(stateFrequency).sort((a, b) => b[1] - a[1])[0]?.[0] || "none";
+
+  // Best climb
+  const l3Rate = rates["endgame.ending_robot_state.L3"] || rates["ending_robot_state.L3"] || 0;
+  const l2Rate = rates["endgame.ending_robot_state.L2"] || rates["ending_robot_state.L2"] || 0;
+  const l1Rate = rates["endgame.ending_robot_state.L1"] || rates["ending_robot_state.L1"] || 0;
+  const bestClimb = l3Rate > 0 ? "L3" : l2Rate > 0 ? "L2" : l1Rate > 0 ? "L1" : "None";
+
+  // Calculate estimated points
+  const autoEstimatedPoints = (() => {
+    if (config.teamPageConfig?.autoPerformance?.pointsFormula) {
+      return config.teamPageConfig.autoPerformance.pointsFormula.reduce(
+        (sum, item) => {
+          const val =
+            averages[item.key] ??
+            (rates[item.key] != null ? rates[item.key] / 100 : 0);
+          return sum + val * item.points;
+        },
+        0,
+      );
+    }
+    return 0;
+  })();
+
+  const teleopEstimatedPoints = (() => {
+    if (config.teamPageConfig?.teleopPerformance?.pointsFormula) {
+      return config.teamPageConfig.teleopPerformance.pointsFormula.reduce(
+        (sum, item) => {
+          const val =
+            averages[item.key] ??
+            (rates[item.key] != null ? rates[item.key] / 100 : 0);
+          return sum + val * item.points;
+        },
+        0,
+      );
+    }
+    return 0;
+  })();
+
+  const penaltyPoints = (() => {
+    if (config.teamPageConfig?.penalties) {
+      const pen = config.teamPageConfig.penalties;
+      const minorAvg = averages[pen.minorKey] || 0;
+      const majorAvg = averages[pen.majorKey] || 0;
+      return minorAvg * pen.minorPoints + majorAvg * pen.majorPoints;
+    }
+    return 0;
+  })();
+
+  const epa = teamData?.epa?.totalEPA || 0;
+
+  const getMetricValue = (key: string): number => {
+    if (key === "epa") return epa;
+    if (key.startsWith("rates.")) {
+      const sub = key.replace("rates.", "");
+      return rates[sub] || 0;
+    }
+    if (ratios[key] !== undefined) return ratios[key];
+    if (rates[key] !== undefined) return rates[key];
+    if (averages[key] !== undefined) return averages[key];
+
+    // Fallback: check stripped key
+    const parts = key.split(".");
+    const shortKey = parts[parts.length - 1];
+    if (ratios[shortKey] !== undefined) return ratios[shortKey];
+    if (rates[shortKey] !== undefined) return rates[shortKey];
+    if (averages[shortKey] !== undefined) return averages[shortKey];
+
+    return 0;
+  };
+
+  return {
+    matchCount: count,
+    epa,
+    averages,
+    rates,
+    ratios,
+    points: {
+      autoEstimatedPoints: parseFloat(autoEstimatedPoints.toFixed(1)),
+      teleopEstimatedPoints: parseFloat(teleopEstimatedPoints.toFixed(1)),
+      penaltyPoints: parseFloat(penaltyPoints.toFixed(1)),
+    },
+    bestEndgame,
+    bestClimb,
+    getMetricValue,
+  };
+}
+
+/**
+ * Extract and deduplicate all scouting notes from team data
+ */
+export function extractScoutingNotes(teamData: TeamData | null | undefined): string[] {
+  if (!teamData) return [];
+  const notes: string[] = [];
+
+  // Match entry notes
+  if (teamData.matchEntries) {
+    teamData.matchEntries.forEach((match) => {
+      if (match.notes && match.notes.trim()) {
+        notes.push(match.notes.trim());
+      }
+    });
+  }
+
+  // Pit entry notes
+  if (teamData.pitEntry) {
+    if (teamData.pitEntry.notes && teamData.pitEntry.notes.trim()) {
+      notes.push(teamData.pitEntry.notes.trim());
+    }
+    const pitData = teamData.pitEntry.gameSpecificData;
+    if (pitData && typeof pitData === "object") {
+      Object.entries(pitData).forEach(([key, value]) => {
+        if (
+          key.toLowerCase().includes("note") &&
+          typeof value === "string" &&
+          value.trim()
+        ) {
+          notes.push(value.trim());
+        }
+      });
+    }
+  }
+
+  return [...new Set(notes)];
+}
+

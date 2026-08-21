@@ -84,7 +84,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
           );
           if (eventsResponse.ok) {
             const eventData = await eventsResponse.json();
-
             // Transform events to our Event format
             if (competitionType === "FRC") {
               apiEvents = eventData.map((tbaEvent: TbaEvent) => ({

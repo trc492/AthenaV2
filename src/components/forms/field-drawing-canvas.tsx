@@ -622,7 +622,7 @@ export function FieldDrawingCanvas({
             Autonomous Path Drawing
           </Label>
           <p className="text-sm text-muted-foreground">
-            Draw the robot&apos;s autonomous path and place draggable
+            Draw the robot's autonomous path and place draggable
             shooting/climb markers.
           </p>
         </>

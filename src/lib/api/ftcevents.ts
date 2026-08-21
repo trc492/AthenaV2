@@ -1,4 +1,5 @@
 import { fetchJSON } from "../fetcher";
+import { loadApiKeys } from "@/lib/server/api-keys";
 import {
   FtcApiStatus,
   FtcEvent,
@@ -23,13 +24,11 @@ import {
 export type Team = { id: string; name: string };
 
 const BASE = "https://ftc-api.firstinspires.org/v2.0/";
-const KEY = process.env.FTC_API_KEY!;
-
 async function getFromFtc<T>(path: string): Promise<T> {
   const url = `${BASE}${path}`;
   return fetchJSON<T>(url, {
     headers: {
-      Authorization: `Basic ${KEY}`,
+      Authorization: `Basic ${loadApiKeys().ftcApiKey}`,
       "Content-Type": "application/json",
     },
   });

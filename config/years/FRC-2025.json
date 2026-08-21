@@ -188,5 +188,115 @@
         "dependsOn": "hasClimb"
       }
     }
+  },
+  "matchupCardConfig": {
+    "autoIcon": "Shell",
+    "autoMetrics": [
+      { "key": "calculated.auto_coral", "label": "Coral" },
+      { "key": "calculated.auto_algae", "label": "Algae" },
+      { "key": "autonomous.L4_coral", "label": "L4" },
+      { "key": "autonomous.L3_coral", "label": "L3" },
+      { "key": "autonomous.leave", "label": "Leave Rate", "type": "badge", "threshold": 80, "unit": "%" }
+    ],
+    "teleopIcon": "Waves",
+    "teleopMetrics": [
+      { "key": "calculated.teleop_coral", "label": "Coral" },
+      { "key": "calculated.teleop_algae", "label": "Algae" },
+      { "key": "teleop.L4_coral", "label": "L4" },
+      { "key": "teleop.L3_coral", "label": "L3" },
+      { "key": "teleop.net_algae", "label": "Net" },
+      { "key": "teleop.processor_algae", "label": "Processor" }
+    ],
+    "endgame": {
+      "stateKey": "endgame.ending_robot_state",
+      "states": [
+        { "key": "deep", "label": "Deep", "threshold": 50 },
+        { "key": "shallow", "label": "Shallow" },
+        { "key": "park", "label": "Park" },
+        { "key": "none", "label": "None" }
+      ]
+    },
+    "warnings": {
+      "foulThreshold": 1.0,
+      "techFoulThreshold": 0.5
+    },
+    "pitHighlights": [
+      { "section": "endgame", "field": "climbCapability", "label": "Climb" },
+      { "section": "teleoperated", "field": "intakeType", "label": "Intake" },
+      { "section": "teleoperated", "field": "cycleTime", "label": "Cycle", "unit": "s" },
+      { "section": "teleoperated", "field": "reliability", "label": "Reliability" }
+    ]
+  },
+  "teamPageConfig": {
+    "kpis": {
+      "auto": {
+        "key": "calculated.auto_coral",
+        "label": "Auto Coral",
+        "subKey": "autonomous.leave",
+        "subLabel": "Leave rate",
+        "subFormat": "percent",
+        "icon": "Activity"
+      },
+      "teleop": {
+        "key": "calculated.teleop_coral",
+        "label": "Teleop Coral",
+        "icon": "BarChart"
+      }
+    },
+    "autoPerformance": {
+      "metrics": [
+        { "key": "autonomous.L2_coral", "label": "L2" },
+        { "key": "autonomous.L3_coral", "label": "L3" },
+        { "key": "autonomous.L4_coral", "label": "L4" },
+        { "key": "autonomous.net_algae", "label": "Net" },
+        { "key": "autonomous.processor_algae", "label": "Processor" },
+        { "key": "autonomous.L1_coral", "label": "Trough" }
+      ]
+    },
+    "teleopPerformance": {
+      "metrics": [
+        { "key": "teleop.L2_coral", "label": "L2" },
+        { "key": "teleop.L3_coral", "label": "L3" },
+        { "key": "teleop.L4_coral", "label": "L4" },
+        { "key": "teleop.net_algae", "label": "Net" },
+        { "key": "teleop.processor_algae", "label": "Processor" },
+        { "key": "teleop.L1_coral", "label": "Trough" }
+      ]
+    },
+    "scoringBreakdownChart": {
+      "title": "Teleop Scoring Breakdown",
+      "description": "Average points by scoring location",
+      "items": [
+        { "name": "Trough", "key": "teleop.L1_coral", "fill": "var(--chart-1)" },
+        { "name": "L2", "key": "teleop.L2_coral", "fill": "var(--chart-1)" },
+        { "name": "L3", "key": "teleop.L3_coral", "fill": "var(--chart-1)" },
+        { "name": "L4", "key": "teleop.L4_coral", "fill": "var(--chart-1)" },
+        { "name": "Net", "key": "teleop.net_algae", "fill": "var(--chart-1)" },
+        { "name": "Processor", "key": "teleop.processor_algae", "fill": "var(--chart-1)" }
+      ]
+    },
+    "endgame": {
+      "title": "Endgame Climb Distribution",
+      "description": "Percentage of matches at each endgame state",
+      "displayType": "cards",
+      "stateKey": "endgame.ending_robot_state",
+      "states": [
+        { "value": "none", "label": "None", "points": 0 },
+        { "value": "park", "label": "Park", "points": 3 },
+        { "value": "shallow", "label": "Shallow Cage", "points": 6 },
+        { "value": "deep", "label": "Deep Cage", "points": 12, "highlightThreshold": 50 }
+      ]
+    },
+    "penalties": {
+      "title": "Reliability & Penalties",
+      "description": "Penalty averages per match",
+      "minorKey": "fouls.fouls",
+      "minorLabel": "Avg Fouls per Match",
+      "minorPoints": -2,
+      "majorKey": "fouls.tech_fouls",
+      "majorLabel": "Avg Tech Fouls per Match",
+      "majorPoints": -5,
+      "techFoulAlertThreshold": 0.5
+    }
   }
 }

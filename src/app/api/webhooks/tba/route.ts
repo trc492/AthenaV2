@@ -97,21 +97,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const service = databaseManager.getService();
-    const pool = await service.getPool?.();
-    if (!pool) {
+    if (!service.query) {
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
-    const mssql = await import("mssql");
-    const result = await pool
-      .request()
-      .input("eventCode", mssql.NVarChar, data.event_key)
-      .input("matchNumber", mssql.Int, notifyMatch).query(`
+    const result = await service.query<{
+      userId: string;
+    }>(`
         SELECT DISTINCT userId
         FROM matchAssignments
         WHERE eventCode = @eventCode
           AND matchNumber = @matchNumber
-      `);
+      `, { eventCode: data.event_key, matchNumber: notifyMatch });
 
     const userIds: string[] =
       result.recordset?.map((r: any) => r.userId).filter(Boolean) ?? [];
