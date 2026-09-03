@@ -20,8 +20,8 @@ const EMPTY_KEYS: ApiKeys = {
 
 /**
  * Load API keys with this priority:
- *  1. Environment variables (set by user or CI)
- *  2. .runtime/api-keys.json (persisted via the settings UI)
+ *  1. .runtime/api-keys.json (persisted via the settings UI / json config)
+ *  2. Environment variables (set by user, docker, or CI)
  *  3. Empty strings (keys simply not configured yet)
  */
 export function loadApiKeys(): ApiKeys {
@@ -35,10 +35,20 @@ export function loadApiKeys(): ApiKeys {
     }
   }
 
+  const resolveKey = (persistedVal: string | undefined, envVal: string | undefined): string => {
+    if (persistedVal !== undefined && persistedVal.trim() !== "") {
+      return persistedVal.trim();
+    }
+    if (envVal !== undefined && envVal.trim() !== "") {
+      return envVal.trim();
+    }
+    return "";
+  };
+
   return {
-    tbaApiKey: process.env.TBA_API_KEY || persisted.tbaApiKey || "",
-    ftcApiKey: process.env.FTC_API_KEY || persisted.ftcApiKey || "",
-    nexusApiKey: process.env.NEXUS_API_KEY || persisted.nexusApiKey || "",
+    tbaApiKey: resolveKey(persisted.tbaApiKey, process.env.TBA_API_KEY),
+    ftcApiKey: resolveKey(persisted.ftcApiKey, process.env.FTC_API_KEY),
+    nexusApiKey: resolveKey(persisted.nexusApiKey, process.env.NEXUS_API_KEY),
   };
 }
 
@@ -60,18 +70,24 @@ export function getApiKeyStatus(): Record<
   }
 
   function status(
-    envVar: string | undefined,
     persistedVal: string | undefined,
+    envVar: string | undefined,
   ): { configured: boolean; source: "env" | "persisted" | "none" } {
-    if (envVar) return { configured: true, source: "env" };
-    if (persistedVal) return { configured: true, source: "persisted" };
+    // If explicitly configured in the persisted JSON config, mark as persisted (editable)
+    if (persistedVal !== undefined && persistedVal.trim() !== "") {
+      return { configured: true, source: "persisted" };
+    }
+    // If set via environment variable only, mark as env (locked)
+    if (envVar !== undefined && envVar.trim() !== "") {
+      return { configured: true, source: "env" };
+    }
     return { configured: false, source: "none" };
   }
 
   return {
-    tbaApiKey: status(process.env.TBA_API_KEY, persisted.tbaApiKey),
-    ftcApiKey: status(process.env.FTC_API_KEY, persisted.ftcApiKey),
-    nexusApiKey: status(process.env.NEXUS_API_KEY, persisted.nexusApiKey),
+    tbaApiKey: status(persisted.tbaApiKey, process.env.TBA_API_KEY),
+    ftcApiKey: status(persisted.ftcApiKey, process.env.FTC_API_KEY),
+    nexusApiKey: status(persisted.nexusApiKey, process.env.NEXUS_API_KEY),
   };
 }
 
@@ -96,14 +112,19 @@ export async function saveApiKeys(keys: Partial<ApiKeys>): Promise<void> {
   await mkdir(RUNTIME_DIR, { recursive: true });
   await writeFile(API_KEYS_PATH, JSON.stringify(merged, null, 2) + "\n", "utf8");
 
-  // Patch process.env so running API clients pick up the new values immediately
-  // without needing a server restart.
-  if (merged.tbaApiKey !== undefined)
-    process.env.TBA_API_KEY = merged.tbaApiKey;
-  if (merged.ftcApiKey !== undefined)
-    process.env.FTC_API_KEY = merged.ftcApiKey;
-  if (merged.nexusApiKey !== undefined)
-    process.env.NEXUS_API_KEY = merged.nexusApiKey;
+  // Mirror to process.env for convenience in Node scripts/libraries
+  if (merged.tbaApiKey !== undefined) {
+    if (merged.tbaApiKey) process.env.TBA_API_KEY = merged.tbaApiKey;
+    else delete process.env.TBA_API_KEY;
+  }
+  if (merged.ftcApiKey !== undefined) {
+    if (merged.ftcApiKey) process.env.FTC_API_KEY = merged.ftcApiKey;
+    else delete process.env.FTC_API_KEY;
+  }
+  if (merged.nexusApiKey !== undefined) {
+    if (merged.nexusApiKey) process.env.NEXUS_API_KEY = merged.nexusApiKey;
+    else delete process.env.NEXUS_API_KEY;
+  }
 }
 
 export { API_KEYS_PATH };

@@ -45,6 +45,19 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       currentProvider: databaseManager.getConfig()?.provider,
     };
   } catch (error) {
+    // If the DB is configured but the query failed (e.g. transient connection
+    // error during container startup), do NOT redirect to /setup — that would
+    // lock users out of the app even when everything is properly configured.
+    // Auth guards on protected routes still apply, so failing open here is safe.
+    if (databaseManager.isConfigured()) {
+      console.warn("[setup] checkSetupStatus query failed but DB is configured; assuming setup is complete:", error);
+      return {
+        isComplete: true,
+        needsDatabase: false,
+        needsAdmin: false,
+        currentProvider: databaseManager.getConfig()?.provider,
+      };
+    }
     return {
       isComplete: false,
       needsDatabase: true,

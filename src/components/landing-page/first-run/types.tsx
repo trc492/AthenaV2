@@ -17,6 +17,7 @@ export interface AdminFormValues {
 export interface SetupResult {
   success: boolean;
   error?: string;
+  setupComplete?: boolean;
 }
 
 export type SetupStep = "database" | "admin" | "complete";

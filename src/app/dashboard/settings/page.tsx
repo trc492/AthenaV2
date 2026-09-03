@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Database, Users, Info, KeyRound } from "lucide-react";
+import { Settings, Database, Users, Info, KeyRound, FileJson } from "lucide-react";
 import { DatabaseSyncComponent } from "@/components/sync/database-sync";
 import { DatabaseConfigurationComponent } from "@/components/settings/database-configuration";
 import { OfflinePrecache } from "@/components/sync/offline-precache";
@@ -12,8 +12,10 @@ import { CacheRevalidationComponent } from "@/components/cache-revalidation";
 import { NotificationSender } from "@/components/notification-sender";
 import { TeamManagement } from "@/components/settings/team-management";
 import { ApiKeysConfiguration } from "@/components/settings/api-keys-configuration";
+import { GameConfigStudio } from "@/components/settings/game-config-studio";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { PERMISSIONS } from "@/lib/auth/roles";
+import { SignupSettings } from "@/components/settings/signup-settings";
 
 export default function SettingsPage() {
   return (
@@ -31,7 +33,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="database" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1">
           <TabsTrigger
             value="database"
             className="flex items-center gap-2 text-xs sm:text-sm"
@@ -54,6 +56,14 @@ export default function SettingsPage() {
             <KeyRound className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">API Keys</span>
             <span className="sm:hidden">Keys</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="configs"
+            className="flex items-center gap-2 text-xs sm:text-sm"
+          >
+            <FileJson className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Game Configs</span>
+            <span className="sm:hidden">Configs</span>
           </TabsTrigger>
           <TabsTrigger
             value="about"
@@ -93,11 +103,25 @@ export default function SettingsPage() {
 
         <TabsContent value="team" className="space-y-4">
           <TeamManagement />
+          <PermissionGuard permission={PERMISSIONS.MANAGE_SYSTEM_CONFIG}>
+            <SignupSettings />
+          </PermissionGuard>
         </TabsContent>
 
         <TabsContent value="api-keys" className="space-y-4">
           <PermissionGuard permission={PERMISSIONS.MANAGE_SYSTEM_CONFIG}>
             <ApiKeysConfiguration />
+          </PermissionGuard>
+        </TabsContent>
+
+        <TabsContent value="configs" className="space-y-4">
+          <PermissionGuard
+            permissions={[
+              PERMISSIONS.MANAGE_GAME_CONFIG,
+              PERMISSIONS.MANAGE_SYSTEM_CONFIG,
+            ]}
+          >
+            <GameConfigStudio />
           </PermissionGuard>
         </TabsContent>
 

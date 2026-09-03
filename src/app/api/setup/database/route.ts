@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DatabaseConfig, DatabaseProvider } from "@/lib/types";
 import { DatabaseManager } from "@/db/database-manager";
 import { savePersistedDatabaseConfig } from "@/lib/server/env-file";
+import { hasAnyAdmin } from "@/lib/server/user-service";
 
 const VALID_PROVIDERS: DatabaseProvider[] = [
   "azuresql",
@@ -156,10 +157,14 @@ export async function POST(request: NextRequest) {
     // Persist configuration so it survives server restarts
     await savePersistedDatabaseConfig(config);
 
+    const adminExists = await hasAnyAdmin();
+
     return NextResponse.json({
       success: true,
       message: "Database connection verified and saved successfully",
       provider: config.provider,
+      adminExists,
+      setupComplete: adminExists,
     });
   } catch (error) {
     console.error("Database setup error:", error);

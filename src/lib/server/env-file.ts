@@ -6,6 +6,40 @@ import { DatabaseConfig } from "@/lib/types";
 const RUNTIME_DIR = join(process.cwd(), ".runtime");
 const DATABASE_CONFIG_PATH = join(RUNTIME_DIR, "database-config.json");
 const AUTH_SECRET_PATH = join(RUNTIME_DIR, "auth-secret.json");
+const SYSTEM_SETTINGS_PATH = join(RUNTIME_DIR, "system-settings.json");
+
+export interface SystemSettings {
+  /** When false, the public /signup page and POST /api/auth/register are disabled. */
+  signupEnabled: boolean;
+}
+
+const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
+  signupEnabled: true,
+};
+
+export function loadSystemSettings(): SystemSettings {
+  try {
+    const raw = readFileSync(SYSTEM_SETTINGS_PATH, "utf8");
+    const parsed = JSON.parse(raw) as Partial<SystemSettings>;
+    return { ...DEFAULT_SYSTEM_SETTINGS, ...parsed };
+  } catch {
+    return { ...DEFAULT_SYSTEM_SETTINGS };
+  }
+}
+
+export async function saveSystemSettings(
+  patch: Partial<SystemSettings>,
+): Promise<SystemSettings> {
+  const current = loadSystemSettings();
+  const updated: SystemSettings = { ...current, ...patch };
+  await mkdir(RUNTIME_DIR, { recursive: true });
+  await writeFile(
+    SYSTEM_SETTINGS_PATH,
+    `${JSON.stringify(updated, null, 2)}\n`,
+    "utf8",
+  );
+  return updated;
+}
 
 export function loadPersistedDatabaseConfig(): DatabaseConfig | null {
   try {
@@ -44,4 +78,4 @@ export function getOrCreateAuthSecret(): string {
   );
 }
 
-export { DATABASE_CONFIG_PATH, AUTH_SECRET_PATH };
+export { DATABASE_CONFIG_PATH, AUTH_SECRET_PATH, SYSTEM_SETTINGS_PATH };

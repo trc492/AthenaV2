@@ -50,7 +50,7 @@ export function NavUser({
     notificationSettingsDialog?.openNotificationSettings;
 
   const handleLogout = () => {
-    signOut({ callbackUrl: "/" });
+    signOut({ callbackUrl: window.location.origin });
   };
 
   const handleSwitchProgram = () => {

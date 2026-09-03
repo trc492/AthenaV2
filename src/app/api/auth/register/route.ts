@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 import { createUser } from "@/lib/server/user-service";
+import { loadSystemSettings } from "@/lib/server/env-file";
 
 const REGISTER_WINDOW_MS = 60 * 1000;
 const REGISTER_MAX_REQUESTS = 20;
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if public sign-up is enabled
+    const { signupEnabled } = loadSystemSettings();
+    if (!signupEnabled) {
+      return NextResponse.json(
+        { error: "Public sign-up is currently disabled. Please contact an administrator." },
+        { status: 403 },
+      );
+    }
+
     const rateLimit = checkRateLimit(request, {
       keyPrefix: "register",
       windowMs: REGISTER_WINDOW_MS,

@@ -112,7 +112,7 @@ export function LoggedInLandingPage() {
             <Button
               variant="outline"
               size="lg"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
             >
               Logout
             </Button>

@@ -10,12 +10,14 @@ import {
   Database as DatabaseIcon,
   UserPlus,
   Rocket,
+  KeyRound,
 } from "lucide-react";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
+  CardContent,
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,7 +57,10 @@ const defaultSubmitDatabase = async (
         error: body?.error ?? "We couldn't connect to that database. Double-check your details and try again.",
       };
     }
-    return { success: true };
+    return {
+      success: true,
+      setupComplete: Boolean(body?.setupComplete ?? body?.adminExists ?? false),
+    };
   } catch {
     return {
       success: false,
@@ -232,7 +237,7 @@ export function FirstRunSetupPage({
     setIsSubmitting(false);
 
     if (result.success) {
-      setStep("admin");
+      setStep(result.setupComplete ? "complete" : "admin");
     } else {
       setError(result.error ?? "We couldn't connect to that database. Double-check your details and try again.");
     }
@@ -296,10 +301,21 @@ export function FirstRunSetupPage({
                 </div>
                 <CardTitle className="text-2xl">You're all set!</CardTitle>
                 <CardDescription>
-                  Nice work — {appName} is ready to go and your admin account is created.
+                  Nice work — {appName} is ready to go. Your database is connected and the setup is complete.
                   Sign in whenever you're ready to start setting up your team.
                 </CardDescription>
               </CardHeader>
+              <CardContent className="pt-0 pb-4 text-left">
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 space-y-1.5">
+                  <div className="flex items-center gap-2 font-medium text-sm text-foreground">
+                    <KeyRound className="h-4 w-4 text-primary shrink-0" />
+                    <span>Next step: Add your API Keys</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Head to <strong className="text-foreground">Settings &gt; API Keys</strong> after signing in to configure keys for <em>The Blue Alliance</em>, <em>FTC Events</em>, or <em>FRC Nexus</em> for event schedule and match data syncing.
+                  </p>
+                </div>
+              </CardContent>
               <CardFooter>
                 <Link href={redirectHref} className="w-full">
                   <Button className="w-full">

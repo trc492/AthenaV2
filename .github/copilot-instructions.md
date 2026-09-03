@@ -2,166 +2,162 @@
 
 ## Project Overview
 
-AthenaV2 is a modern scouting and analytics platform for FIRST Robotics Competition (FRC) teams. Built with Next.js 15, TypeScript, and Tailwind CSS, it provides dynamic form generation, multi-database support, and PWA capabilities for offline-first scouting operations.
+AthenaV2 is a modern, offline-first scouting and analytics platform for FIRST Robotics Competition (FRC) and FIRST Tech Challenge (FTC) teams. Built with Next.js 16, React 19, TypeScript, and Tailwind CSS v4, it provides dynamic form generation, multi-database support, real-time analytics, and progressive web app (PWA) capabilities for seamless competition scouting.
 
-**Package Manager**: pnpm (not npm)
-**Build Validation**: Always run `pnpm build` after major code changes
+- **Package Manager**: `pnpm` (strictly use `pnpm`, never `npm` or `yarn`)
+- **Build Validation**: Always run `pnpm build` after major code changes
+
+---
 
 ## Architecture Overview
 
-- **Frontend**: Next.js 15 with App Router, React 19, TypeScript
-- **UI**: Radix UI components with Tailwind CSS for consistent design system
-- **Theming**: Multi-theme system with 5 color schemes (Green, Blue, Purple, Rose, Orange), each supporting light/dark modes
-- **Database**: Azure SQL with service abstraction layer
-- **Configuration**: Year-based JSON configs drive dynamic form generation
-- **PWA**: Service workers with Serwist for offline caching and sync
-- **State Management**: React Context + custom hooks pattern
+### 1. Frontend & UI
+- **Framework**: Next.js 16 with App Router, React 19, TypeScript
+- **UI Components**: Radix UI primitives with custom Tailwind CSS v4 styling
+- **Icons**: Lucide React (`lucide-react`)
+- **Charts & Visualizations**: Recharts, Embla Carousel, custom SVG field canvases
+- **Theming**: Multi-theme system using OKLCH color space (Green, Blue, Purple, Rose, Orange) supporting light/dark modes via `next-themes`
+
+### 2. Authentication & Authorization
+- **Auth Engine**: NextAuth.js v5 (beta) (`next-auth`)
+- **Role-Based Access Control**: Defined in `src/lib/auth/roles.ts` (Admin, Lead Scout, Scout, Viewer, etc.)
+- **Configuration & Helpers**: `src/lib/auth/config.ts`, `src/lib/auth/types.ts`
+
+### 3. Multi-Database Architecture
+All database operations pass through an abstraction layer managed by `DatabaseManager` (`src/db/database-manager.ts`). Providers can be selected at runtime via environment variables or configured through the web onboarding/setup flow (`/setup`).
+
+Supported Providers:
+- **Azure SQL**: `src/db/azuresql-database-service.ts` (`mssql`)
+- **MariaDB / MySQL**: `src/db/mariadb-database-service.ts` (`mysql2`)
+- **Azure Cosmos DB**: `src/db/cosmos-database-service.ts` (`@azure/cosmos`)
+- **Firebase Firestore**: `src/db/firebase-database-service.ts` (`firebase`, `firebase-admin`)
+
+### 4. Dynamic Configuration-Driven Forms
+- Forms are dynamically constructed from year-specific JSON configurations in `config/years/` (e.g., `FRC-2025.json`, `FRC-2026.json`, `FTC-2026.json`).
+- Game configurations define scoring categories (autonomous, teleop, endgame), field types, point multipliers, and field layout drawings.
+- Loaded through `config/game-config-loader.ts` and consumed via the `useCurrentGameConfig` hook.
+
+### 5. Offline-First & PWA Infrastructure
+- **Service Worker**: Managed via Serwist (`src/app/sw.ts`, `src/app/serwist/`) with custom runtime caching strategies (`runtimeCaching.ts`).
+- **IndexedDB**: Dexie.js for client-side local persistence (`src/lib/indexeddb-service.ts`).
+- **Offline Queue Manager**: `src/lib/offline-queue-manager.ts` queues submissions (match scouting, pit scouting, notes) when offline and syncs them when reconnected.
+- **Event Cache Manager**: `src/lib/event-cache-manager.ts` pre-fetches and caches event schedules, team rosters, and configs for zero-connectivity venues.
+
+### 6. Analytics & Strategy Engine
+- **Statistics & EPA**: `src/lib/statistics.ts` computes Expected Points Added (EPA), Scout Performance Ratings (SPR), contribution breakdowns, and team ranking metrics.
+- **Picklists**: Dynamic, weighted picklist builder with custom metric formulas and drag-and-drop reordering (`src/hooks/use-picklist.tsx`).
+- **Matchup & Simulation**: Real-time alliance match prediction and scouting schedule distribution.
+
+### 7. Push Notifications
+- Web Push API integration (`web-push`, `src/lib/notifications.ts`, `src/hooks/use-notifications.ts`) for scouting shift assignments and match alerts.
+
+---
 
 ## Key Patterns & Conventions
 
-### 1. Dynamic Configuration-Driven Forms
-
-Forms are generated from year-specific configs in `config/years/` based on selected FRC/FTC game year. Each year defines scoring categories (autonomous/teleop/endgame) with point values and field types.
-
-**Example**: Match scouting forms automatically adapt to game rules:
+### 1. Database Service Access
+**Never instantiate database classes directly.** Always retrieve the active service from the singleton `databaseManager`:
 
 ```typescript
-// From config/years/FRC-2025.json
-"autonomous": {
-  "leave": {
-    "label": "Leave Starting Zone",
-    "points": 3,
-    "type": "boolean"
-  }
-}
-// Renders as checkbox in dynamic-match-scout-form.tsx
-```
+import { databaseManager } from "@/db/database-manager";
 
-### 2. Database Service Abstraction
-
-All database operations go through `DatabaseService` interface implemented by `AzureSqlDatabaseService`. Provider selection happens at runtime based on environment variables.
-
-**Pattern**: Always use `databaseManager.getService()` instead of direct database calls:
-
-```typescript
 const service = databaseManager.getService();
-await service.addMatchEntry(entry);
+const matchEntries = await service.getMatchEntriesByEvent(eventId);
 ```
 
-### 3. Year-Based Configuration System
-
-Game configurations are stored by year in JSON. Use `use-game-config` hook for current year access:
+### 2. Year-Based Configuration System
+When accessing scoring metrics or game-specific fields, consume the configuration hooks:
 
 ```typescript
-const { currentYear, getCurrentYearConfig } = useCurrentGameConfig();
-const config = getCurrentYearConfig(); // Gets scoring definitions for current year
+import { useCurrentGameConfig } from "@/hooks/use-game-config";
+
+const { currentYear, currentProgram, getCurrentYearConfig } = useCurrentGameConfig();
+const yearConfig = getCurrentYearConfig(); // Returns YearConfig for active game year
 ```
+
+### 3. Dynamic Form Construction
+Dynamic forms (`dynamic-match-scout-form.tsx`, `dynamic-pit-scout-form.tsx`) map config definitions to UI components:
+- `boolean` → `Checkbox` / `Switch`
+- `counter` / `number` → Increment/decrement stepper with point multipliers
+- `select` / `enum` → `Select` dropdown or `RadioGroup`
+- `canvas` / `drawing` → `FieldDrawingCanvas` interactive field mapper
 
 ### 4. Custom Hook Patterns
-
-Extensive use of custom hooks for data fetching and state management. Follow naming convention `use-[feature]-[data]`.
-
-**Examples**:
-
-- `useEventTeams()` - Fetches teams for current event
-- `usePicklistData()` - Manages picklist generation
-- `useDashboardStats()` - Calculates team statistics
+Place reusable stateful logic under `src/hooks/` following the naming convention `use-[feature]-[data]`:
+- `useEventTeams` - Loads and caches teams for the active event
+- `usePicklistData` - Aggregates stats for picklist creation
+- `useDashboardStats` - Computes team-wide summary metrics
+- `useOffline` - Monitors network status and sync queue
 
 ### 5. API Route Structure
+API routes reside in `src/app/api/` and follow standard RESTful conventions with uniform JSON responses:
 
-RESTful API routes under `/api/` with consistent CRUD patterns:
+```typescript
+// Example: src/app/api/scouting/entries/match/route.ts
+import { NextResponse } from "next/server";
+import { databaseManager } from "@/db/database-manager";
 
-For example:
+export async function GET(request: Request) {
+  try {
+    const service = databaseManager.getService();
+    const data = await service.getMatchEntries();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error("Failed to fetch match entries:", error);
+    return NextResponse.json({ error: "Failed to fetch match entries" }, { status: 500 });
+  }
+}
 ```
-GET /api/scouting/entries/match - List/filter match entries
-POST /api/scouting/entries/match - Create match entry
-PUT /api/scouting/entries/match/[id] - Update specific entry
-DELETE /api/scouting/entries/match/[id] - Delete entry
-```
 
-### 6. Component Organization
-
-- `/components/ui/` - Reusable Radix UI wrappers
-- `/components/` - App-specific components
-- `/components/[feature]-pages/` - Feature-specific page components
+### 6. Component Directory Structure
+- `src/components/ui/` - Atomic UI building blocks (Radix wrappers, buttons, inputs, dialogs)
+- `src/components/forms/` - Scouting forms, dynamic fields, drawing canvases, login/search forms
+- `src/components/charts/` - Statistical charts, EPA progressions, radar charts
+- `src/components/team-pages/` - Dedicated team profile tabs, overview widgets, and galleries
+- `src/components/tables/` - Sortable/filterable data tables (TanStack Table)
+- `src/components/sync/` - Sync status badges, offline banners, and queue viewers
 
 ### 7. Multi-Theme System
+Themes are declared in `src/app/themes/*.css` using OKLCH color tokens and imported in `src/app/globals.css`. Metadata is registered in `src/lib/theme-config.ts`.
+- Supported theme names: `green` (default), `blue`, `purple`, `rose`, `orange`
+- Color tokens include: `--background`, `--foreground`, `--primary`, `--secondary`, `--muted`, `--accent`, `--border`, `--chart-1` through `--chart-5`, etc.
 
-5 color themes (Green, Blue, Purple, Rose, Orange) with light/dark mode support. Themes use OKLCH color space for perceptually uniform colors.
-
-**Key files**:
-
-- `src/lib/theme-config.ts` - Theme definitions and color tokens
-- `src/components/theme-selector.tsx` - UI for theme selection
-- `src/app/globals.css` - CSS variables for theming
-
-**Usage**: Theme selector accessible via user menu dropdown in sidebar.
-
-### 8. PWA & Service Worker Setup
-
-Uses Serwist for service worker management. Offline sync handled through background sync API.
-
-**Key files**:
-
-- `src/sw.ts` - Service worker configuration
-- `public/sw.js` - Generated service worker
-- `runtimeCaching.ts` - Cache strategies
+---
 
 ## Critical Developer Workflows
 
-### Build & Development Setup
+### Essential Commands
 
-- **Package Manager**: Uses pnpm for dependency management
-- **Development**: `pnpm dev` (with Turbopack for faster builds)
-- **Build**: `pnpm build` - Always run after code changes to validate
-- **Start**: `pnpm start` - Run production build locally
+| Command | Purpose |
+| :--- | :--- |
+| `pnpm dev` | Start development server with Turbopack |
+| `pnpm build` | Production build (always run to validate TypeScript & routes) |
+| `pnpm start` | Start production server locally |
+| `pnpm lint` | Run ESLint across codebase |
+| `pnpm test` | Run unit tests via Vitest |
+| `pnpm test:integration` | Run integration tests via Vitest |
+| `pnpm test:e2e` | Run end-to-end tests via Playwright |
 
-**Always validate builds after changes:**
+### Adding a New Game Year
 
-```bash
-pnpm build
-```
+1. Add configuration file `config/years/<PROGRAM>-<YEAR>.json` (e.g., `FRC-2027.json`).
+2. Register and import the JSON in `config/game-config-loader.ts`.
+3. Verify scoring fields, point weights, and field canvas coordinates.
+4. Ensure year appears in the year switcher component (`src/components/navigation/year-selector.tsx` or related).
+5. Run `pnpm build` and verify form rendering in `/scout/match` and `/scout/pit`.
 
-### Adding New Game Year
+### Adding or Modifying a Database Provider
 
-1. Create year config in `config/years/` (e.g., `FRC-2027.json`)
-2. Register in `config/game-config-loader.ts`
-3. Update year selector in `year-selector.tsx`
-4. Test dynamic forms render correctly
-5. Update database schema if needed (rare)
+1. Implement or update the `DatabaseService` interface in `src/lib/types/db/index.ts`.
+2. Create/update the provider class in `src/db/<provider>-database-service.ts`.
+3. Register the provider in `src/db/database-manager.ts` and handle configuration resolution.
+4. Add corresponding environment variables in `.env.example` and setup fields in `src/components/database-provider-fields.tsx`.
 
-### Database Operations
+---
 
-1. Set environment variables for chosen provider
-2. Use `databaseManager.getService()` for operations
-3. Handle both online and offline scenarios
-4. Test sync functionality with `syncToCloud()`/`syncFromCloud()`
+## Coding Best Practices
 
-### Form Development
-
-1. Define fields in appropriate year config file (`config/years/`)
-2. Use `dynamic-match-scout-form.tsx` or `dynamic-pit-scout-form.tsx` as templates
-3. Implement validation in form component
-4. Test with real game data
-
-## Common Patterns to Follow
-
-### Build Validation
-
-**Critical**: Always run `pnpm build` after any code changes. The project uses Turbopack for fast development builds, but production builds must validate correctly.
-
-### Data Flow
-
-Config JSON → Custom Hooks → Components → API Routes → Database Service → Provider Implementation
-
-### Error Handling
-
-Use try/catch in API routes, return consistent error responses:
-
-```typescript
-return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 });
-```
-
-### State Management
-
-Prefer React Context for global state (game config, events). Use local state for component-specific data.
+1. **Always Validate Builds**: Run `pnpm build` after non-trivial changes to catch typing or App Router issues.
+2. **Preserve Offline Fallbacks**: Any feature modifying data submission must handle offline state via `indexedDBService` and `offlineQueueManager`.
+3. **Strict Typing**: Maintain comprehensive type definitions in `src/lib/types/`. Avoid `any`.
+4. **Theme Compatibility**: Use semantic CSS variable classes (`bg-background`, `text-foreground`, `text-primary`, `border-border`) rather than hardcoded hex colors.

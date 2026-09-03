@@ -243,6 +243,36 @@ export function ApiKeysConfiguration() {
     }
   };
 
+  const handleClearKey = async (keyId: keyof ApiKeyStatusResponse["status"]) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/system/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [keyId]: "" }),
+      });
+
+      const data = (await res.json()) as
+        | ApiKeyStatusResponse
+        | { error: string };
+
+      if (!res.ok) {
+        throw new Error(
+          "error" in data ? data.error : "Failed to remove API key",
+        );
+      }
+
+      setKeyStatus((data as ApiKeyStatusResponse).status);
+      setForm((prev) => ({ ...prev, [keyId]: "" }));
+      toast.success("API key removed");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Failed to remove API key", { description: message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const hasAnyInput = FIELDS.some((f) => form[f.id] !== "");
 
   return (
@@ -266,14 +296,14 @@ export function ApiKeysConfiguration() {
               <div className="flex items-start gap-2">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="space-y-1">
-                  <p className="font-medium">Persisted runtime config</p>
+                  <p className="font-medium">Runtime API Key Configuration</p>
                   <p>
-                    Keys are stored in{" "}
+                    Keys configured here are stored in{" "}
                     <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs">
                       .runtime/api-keys.json
                     </code>
-                    and take effect immediately. Environment variables always
-                    take priority and cannot be overridden here.
+                    and take effect immediately. Environment variables take
+                    priority when set externally.
                   </p>
                 </div>
               </div>
@@ -284,13 +314,29 @@ export function ApiKeysConfiguration() {
               {FIELDS.map((field) => {
                 const status = keyStatus?.[field.id];
                 const lockedByEnv = status?.source === "env";
+                const isConfiguredPersisted =
+                  status?.configured && status.source === "persisted";
                 return (
                   <div key={field.id} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <Label htmlFor={field.id} className="font-medium">
                         {field.label}
                       </Label>
-                      <StatusBadge status={status} />
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={status} />
+                        {isConfiguredPersisted && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                            onClick={() => handleClearKey(field.id)}
+                            disabled={saving}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <SecretInput
                       id={field.id}
@@ -298,7 +344,11 @@ export function ApiKeysConfiguration() {
                       onChange={(v) =>
                         setForm((prev) => ({ ...prev, [field.id]: v }))
                       }
-                      placeholder={field.placeholder}
+                      placeholder={
+                        isConfiguredPersisted
+                          ? "•••••••• (Configured — enter new key to replace)"
+                          : field.placeholder
+                      }
                       disabled={saving || lockedByEnv}
                       isUrl={field.isUrl}
                       lockedByEnv={lockedByEnv}

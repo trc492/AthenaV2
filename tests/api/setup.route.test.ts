@@ -6,6 +6,7 @@ let mockQuery = vi.fn();
 
 vi.mock("@/lib/server/env-file", () => ({
   savePersistedDatabaseConfig: mockSavePersistedDatabaseConfig,
+  loadSystemSettings: vi.fn(() => ({ signupEnabled: true })),
 }));
 
 vi.mock("@/db/database-manager", () => {
@@ -67,8 +68,39 @@ describe("/api/setup/database", () => {
 
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
+    expect(data.adminExists).toBe(false);
     expect(mockConfigure).toHaveBeenCalled();
     expect(mockSavePersistedDatabaseConfig).toHaveBeenCalled();
+  });
+
+  it("marks setup complete when the connected database already has an admin", async () => {
+    mockQuery = vi
+      .fn()
+      .mockResolvedValueOnce({ recordset: [{ "": 1 }] })
+      .mockResolvedValueOnce({ recordset: [{ count: 1 }] });
+
+    const route = await import("@/app/api/setup/database/route");
+    const req = new Request("http://test/api/setup/database", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: "mariadb",
+        mariadb: {
+          host: "localhost",
+          database: "athena",
+          user: "root",
+          password: "password",
+        },
+      }),
+    });
+
+    const res = await route.POST(req as any);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.adminExists).toBe(true);
+    expect(data.setupComplete).toBe(true);
   });
 });
 
