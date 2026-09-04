@@ -179,6 +179,9 @@ class DatabaseManager {
   }
 
   isConfigured(): boolean {
+    if (!this.currentService) {
+      this.initFromEnvOrPersisted();
+    }
     return this.currentService !== null;
   }
 

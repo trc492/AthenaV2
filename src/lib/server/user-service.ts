@@ -76,9 +76,11 @@ export async function hasAnyAdmin(): Promise<boolean> {
     "SELECT COUNT(*) as count FROM users WHERE role = 'admin'",
   );
   const row = result?.recordset?.[0];
+  console.log("[hasAnyAdmin] raw row:", JSON.stringify(row, (_, v) => typeof v === "bigint" ? v.toString() : v));
   if (!row) return false;
-  if (typeof row.count !== "undefined") {
-    return Number(row.count) > 0;
+  const countVal = (row as any).count;
+  if (typeof countVal !== "undefined" && countVal !== null) {
+    return Number(countVal) > 0;
   }
   return true;
 }

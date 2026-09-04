@@ -5,7 +5,7 @@ export type ThemeConfig = {
 
 export const themes: ThemeConfig[] = [
   { name: "green", label: "Green (Default)" },
-  { name: "greenish", label: "Greenish (Auva's)" },
+  { name: "rustic", label: "Rustic" },
   { name: "blue", label: "Blue" },
   { name: "purple", label: "Purple" },
   { name: "rose", label: "Rose" },

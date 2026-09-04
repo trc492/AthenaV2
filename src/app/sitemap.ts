@@ -22,8 +22,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.8,
     },
-    // Add more static routes as needed
-    // Note: Dynamic routes (dashboard, scout, team-specific pages) are excluded
-    // as they require authentication or are user-specific
   ];
 }

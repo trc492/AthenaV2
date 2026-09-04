@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,34 +11,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Save,
   Plus,
   Copy,
   Download,
   Upload,
-  RefreshCw,
   Trophy,
   Zap,
-  ClipboardList,
-  BarChart3,
-  Eye,
   Code,
-  CheckCircle2,
   FileJson,
+  Sparkles,
+  MousePointer,
+  Play,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Sliders,
+  Eye,
+  Swords,
+  LayoutDashboard,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { YearConfig } from "@/lib/types";
-import { DEFAULT_NEW_CONFIG } from "./types";
-import { BuilderGameInfo } from "./builder-game-info";
-import { BuilderScoringSection } from "./builder-scoring-section";
-import { BuilderPitScouting } from "./builder-pit-scouting";
-import { BuilderInsightsMatchup } from "./builder-insights-matchup";
-import { BuilderLivePreview } from "./builder-live-preview";
+import type { YearConfig, ScoringDefinition } from "@/lib/types";
+import { DEFAULT_NEW_CONFIG, slugifyKey } from "./types";
+import { ComponentPalette, PaletteComponentType } from "./component-palette";
+import { VisualCanvas } from "./visual-canvas";
+import { PropertyInspector, SelectedComponentInfo } from "./property-inspector";
+import { VisualMatchupCanvas } from "./visual-matchup-canvas";
+import { VisualTeamPageCanvas } from "./visual-teampage-canvas";
 import { BuilderJsonEditor } from "./builder-json-editor";
 
-// Static defaults as instant fallback while API loads
+// Static defaults as instant fallback
 import FRC2026 from "../../../../config/years/FRC-2026.json";
 import FRC2025 from "../../../../config/years/FRC-2025.json";
 import FTC2026 from "../../../../config/years/FTC-2026.json";
@@ -51,6 +61,8 @@ interface ConfigOption {
   isBuiltin: boolean;
 }
 
+export type StudioDesignerMode = "match" | "pit" | "matchup" | "teampage";
+
 export function GameConfigStudio() {
   const [configList, setConfigList] = useState<ConfigOption[]>([
     { filename: "FRC-2026.json", competitionType: "FRC", year: 2026, gameName: (FRC2026 as YearConfig).gameName, isBuiltin: true },
@@ -61,13 +73,20 @@ export function GameConfigStudio() {
   const [currentConfig, setCurrentConfig] = useState<YearConfig>(() => JSON.parse(JSON.stringify(FRC2026)));
   const [currentYear, setCurrentYear] = useState<number>(2026);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("scoring");
 
-  // Fetch available configs from API
+  // Studio Modes & State
+  const [studioMode, setStudioMode] = useState<StudioDesignerMode>("match");
+  const [activeSection, setActiveSection] = useState<string>("autonomous");
+  const [isTestMode, setIsTestMode] = useState<boolean>(false);
+  const [viewportDevice, setViewportDevice] = useState<"responsive" | "tablet" | "phone">("responsive");
+  const [selectedComponent, setSelectedComponent] = useState<SelectedComponentInfo | null>(null);
+
+  // Advanced Raw JSON Modal
+  const [isJsonDialogOpen, setIsJsonDialogOpen] = useState<boolean>(false);
+
+  // Fetch configs list from server
   const fetchConfigs = async () => {
     try {
-      setIsLoading(true);
       const res = await fetch("/api/scouting/admin/configs");
       if (res.ok) {
         const data = await res.json();
@@ -77,8 +96,6 @@ export function GameConfigStudio() {
       }
     } catch (err) {
       console.error("Failed to load configs from server:", err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -89,8 +106,8 @@ export function GameConfigStudio() {
   // Load selected config
   const handleSelectConfig = async (filename: string) => {
     setSelectedFile(filename);
+    setSelectedComponent(null);
     try {
-      setIsLoading(true);
       const res = await fetch(`/api/scouting/admin/configs?file=${encodeURIComponent(filename)}`);
       if (res.ok) {
         const data = await res.json();
@@ -104,12 +121,9 @@ export function GameConfigStudio() {
         }
       }
     } catch {
-      // Fallback to static bundles if offline or API error
-    } finally {
-      setIsLoading(false);
+      // Fallback
     }
 
-    // Static fallback
     if (filename === "FRC-2026.json") {
       setCurrentConfig(JSON.parse(JSON.stringify(FRC2026)));
       setCurrentYear(2026);
@@ -132,7 +146,7 @@ export function GameConfigStudio() {
     setCurrentConfig(freshConfig);
     setCurrentYear(nextYear);
     setSelectedFile(`FRC-${nextYear}.json`);
-    setActiveTab("game-info");
+    setSelectedComponent(null);
     toast.info("Created new blank configuration template");
   };
 
@@ -144,10 +158,11 @@ export function GameConfigStudio() {
     setCurrentConfig(cloned);
     setCurrentYear(nextYear);
     setSelectedFile(`${cloned.competitionType}-${nextYear}.json`);
+    setSelectedComponent(null);
     toast.info(`Duplicated configuration as ${cloned.competitionType}-${nextYear}`);
   };
 
-  // Save to server
+  // Save config to server
   const handleSaveToServer = async () => {
     const compType = currentConfig.competitionType || "FRC";
     const filename = `${compType}-${currentYear}.json`;
@@ -180,136 +195,488 @@ export function GameConfigStudio() {
     }
   };
 
+  // Handle adding a component from palette (via click or drag-and-drop)
+  const handleAddComponent = (type: PaletteComponentType, sectionTarget?: string) => {
+    const targetSec = sectionTarget || activeSection;
+    const timestamp = Date.now().toString().slice(-4);
+
+    if (studioMode === "match") {
+      let newKey = `scoring_${timestamp}`;
+      let newDef: ScoringDefinition;
+
+      switch (type) {
+        case "multi-stepper":
+          newKey = `stepper_${timestamp}`;
+          newDef = {
+            label: "Game Element Scored",
+            points: 1,
+            description: "Count of items scored during match",
+            increments: [1, 5, 10],
+          };
+          break;
+        case "simple-stepper":
+          newKey = `counter_${timestamp}`;
+          newDef = {
+            label: "Scored Action",
+            points: 2,
+            description: "Number of completed actions",
+            increments: [1],
+          };
+          break;
+        case "boolean-toggle":
+          newKey = `toggle_${timestamp}`;
+          newDef = {
+            label: "Action Achieved",
+            points: 15,
+            description: "Status achieved during match",
+            type: "boolean",
+          };
+          break;
+        case "select-dropdown":
+          newKey = `select_${timestamp}`;
+          newDef = {
+            label: "Robot Stage / Position",
+            description: "Final robot state",
+            type: "select",
+            pointValues: {
+              none: 0,
+              level_1: 10,
+              level_2: 20,
+              level_3: 30,
+            },
+          };
+          break;
+        case "number-input":
+        default:
+          newKey = `numeric_${timestamp}`;
+          newDef = {
+            label: "Numeric Metric",
+            points: 1,
+            type: "number",
+            description: "Numeric score metric",
+          };
+          break;
+      }
+
+      setCurrentConfig((prev) => {
+        const scoring = { ...prev.scoring };
+        const sec = { ...((scoring[targetSec as keyof typeof scoring] || {}) as Record<string, ScoringDefinition>) };
+        sec[newKey] = newDef;
+        return {
+          ...prev,
+          scoring: {
+            ...scoring,
+            [targetSec]: sec,
+          },
+        };
+      });
+
+      setSelectedComponent({
+        mode: "match",
+        section: targetSec,
+        fieldKey: newKey,
+      });
+
+      toast.success(`Added ${newDef.label} to ${targetSec}`);
+    } else {
+      // Pit Scouting
+      let newKey = `pit_${timestamp}`;
+      let newField: any;
+
+      switch (type) {
+        case "pit-text":
+          newKey = `notes_${timestamp}`;
+          newField = { label: "Design Specifications", type: "text" };
+          break;
+        case "pit-number":
+          newKey = `capacity_${timestamp}`;
+          newField = { label: "Capacity / Weight", type: "number" };
+          break;
+        case "pit-boolean":
+          newKey = `capability_${timestamp}`;
+          newField = { label: "Has Subsystem Capability", type: "boolean" };
+          break;
+        case "pit-select":
+          newKey = `type_${timestamp}`;
+          newField = {
+            label: "Mechanism Type",
+            type: "select",
+            options: ["Type A", "Type B", "Custom"],
+          };
+          break;
+        case "pit-multiselect":
+        default:
+          newKey = `features_${timestamp}`;
+          newField = {
+            label: "Active Features",
+            type: "multiselect",
+            options: ["Autonomous Mode", "Auto Align", "Vision Tracking"],
+          };
+          break;
+      }
+
+      setCurrentConfig((prev) => {
+        const pit = { ...prev.pitScouting };
+        const sec = { ...((pit[targetSec as keyof typeof pit] || {}) as Record<string, any>) };
+        sec[newKey] = newField;
+        return {
+          ...prev,
+          pitScouting: {
+            ...pit,
+            [targetSec]: sec,
+          },
+        };
+      });
+
+      setSelectedComponent({
+        mode: "pit",
+        section: targetSec,
+        fieldKey: newKey,
+      });
+
+      toast.success(`Added ${newField.label} to ${targetSec}`);
+    }
+  };
+
+  // Reorder components on canvas
+  const handleReorderComponents = (section: string, newKeysOrder: string[]) => {
+    setCurrentConfig((prev) => {
+      if (studioMode === "match") {
+        const scoring = { ...prev.scoring };
+        const existing = (scoring[section as keyof typeof scoring] || {}) as Record<string, ScoringDefinition>;
+        const reordered: Record<string, ScoringDefinition> = {};
+        newKeysOrder.forEach((k) => {
+          if (existing[k]) reordered[k] = existing[k];
+        });
+        return {
+          ...prev,
+          scoring: {
+            ...scoring,
+            [section]: reordered,
+          },
+        };
+      } else {
+        const pit = { ...prev.pitScouting };
+        const existing = (pit[section as keyof typeof pit] || {}) as Record<string, any>;
+        const reordered: Record<string, any> = {};
+        newKeysOrder.forEach((k) => {
+          if (existing[k]) reordered[k] = existing[k];
+        });
+        return {
+          ...prev,
+          pitScouting: {
+            ...pit,
+            [section]: reordered,
+          },
+        };
+      }
+    });
+  };
+
+  // Duplicate component
+  const handleDuplicateComponent = (comp: SelectedComponentInfo) => {
+    const newKey = `${comp.fieldKey}_copy`;
+    setCurrentConfig((prev) => {
+      if (comp.mode === "match") {
+        const scoring = { ...prev.scoring };
+        const sec = { ...((scoring[comp.section as keyof typeof scoring] || {}) as Record<string, ScoringDefinition>) };
+        if (sec[comp.fieldKey]) {
+          sec[newKey] = {
+            ...sec[comp.fieldKey],
+            label: `${sec[comp.fieldKey].label} (Copy)`,
+          };
+        }
+        return { ...prev, scoring: { ...scoring, [comp.section]: sec } };
+      } else {
+        const pit = { ...prev.pitScouting };
+        const sec = { ...((pit[comp.section as keyof typeof pit] || {}) as Record<string, any>) };
+        if (sec[comp.fieldKey]) {
+          sec[newKey] = {
+            ...sec[comp.fieldKey],
+            label: `${sec[comp.fieldKey].label} (Copy)`,
+          };
+        }
+        return { ...prev, pitScouting: { ...pit, [comp.section]: sec } };
+      }
+    });
+
+    setSelectedComponent({ ...comp, fieldKey: newKey });
+    toast.info(`Duplicated as ${newKey}`);
+  };
+
+  // Delete component
+  const handleDeleteComponent = (comp: SelectedComponentInfo) => {
+    setCurrentConfig((prev) => {
+      if (comp.mode === "match") {
+        const scoring = { ...prev.scoring };
+        const sec = { ...((scoring[comp.section as keyof typeof scoring] || {}) as Record<string, ScoringDefinition>) };
+        delete sec[comp.fieldKey];
+        return { ...prev, scoring: { ...scoring, [comp.section]: sec } };
+      } else {
+        const pit = { ...prev.pitScouting };
+        const sec = { ...((pit[comp.section as keyof typeof pit] || {}) as Record<string, any>) };
+        delete sec[comp.fieldKey];
+        return { ...prev, pitScouting: { ...pit, [comp.section]: sec } };
+      }
+    });
+
+    if (selectedComponent?.fieldKey === comp.fieldKey) {
+      setSelectedComponent(null);
+    }
+    toast.info(`Removed component`);
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Studio Header & Top Action Bar */}
-      <Card className="border-primary/20 bg-linear-to-r from-card via-card to-primary/5 shadow-xs">
-        <CardHeader className="pb-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileJson className="h-6 w-6 text-primary" />
-                <CardTitle className="text-2xl font-bold tracking-tight">
-                  Game Config Studio
-                </CardTitle>
-                <Badge variant="outline" className="text-xs uppercase bg-primary/10 text-primary border-primary/30">
-                  Admin Tool
-                </Badge>
+    <div className="space-y-4">
+      {/* Studio Master Header */}
+      <div className="rounded-xl border border-border bg-card/80 backdrop-blur-xs p-3 sm:px-5 shadow-xs">
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+          {/* Title & Config Switcher */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                <Sparkles className="h-5 w-5" />
               </div>
-              <CardDescription className="mt-1">
-                Visual UI builder to create, edit, customize, and preview JSON game scoring rules and pit scouting forms.
-              </CardDescription>
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+                  Config Studio
+                </h2>
+                <p className="text-xs text-muted-foreground hidden sm:block">
+                  Direct visual manipulation scouting form & analytics designer
+                </p>
+              </div>
             </div>
 
-            {/* Quick Action Controls */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={selectedFile} onValueChange={handleSelectConfig}>
-                <SelectTrigger className="w-48 h-9 text-xs font-medium">
-                  <SelectValue placeholder="Select Configuration" />
-                </SelectTrigger>
-                <SelectContent>
-                  {configList.map((cfg) => (
-                    <SelectItem key={cfg.filename} value={cfg.filename}>
-                      {cfg.competitionType} {cfg.year} ({cfg.gameName || cfg.filename})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="h-6 w-px bg-border hidden sm:block mx-1" />
 
-              <Button variant="outline" size="sm" onClick={handleCreateNew}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> New
-              </Button>
+            {/* Config Selector */}
+            <Select value={selectedFile} onValueChange={handleSelectConfig}>
+              <SelectTrigger className="w-52 h-9 text-xs font-semibold">
+                <SelectValue placeholder="Select Config" />
+              </SelectTrigger>
+              <SelectContent>
+                {configList.map((cfg) => (
+                  <SelectItem key={cfg.filename} value={cfg.filename} className="text-xs">
+                    {cfg.competitionType} {cfg.year} ({cfg.gameName || cfg.filename})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Button variant="outline" size="sm" onClick={handleDuplicateCurrent}>
-                <Copy className="h-3.5 w-3.5 mr-1" /> Duplicate
-              </Button>
-
-              <Button size="sm" onClick={handleSaveToServer} disabled={isSaving}>
-                <Save className="h-3.5 w-3.5 mr-1" />
-                {isSaving ? "Saving..." : "Save Config"}
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={handleCreateNew} className="h-9 text-xs">
+              <Plus className="h-3.5 w-3.5 mr-1" /> New
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDuplicateCurrent} className="h-9 text-xs">
+              <Copy className="h-3.5 w-3.5 mr-1" /> Clone
+            </Button>
           </div>
-        </CardHeader>
-      </Card>
 
-      {/* Main Studio Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-3 sm:grid-cols-6 h-auto p-1 gap-1">
-          <TabsTrigger value="game-info" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-            <Trophy className="h-4 w-4 text-amber-500" />
-            <span>Game Info</span>
-          </TabsTrigger>
-          <TabsTrigger value="scoring" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-            <Zap className="h-4 w-4 text-blue-500" />
-            <span>Match Scoring</span>
-          </TabsTrigger>
-          <TabsTrigger value="pit" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-            <ClipboardList className="h-4 w-4 text-emerald-500" />
-            <span>Pit Scouting</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-            <BarChart3 className="h-4 w-4 text-purple-500" />
-            <span>Analytics & UI</span>
-          </TabsTrigger>
-          <TabsTrigger value="preview" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-            <Eye className="h-4 w-4 text-pink-500" />
-            <span>Live Preview</span>
-          </TabsTrigger>
-          <TabsTrigger value="json" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-            <Code className="h-4 w-4 text-orange-500" />
-            <span>Raw JSON</span>
-          </TabsTrigger>
-        </TabsList>
+          {/* Controls: Mode, Viewport, Interactive Test, and Save */}
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-between xl:justify-end">
+            {/* 4-Way Studio Mode Switcher */}
+            <div className="bg-muted p-0.5 rounded-lg flex flex-wrap items-center border">
+              <button
+                type="button"
+                onClick={() => {
+                  setStudioMode("match");
+                  setActiveSection("autonomous");
+                  setSelectedComponent(null);
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                  studioMode === "match" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Match Scouting
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudioMode("pit");
+                  setActiveSection("autonomous");
+                  setSelectedComponent(null);
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                  studioMode === "pit" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Pit Scouting
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudioMode("matchup");
+                  setSelectedComponent(null);
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
+                  studioMode === "matchup" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Swords className="h-3 w-3" /> Matchup Card
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudioMode("teampage");
+                  setSelectedComponent(null);
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
+                  studioMode === "teampage" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayoutDashboard className="h-3 w-3" /> Team Page
+              </button>
+            </div>
 
-        {/* Tab 1: Game Info */}
-        <TabsContent value="game-info" className="space-y-4 pt-4">
-          <BuilderGameInfo
-            config={currentConfig}
-            year={currentYear}
-            onUpdateConfig={setCurrentConfig}
-            onUpdateYear={setCurrentYear}
-          />
-        </TabsContent>
+            {/* Viewport Frame Toggle (for Match/Pit Canvas) */}
+            {(studioMode === "match" || studioMode === "pit") && (
+              <div className="bg-muted p-0.5 rounded-lg hidden sm:flex items-center border">
+                <button
+                  type="button"
+                  onClick={() => setViewportDevice("responsive")}
+                  title="Full Responsive View"
+                  className={`p-1.5 rounded-md ${viewportDevice === "responsive" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"}`}
+                >
+                  <Monitor className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewportDevice("tablet")}
+                  title="Tablet View (iPad)"
+                  className={`p-1.5 rounded-md ${viewportDevice === "tablet" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"}`}
+                >
+                  <Tablet className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewportDevice("phone")}
+                  title="Mobile Phone View"
+                  className={`p-1.5 rounded-md ${viewportDevice === "phone" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"}`}
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
 
-        {/* Tab 2: Match Scoring */}
-        <TabsContent value="scoring" className="space-y-4 pt-4">
-          <BuilderScoringSection
-            config={currentConfig}
-            onUpdateConfig={setCurrentConfig}
-          />
-        </TabsContent>
+            {/* Interactive Test Mode Toggle (for Match/Pit) */}
+            {(studioMode === "match" || studioMode === "pit") && (
+              <Button
+                variant={isTestMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIsTestMode(!isTestMode);
+                  if (!isTestMode) setSelectedComponent(null);
+                }}
+                className={`h-9 text-xs transition-colors ${
+                  isTestMode ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
+                }`}
+              >
+                {isTestMode ? (
+                  <>
+                    <Play className="h-3.5 w-3.5 mr-1 fill-current" /> Testing Live
+                  </>
+                ) : (
+                  <>
+                    <MousePointer className="h-3.5 w-3.5 mr-1" /> Test Form
+                  </>
+                )}
+              </Button>
+            )}
 
-        {/* Tab 3: Pit Scouting */}
-        <TabsContent value="pit" className="space-y-4 pt-4">
-          <BuilderPitScouting
-            config={currentConfig}
-            onUpdateConfig={setCurrentConfig}
-          />
-        </TabsContent>
+            {/* Raw JSON Modal Trigger */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsJsonDialogOpen(true)}
+              className="h-9 text-xs"
+              title="Inspect & Edit Raw JSON"
+            >
+              <Code className="h-3.5 w-3.5 mr-1 text-orange-500" /> JSON
+            </Button>
 
-        {/* Tab 4: Analytics & Visual Cards */}
-        <TabsContent value="analytics" className="space-y-4 pt-4">
-          <BuilderInsightsMatchup
-            config={currentConfig}
-            onUpdateConfig={setCurrentConfig}
-          />
-        </TabsContent>
+            {/* Save to Server */}
+            <Button size="sm" onClick={handleSaveToServer} disabled={isSaving} className="h-9 text-xs">
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              {isSaving ? "Saving..." : "Save Config"}
+            </Button>
+          </div>
+        </div>
+      </div>
 
-        {/* Tab 5: Live Form Preview */}
-        <TabsContent value="preview" className="space-y-4 pt-4">
-          <BuilderLivePreview config={currentConfig} />
-        </TabsContent>
+      {/* Main Designer Workspace depending on active mode */}
+      {studioMode === "match" || studioMode === "pit" ? (
+        /* Figma-Style 3-Column Studio Workspace for Match/Pit */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column: Component Palette (2.5 cols) */}
+          <div className="lg:col-span-3 h-[750px] sticky top-4">
+            <ComponentPalette
+              scoutingMode={studioMode}
+              onAddComponent={(type) => handleAddComponent(type)}
+            />
+          </div>
 
-        {/* Tab 6: Raw JSON Editor */}
-        <TabsContent value="json" className="space-y-4 pt-4">
+          {/* Center Column: Direct Manipulation WYSIWYG Canvas (6 cols) */}
+          <div className="lg:col-span-6 overflow-y-auto max-h-[850px] pr-1">
+            <VisualCanvas
+              config={currentConfig}
+              year={currentYear}
+              scoutingMode={studioMode}
+              activeSection={activeSection}
+              isTestMode={isTestMode}
+              viewportDevice={viewportDevice}
+              selectedComponent={selectedComponent}
+              onSectionChange={setActiveSection}
+              onSelectComponent={setSelectedComponent}
+              onDuplicateComponent={handleDuplicateComponent}
+              onDeleteComponent={handleDeleteComponent}
+              onDropComponent={handleAddComponent}
+              onReorderComponents={handleReorderComponents}
+            />
+          </div>
+
+          {/* Right Column: Property Inspector (3.5 cols) */}
+          <div className="lg:col-span-3 h-[750px] sticky top-4">
+            <PropertyInspector
+              config={currentConfig}
+              year={currentYear}
+              selectedComponent={selectedComponent}
+              onUpdateConfig={setCurrentConfig}
+              onUpdateYear={setCurrentYear}
+              onSelectComponent={setSelectedComponent}
+              onDuplicateComponent={handleDuplicateComponent}
+              onDeleteComponent={handleDeleteComponent}
+            />
+          </div>
+        </div>
+      ) : studioMode === "matchup" ? (
+        /* Matchup Card Designer */
+        <VisualMatchupCanvas
+          config={currentConfig}
+          onUpdateConfig={setCurrentConfig}
+        />
+      ) : (
+        /* Team Profile Page Designer */
+        <VisualTeamPageCanvas
+          config={currentConfig}
+          onUpdateConfig={setCurrentConfig}
+        />
+      )}
+
+      {/* Raw JSON Code Modal Dialog */}
+      <Dialog open={isJsonDialogOpen} onOpenChange={setIsJsonDialogOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileJson className="h-5 w-5 text-primary" />
+              Raw Configuration Schema Inspector & Exporter
+            </DialogTitle>
+          </DialogHeader>
           <BuilderJsonEditor
             config={currentConfig}
             year={currentYear}
             onUpdateConfig={setCurrentConfig}
           />
-        </TabsContent>
-      </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

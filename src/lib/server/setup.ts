@@ -9,18 +9,26 @@ export interface SetupStatus {
 }
 
 export async function checkSetupStatus(): Promise<SetupStatus> {
+  console.log('checkSetupStatus called from:', new Error().stack);
+  console.log('runtime:', process.env.NEXT_RUNTIME);
+  console.log('cwd:', process.cwd());
+  console.log('fs available:', typeof require === 'function' ? typeof require('fs').readFileSync : 'no');
   try {
     if (!databaseManager.isConfigured()) {
+      console.warn("[setup] databaseManager.isConfigured() returned false — no service configured");
       return { isComplete: false, needsDatabase: true, needsAdmin: true };
     }
 
     const service = databaseManager.getService();
     if (!service) {
+      console.warn("[setup] databaseManager.getService() returned null/undefined");
       return { isComplete: false, needsDatabase: true, needsAdmin: true };
     }
 
     if (service.query) {
+      console.log("[setup] service.query exists, checking for admin user...");
       const adminExists = await hasAnyAdmin();
+      console.log("[setup] hasAnyAdmin() returned:", adminExists);
       if (!adminExists) {
         return {
           isComplete: false,
@@ -38,6 +46,7 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       };
     }
 
+    console.log("[setup] service.query not present, assuming complete (provider:", databaseManager.getConfig()?.provider, ")");
     return {
       isComplete: true,
       needsDatabase: false,
@@ -58,6 +67,7 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
         currentProvider: databaseManager.getConfig()?.provider,
       };
     }
+    console.error("[setup] checkSetupStatus failed AND DB is not configured:", error);
     return {
       isComplete: false,
       needsDatabase: true,
