@@ -14,7 +14,7 @@ function getDbService() {
   return dbService;
 }
 
-// GET /api/scouting/entries/stats - Get all pit entries or filter by year/team/event/competitionType
+// GET /api/scouting/entries/pit - Get all pit entries or filter by year/team/event/competitionType
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
-    // console.log('Pit API: Starting request processing');
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id")
       ? parseInt(searchParams.get("id")!)
@@ -39,57 +39,32 @@ export async function GET(request: NextRequest) {
     const competitionType =
       (searchParams.get("competitionType") as CompetitionType) || undefined;
 
-    // console.log('Pit API: Parameters -', { id, year, teamNumber, eventCode, competitionType });
-
     const service = getDbService();
-    // console.log('Pit API: Database service retrieved');
 
-    // If ID is provided, fetch single entry by ID
     if (id) {
-      // console.log('Pit API: Fetching entry by ID');
       const entries = await service.getAllPitEntries();
       const entry = entries.find((e) => e.id === id);
       if (!entry) {
         return NextResponse.json({ error: "Entry not found" }, { status: 404 });
       }
-      // console.log('Pit API: Found entry by ID');
       return NextResponse.json(entry);
     } else if (teamNumber && year) {
-      // console.log('Pit API: Fetching specific pit entry');
-      const entry = await service.getPitEntry(
-        teamNumber,
-        year,
-        competitionType,
-      );
-      // console.log('Pit API: Found entry:', entry ? 'Yes' : 'No');
+      const entry = await service.getPitEntry(teamNumber, year, competitionType);
       return NextResponse.json(entry || null);
     } else {
-      // console.log('Pit API: Fetching all pit entries');
-      const entries = await service.getAllPitEntries(
-        year,
-        eventCode,
-        competitionType,
-      );
-      // console.log('Pit API: Retrieved entries count:', entries.length);
+      const entries = await service.getAllPitEntries(year, eventCode, competitionType);
       return NextResponse.json(entries);
     }
   } catch (error) {
-    console.error("Pit API: Error fetching pit entries:", error);
-    console.error(
-      "Pit API: Error stack:",
-      error instanceof Error ? error.stack : "No stack",
-    );
+    console.error("Error fetching pit entries:", error);
     return NextResponse.json(
-      {
-        error: "Failed to fetch pit entries",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Failed to fetch pit entries" },
       { status: 500 },
     );
   }
 }
 
-// POST /api/scouting/entries/stats - Add new pit entry
+// POST /api/scouting/entries/pit - Add new pit entry
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -103,10 +78,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { scoutingForUserId, ...entry } = body;
 
-    // Determine which userId to use
+    // Tablets with SCOUT_ON_BEHALF permission can submit on behalf of another user
     let actualUserId = session.user.id;
-
-    // If tablet account is scouting on behalf of someone
     if (
       scoutingForUserId &&
       hasPermission(session.user.role, PERMISSIONS.SCOUT_ON_BEHALF)
@@ -114,11 +87,7 @@ export async function POST(request: NextRequest) {
       actualUserId = scoutingForUserId;
     }
 
-    // Add userId from session or scout selection
-    const entryWithUser = {
-      ...entry,
-      userId: actualUserId,
-    };
+    const entryWithUser = { ...entry, userId: actualUserId };
     const service = getDbService();
 
     // Check for duplicate entry
@@ -156,7 +125,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/scouting/entries/stats - Update pit entry
+// PUT /api/scouting/entries/pit - Update pit entry
 export async function PUT(request: NextRequest) {
   try {
     const session = await auth();
@@ -170,7 +139,6 @@ export async function PUT(request: NextRequest) {
     const { id, ...updates } = await request.json();
     const service = getDbService();
 
-    // Get the existing entry to check ownership
     const entries = await service.getAllPitEntries();
     const existingEntry = entries.find((e) => e.id === id);
 
@@ -178,11 +146,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Entry not found" }, { status: 404 });
     }
 
-    // Users can only edit their own entries unless they have DELETE permission (higher privilege)
+    // Users can only edit their own entries; OVERRIDE_PIT_SCOUTING grants edit-any rights
     const isOwner = existingEntry.userId === session.user.id;
     const canEditAny = hasPermission(
       session.user.role,
-      PERMISSIONS.DELETE_PIT_SCOUTING,
+      PERMISSIONS.OVERRIDE_PIT_SCOUTING,
     );
 
     if (!isOwner && !canEditAny) {
@@ -203,7 +171,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/scouting/entries/stats - Delete pit entry
+// DELETE /api/scouting/entries/pit - Delete pit entry
 export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();

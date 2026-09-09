@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { databaseManager } from "@/db/database-manager";
 
@@ -76,7 +77,6 @@ export async function hasAnyAdmin(): Promise<boolean> {
     "SELECT COUNT(*) as count FROM users WHERE role = 'admin'",
   );
   const row = result?.recordset?.[0];
-  console.log("[hasAnyAdmin] raw row:", JSON.stringify(row, (_, v) => typeof v === "bigint" ? v.toString() : v));
   if (!row) return false;
   const countVal = (row as any).count;
   if (typeof countVal !== "undefined" && countVal !== null) {
@@ -126,9 +126,9 @@ export async function createUser(data: {
     };
   }
 
-  // Hash password
+  // Hash password and generate a collision-resistant user ID
   const hashedPassword = await bcrypt.hash(password, 12);
-  const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  const userId = `user_${crypto.randomUUID().replace(/-/g, "")}`;
 
   // Insert user
   await db.query(

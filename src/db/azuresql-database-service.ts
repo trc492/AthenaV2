@@ -1614,4 +1614,56 @@ export class AzureSqlDatabaseService implements DatabaseService {
   async syncFromCloud?(): Promise<void> {
     // Not applicable for Azure SQL as it's already cloud-based
   }
+
+  /**
+   * Updates one or more fields on a user record.
+   * Builds a parameterized UPDATE dynamically from the provided fields so
+   * callers never write SQL or handle dialect differences.
+   * `updated_at` is always refreshed automatically.
+   */
+  async updateUser(id: string, updates: import("@/lib/types").UserUpdates): Promise<void> {
+    const mssql = await import("mssql");
+    const pool = await this.getPool();
+    const req = pool.request().input("userId", mssql.NVarChar, id);
+
+    const setParts: string[] = [];
+
+    if (updates.name !== undefined) {
+      setParts.push("name = @name");
+      req.input("name", mssql.NVarChar, updates.name);
+    }
+    if (updates.username !== undefined) {
+      setParts.push("username = @username");
+      req.input("username", mssql.NVarChar, updates.username);
+    }
+    if (updates.passwordHash !== undefined) {
+      setParts.push("password_hash = @passwordHash");
+      req.input("passwordHash", mssql.NVarChar, updates.passwordHash);
+    }
+    if (updates.role !== undefined) {
+      setParts.push("role = @role");
+      req.input("role", mssql.NVarChar, updates.role);
+    }
+    if (updates.avatarData !== undefined) {
+      setParts.push("avatarData = @avatarData");
+      req.input("avatarData", mssql.VarBinary(mssql.MAX), updates.avatarData);
+    }
+    if (updates.avatarMimeType !== undefined) {
+      setParts.push("avatarMimeType = @avatarMimeType");
+      req.input("avatarMimeType", mssql.NVarChar, updates.avatarMimeType);
+    }
+    if (updates.avatarUrl !== undefined) {
+      setParts.push("avatarUrl = @avatarUrl");
+      req.input("avatarUrl", mssql.NVarChar, updates.avatarUrl);
+    }
+    if (updates.pushSubscriptions !== undefined) {
+      setParts.push("push_subscriptions = @pushSubscriptions");
+      req.input("pushSubscriptions", mssql.NVarChar(mssql.MAX), updates.pushSubscriptions);
+    }
+
+    if (setParts.length === 0) return;
+
+    setParts.push("updated_at = GETDATE()");
+    await req.query(`UPDATE users SET ${setParts.join(", ")} WHERE id = @userId`);
+  }
 }

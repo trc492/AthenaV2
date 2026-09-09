@@ -20,4 +20,4 @@ export interface SetupResult {
   setupComplete?: boolean;
 }
 
-export type SetupStep = "database" | "admin" | "complete";
+export type SetupStep = "app-url" | "database" | "admin" | "complete";

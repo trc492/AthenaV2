@@ -7,6 +7,7 @@ const RUNTIME_DIR = join(process.cwd(), ".runtime");
 const DATABASE_CONFIG_PATH = join(RUNTIME_DIR, "database-config.json");
 const AUTH_SECRET_PATH = join(RUNTIME_DIR, "auth-secret.json");
 const SYSTEM_SETTINGS_PATH = join(RUNTIME_DIR, "system-settings.json");
+const APP_CONFIG_PATH = join(RUNTIME_DIR, "app-config.json");
 
 export interface SystemSettings {
   /** When false, the public /signup page and POST /api/auth/register are disabled. */
@@ -78,4 +79,35 @@ export function getOrCreateAuthSecret(): string {
   );
 }
 
-export { DATABASE_CONFIG_PATH, AUTH_SECRET_PATH, SYSTEM_SETTINGS_PATH };
+export { DATABASE_CONFIG_PATH, AUTH_SECRET_PATH, SYSTEM_SETTINGS_PATH, APP_CONFIG_PATH };
+
+// ---------------------------------------------------------------------------
+// App config — stores the canonical public URL for the deployment.
+// NEXTAUTH_URL is read from this file by next.config.ts at build/start time
+// and injected into all runtimes as process.env.NEXTAUTH_URL.
+// ---------------------------------------------------------------------------
+
+export interface AppConfig {
+  /** The canonical public URL of the deployment, e.g. https://scouting.myteam.com */
+  appUrl: string;
+}
+
+export function loadAppConfig(): AppConfig | null {
+  try {
+    const raw = readFileSync(APP_CONFIG_PATH, "utf8");
+    const parsed = JSON.parse(raw) as Partial<AppConfig>;
+    if (parsed?.appUrl) return parsed as AppConfig;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveAppConfig(config: AppConfig): Promise<void> {
+  await mkdir(RUNTIME_DIR, { recursive: true });
+  await writeFile(
+    APP_CONFIG_PATH,
+    `${JSON.stringify(config, null, 2)}\n`,
+    "utf8",
+  );
+}

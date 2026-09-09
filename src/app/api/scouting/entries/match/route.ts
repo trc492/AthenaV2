@@ -162,11 +162,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Entry not found" }, { status: 404 });
     }
 
-    // Users can only edit their own entries unless they have DELETE permission (higher privilege)
+    // Users can only edit their own entries; OVERRIDE_MATCH_SCOUTING grants edit-any rights
     const isOwner = existingEntry.userId === session.user.id;
     const canEditAny = hasPermission(
       session.user.role,
-      PERMISSIONS.DELETE_MATCH_SCOUTING,
+      PERMISSIONS.OVERRIDE_MATCH_SCOUTING,
     );
 
     if (!isOwner && !canEditAny) {

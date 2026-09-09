@@ -254,6 +254,10 @@ class DatabaseManager {
     };
     this.configure(newConfig);
   }
+
+  async updateUser(id: string, updates: import("@/lib/types").UserUpdates) {
+    return this.getService().updateUser(id, updates);
+  }
 }
 
 // Export singleton instance

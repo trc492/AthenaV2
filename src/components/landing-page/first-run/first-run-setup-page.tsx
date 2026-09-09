@@ -11,6 +11,8 @@ import {
   UserPlus,
   Rocket,
   KeyRound,
+  Globe,
+  AlertCircle,
 } from "lucide-react";
 import {
   Card,
@@ -21,6 +23,8 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ModeToggle } from "@/components/ui/light-dark-toggle";
 import { ThemeSelector } from "@/components/settings/theme-selector";
 import { DatabaseStep } from "./database-setup";
@@ -37,9 +41,33 @@ interface FirstRunSetupPageProps {
   appName?: string;
   redirectHref?: string;
   initialStep?: SetupStep;
+  onSubmitAppUrl?: (appUrl: string) => Promise<SetupResult>;
   onSubmitDatabase?: (data: DatabaseFormState) => Promise<SetupResult>;
   onSubmitAdmin?: (data: AdminFormValues) => Promise<SetupResult>;
 }
+
+const defaultSubmitAppUrl = async (appUrl: string): Promise<SetupResult> => {
+  try {
+    const res = await fetch("/api/setup/app-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appUrl }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        success: false,
+        error: body?.error ?? "Couldn't save the app URL. Please try again.",
+      };
+    }
+    return { success: true };
+  } catch {
+    return {
+      success: false,
+      error: "Couldn't reach the server. Check your connection and try again.",
+    };
+  }
+};
 
 const defaultSubmitDatabase = async (
   data: DatabaseFormState,
@@ -95,11 +123,13 @@ const defaultSubmitAdmin = async (
 };
 
 const STEPS: { key: SetupStep; label: string; icon: typeof DatabaseIcon }[] = [
+  { key: "app-url", label: "App URL", icon: Globe },
   { key: "database", label: "Database", icon: DatabaseIcon },
   { key: "admin", label: "Admin account", icon: UserPlus },
 ];
 
 const WELCOME_STEPS = [
+  { key: "app-url" as const, label: "Set your app URL", icon: Globe },
   { key: "database" as const, label: "Connect your database", icon: DatabaseIcon },
   { key: "admin" as const, label: "Create your admin account", icon: UserPlus },
   { key: "complete" as const, label: "Start scouting", icon: Rocket },
@@ -217,18 +247,104 @@ function StepIndicator({ current }: { current: SetupStep }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// App URL step
+// ---------------------------------------------------------------------------
+
+interface AppUrlStepProps {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  isSubmitting: boolean;
+  error: string | null;
+}
+
+function AppUrlStep({ value, onChange, onSubmit, isSubmitting, error }: AppUrlStepProps) {
+  return (
+    <Card className="shadow-lg">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-xl">Set your app URL</CardTitle>
+        <CardDescription>
+          Enter the public address where this app is accessible. This is used
+          by the authentication system for sign-in redirects, so it needs to
+          match the URL users actually visit — including any custom domain or
+          port your reverse proxy exposes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="appUrl">App URL</Label>
+          <div className="relative">
+            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              id="appUrl"
+              type="url"
+              placeholder="https://scouting.myteam.com"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className="pl-9"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && value.trim()) onSubmit();
+              }}
+              disabled={isSubmitting}
+              autoFocus
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Use the full URL including the protocol, e.g.{" "}
+            <code className="font-mono bg-muted px-1 rounded">https://scouting.myteam.com</code>{" "}
+            or{" "}
+            <code className="font-mono bg-muted px-1 rounded">http://192.168.1.10:8080</code>.
+          </p>
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+      </CardContent>
+      <CardFooter>
+        <Button
+          className="w-full"
+          onClick={onSubmit}
+          disabled={isSubmitting || !value.trim()}
+        >
+          {isSubmitting ? "Saving…" : "Continue"}
+          {!isSubmitting && <ArrowRight className="h-4 w-4 ml-2" />}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
 export function FirstRunSetupPage({
   appName = "Athena",
   redirectHref = "/login",
-  initialStep = "database",
+  initialStep = "app-url",
+  onSubmitAppUrl = defaultSubmitAppUrl,
   onSubmitDatabase = defaultSubmitDatabase,
   onSubmitAdmin = defaultSubmitAdmin,
 }: FirstRunSetupPageProps) {
   const [step, setStep] = useState<SetupStep>(initialStep);
+  const [appUrl, setAppUrl] = useState("");
   const [databaseForm, setDatabaseForm] =
     useState<DatabaseFormState>(defaultDatabaseFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleAppUrlSubmit = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    const result = await onSubmitAppUrl(appUrl);
+    setIsSubmitting(false);
+    if (result.success) {
+      setStep("database");
+    } else {
+      setError(result.error ?? "Couldn't save the app URL. Please try again.");
+    }
+  };
 
   const handleDatabaseSubmit = async () => {
     setIsSubmitting(true);
@@ -334,6 +450,16 @@ export function FirstRunSetupPage({
               <div className="lg:hidden">
                 <StepIndicator current={step} />
               </div>
+
+              {step === "app-url" && (
+                <AppUrlStep
+                  value={appUrl}
+                  onChange={setAppUrl}
+                  onSubmit={handleAppUrlSubmit}
+                  isSubmitting={isSubmitting}
+                  error={error}
+                />
+              )}
 
               {step === "database" && (
                 <DatabaseStep

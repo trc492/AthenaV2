@@ -489,6 +489,16 @@ export class FirebaseDatabaseService implements DatabaseService {
       await batch.commit();
     }
   }
+
+  /**
+   * Firebase Firestore does not have a relational users table — user records
+   * are managed via Firebase Auth / the SDK layer. This stub satisfies the
+   * DatabaseService interface; throw if called so misconfiguration is caught
+   * at runtime.
+   */
+  async updateUser(_id: string, _updates: import("@/lib/types").UserUpdates): Promise<void> {
+    throw new Error("updateUser is not supported by the Firebase provider. Use Firebase Auth or a relational provider for user management.");
+  }
 }
 
 export default FirebaseDatabaseService;

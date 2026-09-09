@@ -99,23 +99,14 @@ export async function POST(request: NextRequest) {
 
     // Persist avatar bytes and metadata directly in DB
     const db = databaseManager.getService();
-    if (!db.query) {
-      return NextResponse.json(
-        { error: "Database service not available" },
-        { status: 500 },
-      );
-    }
+
     const urlPath = "/api/users/me/avatar";
 
-    await db.query(
-      "UPDATE users SET avatarData = @avatarData, avatarMimeType = @avatarMimeType, avatarUrl = @avatarUrl, updated_at = GETDATE() WHERE id = @userId",
-      {
-        avatarData: buffer,
-        avatarMimeType: mime,
-        avatarUrl: urlPath,
-        userId: session.user.id,
-      },
-    );
+    await db.updateUser(session.user.id, {
+      avatarData: buffer,
+      avatarMimeType: mime,
+      avatarUrl: urlPath,
+    });
 
     return NextResponse.json({
       success: true,

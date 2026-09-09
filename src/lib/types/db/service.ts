@@ -128,6 +128,32 @@ export interface DatabaseService {
   resetDatabase(): Promise<void>;
   syncToCloud?(): Promise<void>;
   syncFromCloud?(): Promise<void>;
+
+  /**
+   * Updates one or more fields on a user record.
+   * Each provider handles its own SQL dialect and timestamp logic internally —
+   * callers never write SQL or worry about GETDATE() vs NOW().
+   *
+   * Only the fields present in `updates` are written; omitted fields are left
+   * unchanged. `updated_at` is always refreshed automatically.
+   */
+  updateUser(id: string, updates: UserUpdates): Promise<void>;
+}
+
+/**
+ * The set of user fields that can be updated via DatabaseService.updateUser().
+ * All fields are optional — only those provided will be written.
+ */
+export interface UserUpdates {
+  name?: string;
+  username?: string;
+  /** Pre-hashed bcrypt password string. Hash before calling. */
+  passwordHash?: string;
+  role?: string;
+  avatarData?: Buffer | null;
+  avatarMimeType?: string | null;
+  avatarUrl?: string | null;
+  pushSubscriptions?: string | null;
 }
 
 export type DatabaseProvider =

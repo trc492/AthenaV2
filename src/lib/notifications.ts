@@ -31,12 +31,13 @@ function ensureVapidConfigured() {
     return false;
   }
 
+  // VAPID_CONTACT_EMAIL should be set in your environment (e.g. mailto:team@example.com
+  // or https://yourteam.example.com). Required by the Web Push spec for abuse contact.
+  const contact =
+    process.env.VAPID_CONTACT_EMAIL || "mailto:contact@example.com";
+
   // Safe to call multiple times (web-push just overwrites internal state)
-  webPush.setVapidDetails(
-    "mailto:noahnfang@outlook.com",
-    publicKey,
-    privateKey,
-  );
+  webPush.setVapidDetails(contact, publicKey, privateKey);
   return true;
 }
 

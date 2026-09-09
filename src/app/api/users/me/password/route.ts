@@ -61,10 +61,7 @@ export async function PUT(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update password
-    await service.query(
-      "UPDATE users SET password_hash = @password_hash, updated_at = GETDATE() WHERE id = @id",
-      { id: session.user.id, password_hash: hashedPassword },
-    );
+    await service.updateUser(session.user.id, { passwordHash: hashedPassword });
 
     return NextResponse.json({ success: true });
   } catch (error) {

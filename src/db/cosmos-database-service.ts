@@ -776,6 +776,15 @@ export class CosmosDatabaseService implements DatabaseService {
       }
     }
   }
+
+  /**
+   * Cosmos DB does not have a relational users table — user records are managed
+   * via Azure AD / the SDK layer. This stub satisfies the DatabaseService
+   * interface; throw if called so misconfiguration is caught at runtime.
+   */
+  async updateUser(_id: string, _updates: import("@/lib/types").UserUpdates): Promise<void> {
+    throw new Error("updateUser is not supported by the Cosmos DB provider. Use Azure AD or a relational provider for user management.");
+  }
 }
 
 export default CosmosDatabaseService;

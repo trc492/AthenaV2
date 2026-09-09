@@ -925,6 +925,59 @@ export class MariaDbDatabaseService implements DatabaseService {
     await pool.execute(`DROP TABLE IF EXISTS users`);
     await this.initializeTables();
   }
+
+  /**
+   * Updates one or more fields on a user record.
+   * Uses parameterized MariaDB/MySQL syntax (`?` positional placeholders).
+   * `updated_at` is always refreshed automatically via `CURRENT_TIMESTAMP`.
+   */
+  async updateUser(id: string, updates: import("@/lib/types").UserUpdates): Promise<void> {
+    const pool = await this.getPool();
+    const setParts: string[] = [];
+    const values: unknown[] = [];
+
+    if (updates.name !== undefined) {
+      setParts.push("name = ?");
+      values.push(updates.name);
+    }
+    if (updates.username !== undefined) {
+      setParts.push("username = ?");
+      values.push(updates.username);
+    }
+    if (updates.passwordHash !== undefined) {
+      setParts.push("password_hash = ?");
+      values.push(updates.passwordHash);
+    }
+    if (updates.role !== undefined) {
+      setParts.push("role = ?");
+      values.push(updates.role);
+    }
+    if (updates.avatarData !== undefined) {
+      setParts.push("avatarData = ?");
+      values.push(updates.avatarData);
+    }
+    if (updates.avatarMimeType !== undefined) {
+      setParts.push("avatarMimeType = ?");
+      values.push(updates.avatarMimeType);
+    }
+    if (updates.avatarUrl !== undefined) {
+      setParts.push("avatarUrl = ?");
+      values.push(updates.avatarUrl);
+    }
+    if (updates.pushSubscriptions !== undefined) {
+      setParts.push("push_subscriptions = ?");
+      values.push(updates.pushSubscriptions);
+    }
+
+    if (setParts.length === 0) return;
+
+    setParts.push("updated_at = CURRENT_TIMESTAMP");
+    values.push(id);
+    await pool.execute(
+      `UPDATE users SET ${setParts.join(", ")} WHERE id = ?`,
+      values as any[],
+    );
+  }
 }
 
 export default MariaDbDatabaseService;

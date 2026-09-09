@@ -11,9 +11,11 @@ export default async function SetupPage() {
     redirect("/login");
   }
 
-  return (
-    <FirstRunSetupPage
-      initialStep={status.needsDatabase ? "database" : "admin"}
-    />
-  );
+  const initialStep = status.needsAppUrl
+    ? "app-url"
+    : status.needsDatabase
+      ? "database"
+      : "admin";
+
+  return <FirstRunSetupPage initialStep={initialStep} />;
 }

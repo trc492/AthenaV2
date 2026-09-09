@@ -8,6 +8,7 @@ import {
   PERMISSIONS,
   ROLES,
 } from "@/lib/auth/roles";
+import { USERNAME_REGEX } from "@/lib/server/user-service";
 
 interface RouteParams {
   params: Promise<{
@@ -103,8 +104,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Validate username format if provided
     if (username) {
-      const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
-      if (!usernameRegex.test(username)) {
+      if (!USERNAME_REGEX.test(username)) {
         return NextResponse.json(
           {
             error:
@@ -168,43 +168,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Build update query dynamically
-    const updateFields = [];
-    const requestInputs = [];
+    // Build updates object and delegate SQL to the provider
+    const updates: Record<string, unknown> = {};
+    if (name) updates.name = name;
+    if (username) updates.username = username;
+    if (password) updates.passwordHash = await bcrypt.hash(password, 12);
+    if (role) updates.role = role;
 
-    if (name) {
-      updateFields.push("name = @name");
-      requestInputs.push({ name: "name", value: name });
-    }
-    if (username) {
-      updateFields.push("username = @username");
-      requestInputs.push({ name: "username", value: username });
-    }
-    if (password) {
-      const hashedPassword = await bcrypt.hash(password, 12);
-      updateFields.push("password_hash = @passwordHash");
-      requestInputs.push({ name: "passwordHash", value: hashedPassword });
-    }
-    if (role) {
-      updateFields.push("role = @role");
-      requestInputs.push({ name: "role", value: role });
-    }
-
-    updateFields.push("updated_at = GETDATE()");
-
-    const updateParams: Record<string, unknown> = { userId: id };
-    requestInputs.forEach((input) => {
-      updateParams[input.name] = input.value;
-    });
-
-    await db.query(
-      `
-      UPDATE users
-      SET ${updateFields.join(", ")}
-      WHERE id = @userId
-      `,
-      updateParams,
-    );
+    await db.updateUser(id, updates);
 
     return NextResponse.json({ message: "User updated successfully" });
   } catch (error) {

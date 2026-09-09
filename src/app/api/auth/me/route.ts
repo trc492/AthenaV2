@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { databaseManager } from "@/db/database-manager";
+import { USERNAME_REGEX } from "@/lib/server/user-service";
 
 export async function GET() {
   try {
@@ -67,8 +68,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Validate username format
-    const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
-    if (!usernameRegex.test(username)) {
+    if (!USERNAME_REGEX.test(username)) {
       return NextResponse.json(
         {
           error:
@@ -99,14 +99,10 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update the user
-    await db.query(
-      `
-        UPDATE users
-        SET name = @name, username = @username, updated_at = GETDATE()
-        WHERE id = @userId
-      `,
-      { name: name.trim(), username: username.trim(), userId: session.user.id },
-    );
+    await db.updateUser(session.user.id, {
+      name: name.trim(),
+      username: username.trim(),
+    });
 
     return NextResponse.json({
       success: true,

@@ -65,6 +65,10 @@ export const PERMISSIONS = {
 
   // Tablet-specific permissions
   SCOUT_ON_BEHALF: "scout_on_behalf", // Allows submitting data on behalf of other users
+
+  // Override permissions — grants edit/delete rights over any user's entries
+  OVERRIDE_MATCH_SCOUTING: "override_match_scouting",
+  OVERRIDE_PIT_SCOUTING: "override_pit_scouting",
 } as const;
 
 export const ROLE_PERMISSIONS = {
@@ -106,6 +110,9 @@ export const ROLE_PERMISSIONS = {
 
     PERMISSIONS.EXPORT_DATA,
     PERMISSIONS.IMPORT_DATA,
+
+    PERMISSIONS.OVERRIDE_MATCH_SCOUTING,
+    PERMISSIONS.OVERRIDE_PIT_SCOUTING,
   ],
   [ROLES.SCOUT]: [
     // Basic scouting permissions - can view and create/edit their own scouting data
