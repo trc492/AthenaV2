@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
         SELECT DISTINCT userId
         FROM matchAssignments
         WHERE eventCode = @eventCode
+          AND competitionType = 'FRC'
           AND matchNumber = @matchNumber
       `, { eventCode: data.event_key, matchNumber: notifyMatch });
 
@@ -118,9 +119,9 @@ export async function POST(req: NextRequest) {
         sendPushNotificationToUser({
           userId,
           payload: {
-            title: "Scouting Match Coming Up in 2 Matches",
+            title: "Scouting Match Coming Up",
             body: `${data.event_name}: Get ready for match ${notifyMatch}.`,
-            url: "/dashboard/matchscouting",
+            url: `/scout/matchscout?match=${notifyMatch}`,
             data: { timestamp: new Date().toISOString() },
           },
         }),

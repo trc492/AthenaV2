@@ -117,17 +117,20 @@ export function ConfigurableMatchupCard({ teamNumber, alliance }: MatchupCardPro
     })),
   ];
 
-  const endgameStates = matchupConfig?.endgame?.states ?? [
-    ...Object.entries(
-      yearConfig?.scoring.endgame?.ending_robot_state?.pointValues ||
-        yearConfig?.scoring.endgame?.ending_based_state?.pointValues ||
+  const endgameStateKey = matchupConfig?.endgame?.stateKey;
+  const endgameFieldName = endgameStateKey?.split(".").pop();
+
+  const endgameStates =
+    matchupConfig?.endgame?.states ??
+    Object.keys(
+      (endgameFieldName &&
+        yearConfig?.scoring.endgame?.[endgameFieldName]?.pointValues) ||
         {},
-    ).map(([k]) => ({
+    ).map((k) => ({
       key: k,
       label: k.charAt(0).toUpperCase() + k.slice(1),
-      threshold: k === "deep" || k === "full" ? 50 : undefined,
-    })),
-  ];
+      threshold: undefined as number | undefined,
+    }));
 
   // Warnings check
   const breakdownRate = stats?.rates["endgame.robot_broke_down"] ?? 0;
@@ -284,9 +287,12 @@ export function ConfigurableMatchupCard({ teamNumber, alliance }: MatchupCardPro
                     <span className="text-muted-foreground">Best Climb</span>
                     <Badge
                       variant={
-                        stats.bestClimb === "L3"
+                        // States are declared best-first
+                        endgameStates.findIndex(
+                          (s) => s.key === stats.bestClimb,
+                        ) === 0
                           ? "default"
-                          : stats.bestClimb === "L2"
+                          : endgameStates.some((s) => s.key === stats.bestClimb)
                             ? "secondary"
                             : "outline"
                       }
@@ -298,12 +304,9 @@ export function ConfigurableMatchupCard({ teamNumber, alliance }: MatchupCardPro
                 )}
 
                 {endgameStates.map((state) => {
-                  const stateKey =
-                    matchupConfig?.endgame?.stateKey ?? "endgame.ending_robot_state";
                   const rateVal =
-                    stats.rates[`${stateKey}.${state.key}`] ??
-                    stats.rates[`ending_robot_state.${state.key}`] ??
-                    stats.rates[`ending_based_state.${state.key}`] ??
+                    stats.rates[`${endgameStateKey}.${state.key}`] ??
+                    stats.rates[`${endgameFieldName}.${state.key}`] ??
                     stats.rates[state.key] ??
                     0;
 

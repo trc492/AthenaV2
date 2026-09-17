@@ -11,6 +11,9 @@ import {
   Picklist,
   PicklistEntry,
   PicklistNote,
+  ScheduleAssignmentChange,
+  ScheduleAssignmentScope,
+  ScheduleAssignmentRecord,
 } from "@/lib/types";
 
 export class AzureSqlDatabaseService implements DatabaseService {
@@ -121,6 +124,107 @@ export class AzureSqlDatabaseService implements DatabaseService {
 
     const result = await request.query(sql);
     return { recordset: result.recordset as T[] };
+  }
+
+  public async applyScheduleAssignmentChanges(
+    scope: ScheduleAssignmentScope,
+    changes: ScheduleAssignmentChange[],
+    replaceAll = false,
+    expectedAssignments?: ScheduleAssignmentRecord[],
+  ): Promise<void> {
+    const mssql = await import("mssql");
+    const pool = await this.getPool();
+    const transaction = new mssql.Transaction(pool);
+
+    await transaction.begin();
+    try {
+      if (expectedAssignments) {
+        const current = await new mssql.Request(transaction)
+          .input("eventCode", mssql.NVarChar, scope.eventCode)
+          .input("year", mssql.Int, scope.year)
+          .input("competitionType", mssql.NVarChar, scope.competitionType)
+          .query<ScheduleAssignmentRecord>(`
+            SELECT matchNumber, alliance, position, userId
+            FROM matchAssignments WITH (UPDLOCK, HOLDLOCK)
+            WHERE eventCode = @eventCode AND year = @year
+              AND competitionType = @competitionType
+            ORDER BY matchNumber, alliance, position
+          `);
+        const normalize = (rows: ScheduleAssignmentRecord[]) =>
+          JSON.stringify(
+            [...rows]
+              .sort((a, b) =>
+                a.matchNumber - b.matchNumber ||
+                a.alliance.localeCompare(b.alliance) ||
+                a.position - b.position,
+              )
+              .map(({ matchNumber, alliance, position, userId }) => ({
+                matchNumber,
+                alliance,
+                position,
+                userId,
+              })),
+          );
+        if (normalize(current.recordset) !== normalize(expectedAssignments)) {
+          const conflict = new Error("Schedule changed since it was loaded");
+          conflict.name = "ScheduleConflictError";
+          throw conflict;
+        }
+      }
+
+      if (replaceAll) {
+        await new mssql.Request(transaction)
+          .input("eventCode", mssql.NVarChar, scope.eventCode)
+          .input("year", mssql.Int, scope.year)
+          .input("competitionType", mssql.NVarChar, scope.competitionType)
+          .query(`
+            DELETE FROM matchAssignments
+            WHERE eventCode = @eventCode AND year = @year
+              AND competitionType = @competitionType
+          `);
+      }
+
+      for (const change of changes) {
+        const createRequest = () =>
+          new mssql.Request(transaction)
+            .input("eventCode", mssql.NVarChar, scope.eventCode)
+            .input("year", mssql.Int, scope.year)
+            .input("competitionType", mssql.NVarChar, scope.competitionType)
+            .input("startMatch", mssql.Int, change.startMatch)
+            .input("endMatch", mssql.Int, change.endMatch)
+            .input("alliance", mssql.NVarChar, change.alliance)
+            .input("position", mssql.Int, change.position)
+            .input("userId", mssql.NVarChar, change.userId);
+
+        if (!replaceAll) {
+          await createRequest().query(`
+            DELETE FROM matchAssignments
+            WHERE eventCode = @eventCode AND year = @year
+              AND competitionType = @competitionType
+              AND matchNumber BETWEEN @startMatch AND @endMatch
+              AND alliance = @alliance AND position = @position
+          `);
+        }
+
+        if (change.userId) {
+          const values = Array.from(
+            { length: change.endMatch - change.startMatch + 1 },
+            (_, index) =>
+              `(@eventCode, @year, @competitionType, ${change.startMatch + index}, @alliance, @position, @userId)`,
+          );
+          await createRequest().query(`
+            INSERT INTO matchAssignments
+              (eventCode, year, competitionType, matchNumber, alliance, position, userId)
+            VALUES ${values.join(", ")}
+          `);
+        }
+      }
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
 
   private isTokenExpired(): boolean {
@@ -240,14 +344,45 @@ export class AzureSqlDatabaseService implements DatabaseService {
         id INT IDENTITY(1,1) PRIMARY KEY,
         eventCode NVARCHAR(50) NOT NULL,
         year INT NOT NULL,
+        competitionType NVARCHAR(10) DEFAULT 'FRC' NOT NULL,
         matchNumber INT NOT NULL,
         alliance NVARCHAR(10) NOT NULL,
         position INT NOT NULL,
         userId NVARCHAR(255) NOT NULL,
         created_at DATETIME DEFAULT GETDATE(),
         FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
-        CONSTRAINT uq_match_assignment UNIQUE (eventCode, year, matchNumber, alliance, position)
+        CONSTRAINT uq_match_assignment UNIQUE (eventCode, year, competitionType, matchNumber, alliance, position)
       )
+    `);
+
+    await pool.request().query(`
+      IF COL_LENGTH('matchAssignments', 'competitionType') IS NULL
+        ALTER TABLE matchAssignments ADD competitionType NVARCHAR(10) NOT NULL
+          CONSTRAINT DF_matchAssignments_competitionType DEFAULT 'FRC';
+
+      IF EXISTS (
+        SELECT 1 FROM sys.indexes i
+        WHERE i.object_id = OBJECT_ID('matchAssignments')
+          AND i.name = 'uq_match_assignment'
+          AND NOT EXISTS (
+            SELECT 1 FROM sys.index_columns ic
+            JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+            WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id
+              AND c.name = 'competitionType'
+          )
+      )
+      BEGIN
+        ALTER TABLE matchAssignments DROP CONSTRAINT uq_match_assignment;
+        -- Legacy rows had no competition discriminator. Copy them into both
+        -- namespaces so an existing FTC schedule is not lost during migration.
+        INSERT INTO matchAssignments
+          (eventCode, year, competitionType, matchNumber, alliance, position, userId, created_at)
+        SELECT eventCode, year, 'FTC', matchNumber, alliance, position, userId, created_at
+        FROM matchAssignments
+        WHERE competitionType = 'FRC';
+        ALTER TABLE matchAssignments ADD CONSTRAINT uq_match_assignment
+          UNIQUE (eventCode, year, competitionType, matchNumber, alliance, position);
+      END
     `);
 
     // Add preferredPartners column to users table if it doesn't exist
@@ -1559,36 +1694,45 @@ export class AzureSqlDatabaseService implements DatabaseService {
   }
 
   async importData(data: {
-    pitEntries: PitEntry[];
-    matchEntries: MatchEntry[];
+    pitEntries?: PitEntry[];
+    matchEntries?: MatchEntry[];
   }): Promise<void> {
     const pool = await this.getPool();
     const mssql = await import("mssql");
 
-    // Clear existing data for the years being imported
-    const years = new Set<number>();
-    data.pitEntries.forEach((entry) => years.add(entry.year));
-    data.matchEntries.forEach((entry) => years.add(entry.year));
+    const pitEntries = data.pitEntries || [];
+    const matchEntries = data.matchEntries || [];
 
-    for (const year of years) {
-      await pool
-        .request()
-        .input("year", mssql.Int, year)
-        .query("DELETE FROM pitEntries WHERE year = @year");
+    // Clear existing data only for the years and types being imported
+    if (pitEntries.length > 0) {
+      const pitYears = new Set<number>();
+      pitEntries.forEach((entry) => pitYears.add(entry.year));
+      for (const year of pitYears) {
+        await pool
+          .request()
+          .input("year", mssql.Int, year)
+          .query("DELETE FROM pitEntries WHERE year = @year");
+      }
+    }
 
-      await pool
-        .request()
-        .input("year", mssql.Int, year)
-        .query("DELETE FROM matchEntries WHERE year = @year");
+    if (matchEntries.length > 0) {
+      const matchYears = new Set<number>();
+      matchEntries.forEach((entry) => matchYears.add(entry.year));
+      for (const year of matchYears) {
+        await pool
+          .request()
+          .input("year", mssql.Int, year)
+          .query("DELETE FROM matchEntries WHERE year = @year");
+      }
     }
 
     // Import pit entries
-    for (const entry of data.pitEntries) {
+    for (const entry of pitEntries) {
       await this.addPitEntry(entry);
     }
 
     // Import match entries
-    for (const entry of data.matchEntries) {
+    for (const entry of matchEntries) {
       await this.addMatchEntry(entry);
     }
   }

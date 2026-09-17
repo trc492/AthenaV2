@@ -7,12 +7,14 @@ import {
   hasPermission,
   hasAnyPermission,
   hasAllPermissions,
+  hasAnyRole,
 } from "@/lib/auth/roles";
 
 interface PermissionGuardProps {
   children: ReactNode;
   permission?: string;
   permissions?: string[];
+  roles?: string[] | null; // Optional array of roles to check against
   requireAll?: boolean; // If true, user must have ALL permissions; if false, user must have ANY
   fallback?: ReactNode;
   showIfUnauthorized?: boolean; // If true, shows children even if unauthorized (useful for conditional styling)
@@ -22,6 +24,7 @@ export function PermissionGuard({
   children,
   permission,
   permissions,
+  roles,
   requireAll = false,
   fallback = null,
   showIfUnauthorized = false,
@@ -37,6 +40,8 @@ export function PermissionGuard({
     hasAccess = requireAll
       ? hasAllPermissions(userRole, permissions)
       : hasAnyPermission(userRole, permissions);
+  } else if (roles) {
+    hasAccess = hasAnyRole(userRole, roles);
   } else {
     // If no permission specified, allow access
     hasAccess = true;

@@ -11,6 +11,7 @@ import {
   FtcMatchResult,
   FtcMatchResultTeam,
 } from "@/lib/api/ftcevents-types";
+import { parseEventRequest } from "@/lib/server/event-request";
 
 // Unified match schedule response format
 export interface MatchScheduleTeam {
@@ -140,36 +141,21 @@ export async function GET(
 ) {
   try {
     const { eventCode } = await params;
-    const { searchParams } = new URL(request.url);
-    const competitionType = searchParams.get("competitionType") || "FRC";
+    const parsed = parseEventRequest(request, { requireFtcYear: true });
+    if (parsed.error) return parsed.error;
+    const { competitionType, year: seasonNum } = parsed.data;
 
     if (!eventCode) {
       return NextResponse.json({ error: "Missing eventCode" }, { status: 400 });
     }
 
     if (competitionType === "FTC") {
-      const season = searchParams.get("season") || searchParams.get("year");
-      if (!season) {
-        return NextResponse.json(
-          { error: "Missing season/year parameter for FTC" },
-          { status: 400 },
-        );
-      }
-
-      const seasonNum = parseInt(season);
-      if (isNaN(seasonNum)) {
-        return NextResponse.json(
-          { error: "Invalid season/year" },
-          { status: 400 },
-        );
-      }
-
       // First try to get the schedule (may not be available yet)
       let matches: MatchScheduleEntry[] = [];
 
       try {
         const scheduleResponse = await getFtcEventSchedule(
-          seasonNum,
+          seasonNum!,
           eventCode,
           "qual",
         );
@@ -185,7 +171,7 @@ export async function GET(
       if (matches.length === 0) {
         try {
           const matchesResponse = await getFtcEventMatches(
-            seasonNum,
+            seasonNum!,
             eventCode,
             "qual",
           );

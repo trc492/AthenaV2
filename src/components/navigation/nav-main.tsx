@@ -16,6 +16,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export function NavMain({
   items,
@@ -31,15 +32,26 @@ export function NavMain({
     }[];
   }[];
 }) {
+  const pathname = usePathname();
+  const routeIsActive = (url: string) =>
+    url === "/" ? pathname === url : pathname === url || pathname.startsWith(`${url}/`);
+
   return (
     <SidebarGroup>
       <SidebarMenu>
         {items.map((item) => {
           const hasChildren = !!item.items?.length;
+          const sectionIsActive = item.items?.some((subItem) =>
+            routeIsActive(subItem.url),
+          );
 
           if (hasChildren) {
             return (
-              <Collapsible key={item.title} defaultOpen={false} className="group/collapsible">
+              <Collapsible
+                key={item.title}
+                defaultOpen={sectionIsActive}
+                className="group/collapsible"
+              >
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip={item.title}>
@@ -57,7 +69,7 @@ export function NavMain({
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton
                             asChild
-                            isActive={subItem.isActive}
+                            isActive={routeIsActive(subItem.url)}
                           >
                             <Link href={subItem.url}>
                               {subItem.title}
@@ -75,7 +87,11 @@ export function NavMain({
           // no children
           return (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild tooltip={item.title}>
+              <SidebarMenuButton
+                asChild
+                tooltip={item.title}
+                isActive={routeIsActive(item.url!)}
+              >
                 <Link href={item.url!}>
                   {item.icon && <item.icon className="size-4" />}
 

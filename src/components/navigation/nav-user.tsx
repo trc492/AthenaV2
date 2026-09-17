@@ -97,13 +97,6 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {/* <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Sparkles />
-                Upgrade to Pro
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator /> */}
             <DropdownMenuGroup>
               <DropdownMenuItem
                 onClick={() => openAccountSettings && openAccountSettings()}
@@ -119,15 +112,6 @@ export function NavUser({
                 <Bell />
                 Notifications
               </DropdownMenuItem>
-              {/* <DropdownMenuItem asChild>
-                <div className="flex items-center w-full cursor-pointer">
-                  <Palette className="mr-2 h-4 w-4" />
-                  <span className="flex-1">Theme</span>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ThemeSelector />
-                  </div>
-                </div>
-              </DropdownMenuItem> */}
               <DropdownMenuItem onClick={handleSwitchProgram}>
                 <Trophy
                   className={

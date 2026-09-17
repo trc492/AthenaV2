@@ -37,6 +37,7 @@ import {
   Eye,
   Swords,
   LayoutDashboard,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { YearConfig, ScoringDefinition } from "@/lib/types";
@@ -47,6 +48,7 @@ import { PropertyInspector, SelectedComponentInfo } from "./property-inspector";
 import { VisualMatchupCanvas } from "./visual-matchup-canvas";
 import { VisualTeamPageCanvas } from "./visual-teampage-canvas";
 import { BuilderJsonEditor } from "./builder-json-editor";
+import { validateYearConfig } from "@/lib/server/config-validator";
 
 // Static defaults as instant fallback
 import FRC2026 from "../../../../config/years/FRC-2026.json";
@@ -72,6 +74,10 @@ export function GameConfigStudio() {
   const [selectedFile, setSelectedFile] = useState<string>("FRC-2026.json");
   const [currentConfig, setCurrentConfig] = useState<YearConfig>(() => JSON.parse(JSON.stringify(FRC2026)));
   const [currentYear, setCurrentYear] = useState<number>(2026);
+  const referenceWarnings = React.useMemo(
+    () => validateYearConfig(currentConfig).warnings,
+    [currentConfig],
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Studio Modes & State
@@ -602,6 +608,26 @@ export function GameConfigStudio() {
         </div>
       </div>
 
+      {referenceWarnings.length > 0 && (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-500/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-600 dark:text-amber-500">
+            <AlertTriangle className="h-4 w-4" />
+            {referenceWarnings.length} unresolved reference
+            {referenceWarnings.length === 1 ? "" : "s"}
+          </div>
+          <ul className="mt-2 space-y-1">
+            {referenceWarnings.map((warning, idx) => (
+              <li
+                key={idx}
+                className="text-xs text-muted-foreground before:mr-1.5 before:content-['—']"
+              >
+                {warning}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Main Designer Workspace depending on active mode */}
       {studioMode === "match" || studioMode === "pit" ? (
         /* Figma-Style 3-Column Studio Workspace for Match/Pit */
@@ -657,6 +683,7 @@ export function GameConfigStudio() {
         /* Team Profile Page Designer */
         <VisualTeamPageCanvas
           config={currentConfig}
+          year={currentYear}
           onUpdateConfig={setCurrentConfig}
         />
       )}

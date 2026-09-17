@@ -3,6 +3,8 @@ import { DatabaseConfig, DatabaseProvider } from "@/lib/types";
 import { DatabaseManager } from "@/db/database-manager";
 import { savePersistedDatabaseConfig } from "@/lib/server/env-file";
 import { hasAnyAdmin } from "@/lib/server/user-service";
+import { requirePermission } from "@/lib/server/require-permission";
+import { PERMISSIONS } from "@/lib/auth/roles";
 
 const VALID_PROVIDERS: DatabaseProvider[] = [
   "azuresql",
@@ -62,6 +64,12 @@ function validateConfig(config: DatabaseConfig): string | null {
 
 export async function POST(request: NextRequest) {
   try {
+    const manager = DatabaseManager.getInstance();
+    if (manager.isConfigured() && (await hasAnyAdmin())) {
+      const denied = await requirePermission(PERMISSIONS.MANAGE_DATABASE);
+      if (denied) return denied;
+    }
+
     const body = await request.json();
     const provider = body?.provider as DatabaseProvider | undefined;
 
@@ -143,19 +151,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const manager = DatabaseManager.getInstance();
-
-    // Reconfigure the manager with the new configuration
-    manager.configure(config);
-
-    // Verify service readiness
-    const service = manager.getService();
-    if (service.query) {
-      await service.query("SELECT 1 AS healthcheck");
+    // Verify a candidate before replacing the active database connection.
+    const candidate = manager.createServiceForConfig(config);
+    if (candidate.query) {
+      await candidate.query("SELECT 1 AS healthcheck");
     }
 
     // Persist configuration so it survives server restarts
     await savePersistedDatabaseConfig(config);
+    manager.configure(config);
 
     const adminExists = await hasAnyAdmin();
 

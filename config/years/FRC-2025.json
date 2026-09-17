@@ -189,6 +189,42 @@
       }
     }
   },
+  "derivedMetrics": [
+    {
+      "key": "calculated.auto_coral",
+      "label": "Auto Coral",
+      "op": "sum",
+      "inputs": [
+        "autonomous.L1_coral",
+        "autonomous.L2_coral",
+        "autonomous.L3_coral",
+        "autonomous.L4_coral"
+      ]
+    },
+    {
+      "key": "calculated.auto_algae",
+      "label": "Auto Algae",
+      "op": "sum",
+      "inputs": ["autonomous.processor_algae", "autonomous.net_algae"]
+    },
+    {
+      "key": "calculated.teleop_coral",
+      "label": "Teleop Coral",
+      "op": "sum",
+      "inputs": [
+        "teleop.L1_coral",
+        "teleop.L2_coral",
+        "teleop.L3_coral",
+        "teleop.L4_coral"
+      ]
+    },
+    {
+      "key": "calculated.teleop_algae",
+      "label": "Teleop Algae",
+      "op": "sum",
+      "inputs": ["teleop.processor_algae", "teleop.net_algae"]
+    }
+  ],
   "matchupCardConfig": {
     "autoIcon": "Shell",
     "autoMetrics": [

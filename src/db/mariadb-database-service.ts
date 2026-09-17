@@ -7,6 +7,9 @@ import {
   Picklist,
   PicklistEntry,
   PicklistNote,
+  ScheduleAssignmentChange,
+  ScheduleAssignmentScope,
+  ScheduleAssignmentRecord,
 } from "@/lib/types";
 
 import type { Pool } from "mysql2/promise";
@@ -52,6 +55,107 @@ export class MariaDbDatabaseService implements DatabaseService {
     );
     const [rows]: any = await pool.execute(normalizedSql, values as any);
     return { recordset: rows as T[] };
+  }
+
+  public async applyScheduleAssignmentChanges(
+    scope: ScheduleAssignmentScope,
+    changes: ScheduleAssignmentChange[],
+    replaceAll = false,
+    expectedAssignments?: ScheduleAssignmentRecord[],
+  ): Promise<void> {
+    const pool = await this.getPool();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      if (expectedAssignments) {
+        const [currentRows] = await connection.execute(
+          `SELECT matchNumber, alliance, position, userId
+           FROM matchAssignments
+           WHERE eventCode = ? AND year = ? AND competitionType = ?
+           ORDER BY matchNumber, alliance, position
+           FOR UPDATE`,
+          [scope.eventCode, scope.year, scope.competitionType],
+        );
+        const normalize = (rows: ScheduleAssignmentRecord[]) =>
+          JSON.stringify(
+            [...rows]
+              .sort((a, b) =>
+                a.matchNumber - b.matchNumber ||
+                a.alliance.localeCompare(b.alliance) ||
+                a.position - b.position,
+              )
+              .map(({ matchNumber, alliance, position, userId }) => ({
+                matchNumber,
+                alliance,
+                position,
+                userId,
+              })),
+          );
+        if (
+          normalize(currentRows as ScheduleAssignmentRecord[]) !==
+          normalize(expectedAssignments)
+        ) {
+          const conflict = new Error("Schedule changed since it was loaded");
+          conflict.name = "ScheduleConflictError";
+          throw conflict;
+        }
+      }
+      if (replaceAll) {
+        await connection.execute(
+          `DELETE FROM matchAssignments
+           WHERE eventCode = ? AND year = ? AND competitionType = ?`,
+          [scope.eventCode, scope.year, scope.competitionType],
+        );
+      }
+
+      for (const change of changes) {
+        if (!replaceAll) {
+          await connection.execute(
+            `DELETE FROM matchAssignments
+             WHERE eventCode = ? AND year = ? AND competitionType = ?
+               AND matchNumber BETWEEN ? AND ?
+               AND alliance = ? AND position = ?`,
+            [
+              scope.eventCode,
+              scope.year,
+              scope.competitionType,
+              change.startMatch,
+              change.endMatch,
+              change.alliance,
+              change.position,
+            ],
+          );
+        }
+
+        if (change.userId) {
+          const rows = Array.from(
+            { length: change.endMatch - change.startMatch + 1 },
+            (_, index) => [
+              scope.eventCode,
+              scope.year,
+              scope.competitionType,
+              change.startMatch + index,
+              change.alliance,
+              change.position,
+              change.userId,
+            ],
+          );
+          const placeholders = rows.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
+          await connection.execute(
+            `INSERT INTO matchAssignments
+              (eventCode, year, competitionType, matchNumber, alliance, position, userId)
+             VALUES ${placeholders}`,
+            rows.flat(),
+          );
+        }
+      }
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   private normalizeSqlParams(
@@ -164,14 +268,47 @@ export class MariaDbDatabaseService implements DatabaseService {
         id INT PRIMARY KEY AUTO_INCREMENT,
         eventCode VARCHAR(50) NOT NULL,
         year INT NOT NULL,
+        competitionType VARCHAR(10) DEFAULT 'FRC' NOT NULL,
         matchNumber INT NOT NULL,
         alliance VARCHAR(10) NOT NULL,
         position INT NOT NULL,
         userId VARCHAR(255) NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT uq_match_assignment UNIQUE (eventCode, year, matchNumber, alliance, position)
+        CONSTRAINT uq_match_assignment UNIQUE (eventCode, year, competitionType, matchNumber, alliance, position)
       ) ENGINE=InnoDB;
     `);
+    await pool.query(`
+      ALTER TABLE matchAssignments
+      ADD COLUMN IF NOT EXISTS competitionType VARCHAR(10) NOT NULL DEFAULT 'FRC' AFTER year
+    `);
+    const [assignmentIndexRows]: any = await pool.query(`
+      SELECT COUNT(*) AS count
+      FROM information_schema.statistics
+      WHERE table_schema = DATABASE()
+        AND table_name = 'matchAssignments'
+        AND index_name = 'uq_match_assignment'
+        AND column_name = 'competitionType'
+    `);
+    if (Number(assignmentIndexRows?.[0]?.count ?? 0) === 0) {
+      await pool.query(`
+        ALTER TABLE matchAssignments
+        DROP INDEX uq_match_assignment
+      `);
+      // Legacy rows could belong to either program, so preserve them in both
+      // namespaces. The next successful save replaces only the selected one.
+      await pool.query(`
+        INSERT INTO matchAssignments
+          (eventCode, year, competitionType, matchNumber, alliance, position, userId, created_at)
+        SELECT eventCode, year, 'FTC', matchNumber, alliance, position, userId, created_at
+        FROM matchAssignments
+        WHERE competitionType = 'FRC'
+      `);
+      await pool.query(`
+        ALTER TABLE matchAssignments
+        ADD CONSTRAINT uq_match_assignment UNIQUE
+          (eventCode, year, competitionType, matchNumber, alliance, position)
+      `);
+    }
 
     // picklists
     await pool.query(`
@@ -890,16 +1027,16 @@ export class MariaDbDatabaseService implements DatabaseService {
     return { pitEntries: pit, matchEntries: matches };
   }
 
-  async importData(data: { pitEntries: PitEntry[]; matchEntries: MatchEntry[] }): Promise<void> {
+  async importData(data: { pitEntries?: PitEntry[]; matchEntries?: MatchEntry[] }): Promise<void> {
     const pool = await this.getPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      for (const p of data.pitEntries) {
+      for (const p of data.pitEntries || []) {
         const q = `INSERT INTO pitEntries (teamNumber, year, competitionType, driveTrain, weight, length, width, eventName, eventCode, userId, gameSpecificData, autoDrawing, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         await conn.execute(q, [p.teamNumber, p.year, p.competitionType, p.driveTrain, p.weight ?? null, p.length ?? null, p.width ?? null, p.eventName ?? null, p.eventCode ?? null, p.userId ?? null, JSON.stringify(p.gameSpecificData), p.autoDrawing ?? null, p.notes ?? null]);
       }
-      for (const m of data.matchEntries) {
+      for (const m of data.matchEntries || []) {
         const q = `INSERT INTO matchEntries (matchNumber, teamNumber, year, competitionType, alliance, alliancePosition, eventName, eventCode, userId, gameSpecificData, notes, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         await conn.execute(q, [m.matchNumber, m.teamNumber, m.year, m.competitionType, m.alliance, m.alliancePosition ?? null, m.eventName ?? null, m.eventCode ?? null, m.userId ?? null, JSON.stringify(m.gameSpecificData), m.notes ?? null, m.timestamp]);
       }

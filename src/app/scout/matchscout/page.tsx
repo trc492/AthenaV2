@@ -17,7 +17,7 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-background dark:bg-background">
       {/* Header Bar */}
-      <div className="bg-white/80 dark:bg-background/80 border-b top-0 z-50 backdrop-blur-sm">
+      <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -41,7 +41,11 @@ export default function Page() {
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
             <div className="flex items-center gap-3">
               {selectedEvent && (
-                <Badge variant="outline" className="text-xs hidden sm:block">
+                <Badge
+                  variant="outline"
+                  className="max-w-[14rem] truncate text-xs"
+                  title={selectedEvent.name}
+                >
                   {selectedEvent.name}
                 </Badge>
               )}

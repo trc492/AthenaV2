@@ -3,16 +3,24 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 const mockSavePersistedDatabaseConfig = vi.fn().mockResolvedValue(undefined);
 const mockConfigure = vi.fn();
 let mockQuery = vi.fn();
+let mockIsConfigured = false;
+const mockRequirePermission = vi.fn().mockResolvedValue(null);
 
 vi.mock("@/lib/server/env-file", () => ({
   savePersistedDatabaseConfig: mockSavePersistedDatabaseConfig,
   loadSystemSettings: vi.fn(() => ({ signupEnabled: true })),
 }));
 
+vi.mock("@/lib/server/require-permission", () => ({
+  requirePermission: mockRequirePermission,
+}));
+
 vi.mock("@/db/database-manager", () => {
   return {
     DatabaseManager: {
       getInstance: vi.fn(() => ({
+        isConfigured: () => mockIsConfigured,
+        createServiceForConfig: () => ({ query: mockQuery }),
         configure: mockConfigure,
         getService: () => ({
           query: mockQuery,
@@ -32,6 +40,8 @@ vi.mock("@/db/database-manager", () => {
 describe("/api/setup/database", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsConfigured = false;
+    mockRequirePermission.mockResolvedValue(null);
     mockQuery = vi.fn().mockResolvedValue({ recordset: [] });
   });
 
@@ -71,6 +81,29 @@ describe("/api/setup/database", () => {
     expect(data.adminExists).toBe(false);
     expect(mockConfigure).toHaveBeenCalled();
     expect(mockSavePersistedDatabaseConfig).toHaveBeenCalled();
+  });
+
+  it("requires database permission after an admin exists", async () => {
+    mockIsConfigured = true;
+    mockQuery = vi.fn().mockResolvedValue({ recordset: [{ count: 1 }] });
+    mockRequirePermission.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
+    );
+    const route = await import("@/app/api/setup/database/route");
+    const req = new Request("http://test/api/setup/database", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: "mariadb",
+        mariadb: { host: "localhost", database: "athena" },
+      }),
+    });
+
+    const res = await route.POST(req as any);
+
+    expect(res.status).toBe(401);
+    expect(mockConfigure).not.toHaveBeenCalled();
+    expect(mockSavePersistedDatabaseConfig).not.toHaveBeenCalled();
   });
 
   it("marks setup complete when the connected database already has an admin", async () => {

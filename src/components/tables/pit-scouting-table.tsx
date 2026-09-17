@@ -147,18 +147,6 @@ export function PitScoutingTable({
         );
       },
     },
-    // {
-    //   accessorKey: "gameSpecificData",
-    //   header: "Capabilities",
-    //   cell: ({ row }) => {
-    //     const data = row.getValue("gameSpecificData") as PitEntry['gameSpecificData'];
-    //     const capabilities = [];
-    //     if (data.coralCapability) capabilities.push(`Coral: ${data.coralCapability}`);
-    //     if (data.algaeCapability) capabilities.push(`Algae: ${data.algaeCapability}`);
-    //     if (data.climbCapability) capabilities.push(`Climb: ${data.climbCapability}`);
-    //     return <div className="text-sm">{capabilities.join(", ")}</div>;
-    //   },
-    // },
     {
       id: "actions",
       enableHiding: false,

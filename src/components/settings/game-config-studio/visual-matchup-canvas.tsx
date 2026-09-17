@@ -30,6 +30,15 @@ import {
   HelpCircle,
 } from "lucide-react";
 import type { YearConfig, MetricDisplayConfig, MatchupCardConfig } from "@/lib/types";
+import {
+  buildDatapointRegistry,
+  findDatapoint,
+} from "@/lib/game-config/datapoint-registry";
+import {
+  buildPreviewStats,
+  formatPreviewMetric,
+} from "@/lib/game-config/preview-stats";
+import { DatapointPicker } from "./datapoint-picker";
 
 interface VisualMatchupCanvasProps {
   config: YearConfig;
@@ -63,6 +72,27 @@ export function VisualMatchupCanvas({
 }: VisualMatchupCanvasProps) {
   const [allianceColor, setAllianceColor] = useState<"red" | "blue">("blue");
   const [selectedMetricKey, setSelectedMetricKey] = useState<string | null>(null);
+  const datapoints = React.useMemo(
+    () => buildDatapointRegistry(config),
+    [config],
+  );
+  const previewStats = React.useMemo(() => buildPreviewStats(config), [config]);
+
+  const previewValue = (key: string) =>
+    formatPreviewMetric(previewStats, key, !!findDatapoint(datapoints, key));
+
+  const metricValueClass = (key: string) =>
+    findDatapoint(datapoints, key)
+      ? "text-base font-bold font-mono text-foreground"
+      : "text-base font-bold font-mono text-amber-500";
+
+  const endgameStateRate = (stateKey: string) => {
+    const field = config.matchupCardConfig?.endgame?.stateKey;
+    const rate =
+      previewStats?.rates[`${field}.${stateKey}`] ??
+      previewStats?.rates[`${field?.split(".").pop()}.${stateKey}`];
+    return rate === undefined ? "—" : `${rate}%`;
+  };
 
   const matchupConfig: MatchupCardConfig = config.matchupCardConfig || {
     autoIcon: "Flame",
@@ -400,7 +430,9 @@ export function VisualMatchupCanvas({
                         </button>
                       </div>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-base font-bold font-mono text-foreground">14.2</span>
+                        <span className={metricValueClass(metric.key)}>
+                          {previewValue(metric.key)}
+                        </span>
                         {metric.unit && <span className="text-[10px] text-muted-foreground">{metric.unit}</span>}
                         {metric.type === "badge" && (
                           <Badge variant="secondary" className="text-[10px] ml-auto">
@@ -465,7 +497,9 @@ export function VisualMatchupCanvas({
                         </button>
                       </div>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-base font-bold font-mono text-foreground">22.8</span>
+                        <span className={metricValueClass(metric.key)}>
+                          {previewValue(metric.key)}
+                        </span>
                         {metric.unit && <span className="text-[10px] text-muted-foreground">{metric.unit}</span>}
                         {metric.type === "badge" && (
                           <Badge variant="secondary" className="text-[10px] ml-auto">
@@ -488,7 +522,9 @@ export function VisualMatchupCanvas({
                 {(matchupConfig.endgame?.states || []).map((st) => (
                   <div key={st.key} className="flex-1 p-2 bg-muted/30 rounded-lg border text-center">
                     <span className="text-[10px] text-muted-foreground block truncate">{st.label}</span>
-                    <span className="text-xs font-mono font-bold text-primary">85%</span>
+                    <span className="text-xs font-mono font-bold text-primary">
+                      {endgameStateRate(st.key)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -536,11 +572,11 @@ export function VisualMatchupCanvas({
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs">Field Key</Label>
-                  <Input
+                  <Label className="text-xs">Field</Label>
+                  <DatapointPicker
+                    datapoints={datapoints}
                     value={currentMetric.key}
-                    onChange={(e) => updateSelectedMetric({ key: e.target.value })}
-                    className="h-8 text-xs font-mono"
+                    onChange={(key) => updateSelectedMetric({ key })}
                   />
                 </div>
 

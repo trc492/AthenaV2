@@ -85,6 +85,17 @@ module.exports = [
     },
   },
 
+  {
+    urlPattern: /^\/api\/scouting\/entries\/match-assignments/,
+    handler: "NetworkFirst",
+    options: {
+      cacheName: "scout-schedule-api",
+      networkTimeoutSeconds: 3,
+      expiration: { maxEntries: 30, maxAgeSeconds: 24 * 60 * 60 },
+      cacheableResponse: { statuses: [0, 200] },
+    },
+  },
+
   // Cache images (including TRCLogo.webp) with a Cache First strategy for offline availability
   {
     urlPattern: /\.(?:png|jpg|jpeg|webp|svg|gif)$/,

@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { FieldDrawingCanvas } from "@/components/forms/field-drawing-canvas";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -35,8 +37,13 @@ import {
   RotateCcw,
   ArrowLeft,
   ArrowRight,
+  Lock,
 } from "lucide-react";
 import type { YearConfig, ScoringDefinition } from "@/lib/types";
+import {
+  getFieldType,
+  encodeStartPosition,
+} from "@/components/forms/match-form-utils";
 import type { SelectedComponentInfo } from "./property-inspector";
 import type { PaletteComponentType } from "./component-palette";
 
@@ -310,13 +317,21 @@ export function VisualCanvas({
               <Sparkles className="h-3.5 w-3.5" /> Starting Position Field
             </span>
             <div className="flex items-center gap-2">
-              <Select defaultValue={config.startPositions?.[0] || "Center"}>
+              <Select
+                defaultValue={encodeStartPosition(
+                  config.startPositions?.[0] || "Center",
+                )}
+              >
                 <SelectTrigger className="h-7 text-xs w-36 bg-background">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {(config.startPositions || ["Left", "Center", "Right"]).map((pos, idx) => (
-                    <SelectItem key={idx} value={pos} className="text-xs">
+                    <SelectItem
+                      key={idx}
+                      value={encodeStartPosition(pos)}
+                      className="text-xs"
+                    >
                       {pos}
                     </SelectItem>
                   ))}
@@ -336,6 +351,32 @@ export function VisualCanvas({
               </div>
               <span className="font-bold text-base text-primary">Drop to Add Component</span>
               <span className="text-xs text-muted-foreground">Adding to {activeSection} section</span>
+            </div>
+          )}
+
+          {scoutingMode === "pit" && (
+            <div className="mb-6 rounded-xl border border-dashed bg-muted/20 p-4">
+              <div className="mb-3 flex items-center gap-1.5">
+                <Lock className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Robot Specifications
+                </span>
+                <Badge variant="outline" className="ml-auto text-[10px]">
+                  Always present
+                </Badge>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {["Length (in)", "Width (in)", "Weight (lbs)"].map((label) => (
+                  <div key={label} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input
+                      readOnly
+                      placeholder="0"
+                      className="h-9 bg-background text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -410,7 +451,7 @@ export function VisualCanvas({
             </div>
           ) : (
             /* Render Components on Canvas */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-6">
               {currentItemKeys.map((key, index) => {
                 const isSelected =
                   selectedComponent?.mode === scoutingMode &&
@@ -469,8 +510,48 @@ export function VisualCanvas({
               })}
             </div>
           )}
+
+          {/* Parts of the real form that aren't configurable, shown so the
+              canvas matches what scouts actually see. */}
+          {scoutingMode === "pit" && activeSection === "autonomous" && (
+            <FixedFormSection title="Autonomous Path Drawing">
+              <FieldDrawingCanvas initialData="" readOnly />
+            </FixedFormSection>
+          )}
+
+          <FixedFormSection title="Notes">
+            <Textarea
+              readOnly
+              placeholder="Additional observations..."
+              className="min-h-20 resize-none bg-background"
+            />
+          </FixedFormSection>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A built-in part of the scouting form: rendered for fidelity, not editable. */
+function FixedFormSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-6 rounded-xl border border-dashed bg-muted/20 p-4">
+      <div className="mb-3 flex items-center gap-1.5">
+        <Lock className="h-3 w-3 text-muted-foreground" />
+        <span className="text-xs font-semibold text-muted-foreground">
+          {title}
+        </span>
+        <Badge variant="outline" className="ml-auto text-[10px]">
+          Always present
+        </Badge>
+      </div>
+      {children}
     </div>
   );
 }
@@ -513,8 +594,10 @@ function MatchCanvasItem({
   onDragOver: (e: React.DragEvent) => void;
   onDropOn: (e: React.DragEvent) => void;
 }) {
-  const isBool = def.type === "boolean";
-  const isSelect = def.type === "select" || !!def.pointValues;
+  // Same inference the real scouting form uses, so the preview can't disagree
+  const fieldType = getFieldType(def);
+  const isBool = fieldType === "boolean";
+  const isSelect = fieldType === "select";
   const isCounter = !!def.increments && def.increments.length > 0;
   const isMultiStep = isCounter && (def.increments?.length || 0) > 1;
 

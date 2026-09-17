@@ -2,53 +2,50 @@
 
 import * as React from "react";
 import { Check, Palette } from "lucide-react";
-import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { themes, applyTheme } from "@/lib/theme-config";
 
+const colorThemeEvent = "athena-color-theme-change";
+
+function subscribeToColorTheme(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(colorThemeEvent, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(colorThemeEvent, onStoreChange);
+  };
+}
+
 export function ThemeSelector() {
-  const [colorTheme, setColorTheme] = React.useState("green");
-  const [mounted, setMounted] = React.useState(false);
+  const colorTheme = React.useSyncExternalStore(
+    subscribeToColorTheme,
+    () => localStorage.getItem("color-theme") || "green",
+    () => "green",
+  );
 
   React.useEffect(() => {
-    setMounted(true);
-    const savedTheme = localStorage.getItem("color-theme") || "green";
-    setColorTheme(savedTheme);
-  }, []);
-
-  React.useEffect(() => {
-    if (!mounted) return;
     applyTheme(colorTheme);
-  }, [colorTheme, mounted]);
+  }, [colorTheme]);
 
   const handleThemeChange = (themeName: string) => {
-    setColorTheme(themeName);
     localStorage.setItem("color-theme", themeName);
     applyTheme(themeName);
+    window.dispatchEvent(new Event(colorThemeEvent));
   };
-
-  if (!mounted) {
-    return (
-      <Button variant="outline" size="icon" disabled>
-        <Palette className="h-5 w-5" />
-      </Button>
-    );
-  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" className="size-11 md:size-9">
           <Palette className="h-5 w-5" />
-          <span className="sr-only">Toggle theme</span>
+          <span className="sr-only">Choose color theme</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

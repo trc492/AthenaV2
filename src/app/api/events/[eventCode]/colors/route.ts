@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseEventRequest } from "@/lib/server/event-request";
 
 const FRC_COLORS_BASE_URL = "https://api.frc-colors.com/v1";
 
@@ -21,8 +22,9 @@ export async function GET(
 ) {
   try {
     const { eventCode } = await params;
-    const { searchParams } = new URL(request.url);
-    const competitionType = searchParams.get("competitionType") || "FRC";
+    const parsed = parseEventRequest(request);
+    if (parsed.error) return parsed.error;
+    const { competitionType } = parsed.data;
 
     if (!eventCode) {
       return NextResponse.json({ error: "Missing eventCode" }, { status: 400 });

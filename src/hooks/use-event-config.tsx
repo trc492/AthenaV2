@@ -13,6 +13,7 @@ import { TbaEvent } from "@/lib/api/tba-types";
 import { FtcEvent } from "@/lib/api/ftcevents-types";
 import type { CustomEvent } from "@/lib/types";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { useSession } from "next-auth/react";
 
 interface EventContextType {
   events: Event[];
@@ -27,6 +28,7 @@ interface EventContextType {
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
 export function EventProvider({ children }: { children: ReactNode }) {
+  const { status } = useSession();
   const { currentYear, competitionType, isInitialized } = useGameConfig();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,6 +39,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Fetch events from TBA API and custom events
   useEffect(() => {
+    if (status === "loading") return;
+
+    if (status !== "authenticated") return;
+
     // Don't fetch until game config is initialized
     if (!isInitialized) return;
 
@@ -184,13 +190,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
     };
 
     fetchEvents();
-  }, [currentYear, competitionType, isInitialized]);
+  }, [currentYear, competitionType, isInitialized, status]);
 
   // Load selected event from localStorage on mount
   useEffect(() => {
     // Only set selected event after events have been loaded
     if (isLoading || events.length === 0) return;
 
+    let nextEvent = events[0] || null;
     const savedEvent = localStorage.getItem("selectedEvent");
     if (savedEvent) {
       try {
@@ -199,20 +206,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
         const eventExists = events.find(
           (e) => e.eventCode === parsedEvent.eventCode,
         );
-        if (eventExists) {
-          setSelectedEventState(eventExists);
-        } else {
-          // If saved event doesn't exist anymore, default to first event
-          setSelectedEventState(events[0] || null);
-        }
+        nextEvent = eventExists || nextEvent;
       } catch (error) {
         console.error("Error parsing saved event:", error);
-        setSelectedEventState(events[0] || null);
       }
-    } else {
-      // No saved event, default to first event
-      setSelectedEventState(events[0] || null);
     }
+
+    const timeoutId = window.setTimeout(
+      () => setSelectedEventState(nextEvent),
+      0,
+    );
+    return () => window.clearTimeout(timeoutId);
   }, [events, isLoading]);
 
   // Save selected event to localStorage and cookies whenever it changes
@@ -229,13 +233,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   const contextValue: EventContextType = {
-    events,
-    selectedEvent,
+    events: status === "authenticated" ? events : [],
+    selectedEvent: status === "authenticated" ? selectedEvent : null,
     setSelectedEvent,
     setEvents,
-    isLoading,
-    error,
-    isOfflineData,
+    isLoading: status === "authenticated" ? isLoading : false,
+    error: status === "authenticated" ? error : null,
+    isOfflineData: status === "authenticated" ? isOfflineData : false,
   };
 
   return (

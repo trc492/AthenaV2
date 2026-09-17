@@ -190,6 +190,11 @@ class DatabaseManager {
     this.currentService = this.createService(config);
   }
 
+  /** Creates a candidate service without replacing the active connection. */
+  createServiceForConfig(config: DatabaseConfig): DatabaseService {
+    return this.createService(config);
+  }
+
   private createService(config: DatabaseConfig): DatabaseService {
     if (config.provider === "azuresql" && config.azuresql) {
       return new AzureSqlDatabaseService(config.azuresql);
@@ -200,13 +205,8 @@ class DatabaseManager {
     if (config.provider === "cosmos" && config.cosmos) {
       return new CosmosDatabaseService(config.cosmos);
     }
-    if (
-      config.provider === "mariadb" &&
-      (config.mariadb || (config as any).local)
-    ) {
-      // Accept either explicit mariadb config or fall back to local-style config
-      const cfg = config.mariadb ?? (config as any).local;
-      return new MariaDbDatabaseService(cfg as any);
+    if (config.provider === "mariadb" && config.mariadb) {
+      return new MariaDbDatabaseService(config.mariadb);
     }
     throw new Error("Invalid database configuration");
   }

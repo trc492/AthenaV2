@@ -8,8 +8,11 @@ const usersCache = new Map<string, UserWithPartners[]>();
 const matchCountCache = new Map<string, number>();
 const assignmentsCache = new Map<string, MatchAssignmentRow[]>();
 
-const getAssignmentsCacheKey = (eventCode: string, year: number) =>
-  `${eventCode}-${year}`;
+const getAssignmentsCacheKey = (
+  eventCode: string,
+  year: number,
+  competitionType: string,
+) => `${competitionType}-${eventCode}-${year}`;
 const getMatchCountCacheKey = (
   eventCode: string,
   year: number,
@@ -49,9 +52,20 @@ type MatchAssignmentRow = {
   userId: string;
 };
 
+type ScheduleAssignmentChange = {
+  startMatch: number;
+  endMatch: number;
+  alliance: "red" | "blue";
+  position: number;
+  userId: string | null;
+};
+
 export function useScheduleData() {
   const selectedEvent = useSelectedEvent();
   const { currentYear, competitionType } = useGameConfig();
+  const scheduleScopeKey = selectedEvent
+    ? `${competitionType}-${selectedEvent.eventCode}-${currentYear}`
+    : "none";
 
   // Core state
   const [users, setUsers] = useState<UserWithPartners[]>([]);
@@ -69,6 +83,23 @@ export function useScheduleData() {
   const [apiMatchCount, setApiMatchCount] = useState<number>(0);
   const [isApiMatchCountAvailable, setIsApiMatchCountAvailable] =
     useState(false);
+
+  const announceScheduleUpdate = useCallback(() => {
+    if (!selectedEvent) return;
+    assignmentsCache.delete(
+      getAssignmentsCacheKey(selectedEvent.eventCode, currentYear, competitionType),
+    );
+    window.dispatchEvent(
+      new CustomEvent("schedule-updated", {
+        detail: {
+          eventCode: selectedEvent.eventCode,
+          year: currentYear,
+          competitionType,
+        },
+      }),
+    );
+    localStorage.setItem(`schedule-updated:${scheduleScopeKey}`, String(Date.now()));
+  }, [selectedEvent, currentYear, competitionType, scheduleScopeKey]);
 
   const buildComputedBlocks = useCallback(
     (matchCountValue: number, blockSizeValue: number) => {
@@ -158,7 +189,7 @@ export function useScheduleData() {
     setMatchCount(0);
     setApiMatchCount(0);
     setIsApiMatchCountAvailable(false);
-  }, [selectedEvent?.eventCode, currentYear]);
+  }, [selectedEvent?.eventCode, currentYear, competitionType]);
 
   // Fetch users
   useEffect(() => {
@@ -167,10 +198,9 @@ export function useScheduleData() {
         const cachedUsers = usersCache.get("users");
         if (cachedUsers) {
           setUsers(cachedUsers);
-          return;
         }
 
-        const usersResponse = await fetch("/api/users");
+        const usersResponse = await fetch("/api/users", { cache: "no-store" });
         if (!usersResponse.ok) {
           throw new Error("Failed to fetch users");
         }
@@ -186,6 +216,7 @@ export function useScheduleData() {
         setUsers(usersWithPartners);
       } catch (err) {
         console.error("Error fetching users:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch users");
       }
     };
 
@@ -194,6 +225,7 @@ export function useScheduleData() {
 
   // Fetch match count from API
   useEffect(() => {
+    const controller = new AbortController();
     const fetchMatchCount = async () => {
       if (!selectedEvent) {
         setApiMatchCount(0);
@@ -216,23 +248,28 @@ export function useScheduleData() {
         }
 
         const matchesResponse = await fetch(
-          `/api/events/${selectedEvent.eventCode}/matches?competitionType=${competitionType}&season=${currentYear}`,
+          `/api/events/${encodeURIComponent(selectedEvent.eventCode)}/matches?competitionType=${competitionType}&season=${currentYear}`,
+          { signal: controller.signal, cache: "no-cache" },
         );
 
         if (matchesResponse.ok) {
           const matchesData = await matchesResponse.json();
           const count =
             matchesData.qualMatchesCount || matchesData.totalMatches || 0;
-          matchCountCache.set(cacheKey, count);
-          setApiMatchCount(count);
-          setIsApiMatchCountAvailable(count > 0);
+          if (count > 0) {
+            matchCountCache.set(cacheKey, count);
+            setApiMatchCount(count);
+            setIsApiMatchCountAvailable(true);
+            setMatchCount((prev) => (prev === 0 ? count : prev));
+            return;
+          }
+        }
 
-          // Auto-set match count if not already set and API has data
-          if (count > 0) setMatchCount((prev) => (prev === 0 ? count : prev));
-        } else {
-          // Try custom events fallback
+        // A custom event may produce a successful but empty upstream response.
+        {
           const customResponse = await fetch(
-            `/api/events/custom-events?year=${currentYear}`,
+            `/api/events/custom-events?year=${currentYear}&competitionType=${competitionType}`,
+            { signal: controller.signal, cache: "no-store" },
           );
           if (customResponse.ok) {
             const customEvents = await customResponse.json();
@@ -247,16 +284,19 @@ export function useScheduleData() {
           }
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error("Error fetching match count:", error);
         setIsApiMatchCountAvailable(false);
       }
     };
 
     fetchMatchCount();
+    return () => controller.abort();
   }, [selectedEvent, currentYear, competitionType]);
 
   // Fetch virtual blocks for event
   useEffect(() => {
+    const controller = new AbortController();
     const hydrateBlocks = async () => {
       if (!selectedEvent || matchCount <= 0 || blockSize <= 0) {
         setBlocks([]);
@@ -273,6 +313,7 @@ export function useScheduleData() {
         const assignmentCacheKey = getAssignmentsCacheKey(
           selectedEvent.eventCode,
           currentYear,
+          competitionType,
         );
         const cachedRows = assignmentsCache.get(assignmentCacheKey);
 
@@ -285,13 +326,12 @@ export function useScheduleData() {
         // Hydrate from matchAssignments by collapsing match-level assignments to shift-level,
         // only when consistent across the whole shift range.
         const res = await fetch(
-          `/api/scouting/entries/match-assignments?eventCode=${selectedEvent.eventCode}&year=${currentYear}`,
+          `/api/scouting/entries/match-assignments?eventCode=${encodeURIComponent(selectedEvent.eventCode)}&year=${currentYear}&competitionType=${competitionType}`,
+          { signal: controller.signal, cache: "no-cache" },
         );
 
         if (!res.ok) {
-          setMatchAssignments([]);
-          setBlocks(computedBlocks);
-          return;
+          throw new Error(`Failed to load schedule (${res.status})`);
         }
 
         const rows = (await res.json()) as MatchAssignmentRow[];
@@ -300,6 +340,7 @@ export function useScheduleData() {
 
         setBlocks(hydrateBlocksFromRows(computedBlocks, rows));
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error("Error hydrating schedule:", err);
         setError(err instanceof Error ? err.message : "Failed to load data");
         setBlocks([]);
@@ -310,10 +351,12 @@ export function useScheduleData() {
     };
 
     hydrateBlocks();
+    return () => controller.abort();
   }, [
     selectedEvent,
     currentYear,
     competitionType,
+    scheduleScopeKey,
     matchCount,
     blockSize,
     refreshTrigger,
@@ -334,7 +377,8 @@ export function useScheduleData() {
 
     try {
       const matchesResponse = await fetch(
-        `/api/events/${selectedEvent.eventCode}/matches?competitionType=${competitionType}&season=${currentYear}`,
+        `/api/events/${encodeURIComponent(selectedEvent.eventCode)}/matches?competitionType=${competitionType}&season=${currentYear}`,
+        { cache: "no-store" },
       );
 
       if (matchesResponse.ok) {
@@ -342,6 +386,38 @@ export function useScheduleData() {
         const count =
           matchesData.qualMatchesCount || matchesData.totalMatches || 0;
         if (count > 0) {
+          matchCountCache.set(
+            getMatchCountCacheKey(
+              selectedEvent.eventCode,
+              currentYear,
+              competitionType,
+            ),
+            count,
+          );
+          setApiMatchCount(count);
+          setIsApiMatchCountAvailable(true);
+          setMatchCount(count);
+          return { success: true, count };
+        }
+      }
+      const customResponse = await fetch(
+        `/api/events/custom-events?year=${currentYear}&competitionType=${competitionType}`,
+        { cache: "no-store" },
+      );
+      if (customResponse.ok) {
+        const customEvents = await customResponse.json();
+        const customEvent = customEvents.find(
+          (event: { eventCode: string }) =>
+            event.eventCode === selectedEvent.eventCode,
+        );
+        const count = customEvent?.matchCount || 0;
+        if (count > 0) {
+          const cacheKey = getMatchCountCacheKey(
+            selectedEvent.eventCode,
+            currentYear,
+            competitionType,
+          );
+          matchCountCache.set(cacheKey, count);
           setApiMatchCount(count);
           setIsApiMatchCountAvailable(true);
           setMatchCount(count);
@@ -379,6 +455,7 @@ export function useScheduleData() {
         body: JSON.stringify({
           eventCode: selectedEvent.eventCode,
           year: currentYear,
+          competitionType,
           startMatch: block.startMatch,
           endMatch: block.endMatch,
           alliance,
@@ -390,8 +467,9 @@ export function useScheduleData() {
       if (!response.ok) {
         throw new Error("Failed to save assignment");
       }
+      announceScheduleUpdate();
     },
-    [selectedEvent, currentYear, blocks],
+    [selectedEvent, currentYear, competitionType, blocks, announceScheduleUpdate],
   );
 
   // Assign scout to a single match/slot
@@ -410,6 +488,7 @@ export function useScheduleData() {
         body: JSON.stringify({
           eventCode: selectedEvent.eventCode,
           year: currentYear,
+          competitionType,
           startMatch: matchNumber,
           endMatch: matchNumber,
           alliance,
@@ -421,8 +500,9 @@ export function useScheduleData() {
       if (!response.ok) {
         throw new Error("Failed to save assignment");
       }
+      announceScheduleUpdate();
     },
-    [selectedEvent, currentYear],
+    [selectedEvent, currentYear, competitionType, announceScheduleUpdate],
   );
 
   // Assign scout to a match range/slot in a single request
@@ -442,6 +522,7 @@ export function useScheduleData() {
         body: JSON.stringify({
           eventCode: selectedEvent.eventCode,
           year: currentYear,
+          competitionType,
           startMatch,
           endMatch,
           alliance,
@@ -453,8 +534,39 @@ export function useScheduleData() {
       if (!response.ok) {
         throw new Error("Failed to save assignment range");
       }
+      announceScheduleUpdate();
     },
-    [selectedEvent, currentYear],
+    [selectedEvent, currentYear, competitionType, announceScheduleUpdate],
+  );
+
+  const replaceAllAssignments = useCallback(
+    async (changes: ScheduleAssignmentChange[]) => {
+      if (!selectedEvent) return;
+      const response = await fetch("/api/scouting/schedule/assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventCode: selectedEvent.eventCode,
+          year: currentYear,
+          competitionType,
+          changes,
+          replaceAll: true,
+          expectedAssignments: matchAssignments,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to save schedule");
+      }
+      announceScheduleUpdate();
+    },
+    [
+      selectedEvent,
+      currentYear,
+      competitionType,
+      announceScheduleUpdate,
+      matchAssignments,
+    ],
   );
 
   // Clear all assignments for the event
@@ -462,7 +574,7 @@ export function useScheduleData() {
     if (!selectedEvent) return;
 
     const response = await fetch(
-      `/api/scouting/schedule/assignments?eventCode=${selectedEvent.eventCode}&year=${currentYear}`,
+      `/api/scouting/schedule/assignments?eventCode=${encodeURIComponent(selectedEvent.eventCode)}&year=${currentYear}&competitionType=${competitionType}`,
       {
         method: "DELETE",
       },
@@ -472,8 +584,9 @@ export function useScheduleData() {
       throw new Error("Failed to clear assignments");
     }
 
+    announceScheduleUpdate();
     setRefreshTrigger((prev) => prev + 1);
-  }, [selectedEvent, currentYear]);
+  }, [selectedEvent, currentYear, competitionType, announceScheduleUpdate]);
 
   // Delete all blocks (virtual) => clear all schedule data
   const deleteAllBlocks = useCallback(async () => {
@@ -509,6 +622,7 @@ export function useScheduleData() {
     apiMatchCount,
     isApiMatchCountAvailable,
     competitionType,
+    scheduleScopeKey,
 
     // State
     isLoading,
@@ -521,6 +635,7 @@ export function useScheduleData() {
     assignScout,
     assignMatchScout,
     assignScoutRange,
+    replaceAllAssignments,
     clearAllAssignments,
     deleteAllBlocks,
     addBlock,

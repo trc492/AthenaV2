@@ -140,6 +140,26 @@ const appRuntimeCaching = [
       ],
     }),
   },
+  {
+    matcher: ({
+      url: { pathname },
+      sameOrigin,
+    }: {
+      url: URL;
+      sameOrigin: boolean;
+    }) =>
+      sameOrigin && pathname === "/api/scouting/entries/match-assignments",
+    handler: new NetworkFirst({
+      cacheName: "scout-schedule-api",
+      networkTimeoutSeconds: 3,
+      plugins: [
+        new ExpirationPlugin({
+          maxEntries: 30,
+          maxAgeSeconds: 24 * 60 * 60,
+        }),
+      ],
+    }),
+  },
   // Spread the default cache rules after our custom ones so ours take priority
   ...defaultCache,
 ];

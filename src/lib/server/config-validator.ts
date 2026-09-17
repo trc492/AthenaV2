@@ -1,4 +1,8 @@
 import type { YearConfig, ScoringDefinition } from "@/lib/types";
+import {
+  buildDatapointRegistry,
+  findDatapoint,
+} from "@/lib/game-config/datapoint-registry";
 
 export interface ValidationResult {
   valid: boolean;
@@ -106,11 +110,143 @@ export function validateYearConfig(data: unknown): ValidationResult {
     }
   }
 
+  // 7. Referential integrity — only meaningful once scoring parsed cleanly
+  if (config.scoring && config.pitScouting) {
+    validateReferences(config as YearConfig, warnings);
+  }
+
   return {
     valid: errors.length === 0,
     errors,
     warnings,
   };
+}
+
+/**
+ * Checks that every key referenced by a matchup card, team page, insight, or
+ * derived metric resolves to a field defined in this same config. Unresolved
+ * references are warnings, not errors: they silently read as 0 at runtime, but
+ * a hand-authored config may legitimately reference something built elsewhere.
+ */
+function validateReferences(config: YearConfig, warnings: string[]) {
+  const registry = buildDatapointRegistry(config);
+  const references: { path: string; key: string | undefined }[] = [];
+
+  const add = (path: string, key: string | undefined) => {
+    if (key) references.push({ path, key });
+  };
+
+  const matchup = config.matchupCardConfig;
+  if (matchup) {
+    matchup.autoMetrics?.forEach((m, i) =>
+      add(`matchupCardConfig.autoMetrics[${i}].key`, m.key),
+    );
+    matchup.teleopMetrics?.forEach((m, i) =>
+      add(`matchupCardConfig.teleopMetrics[${i}].key`, m.key),
+    );
+    add("matchupCardConfig.endgame.stateKey", matchup.endgame?.stateKey);
+    add("matchupCardConfig.playstyleKey", matchup.playstyleKey);
+  }
+
+  const page = config.teamPageConfig;
+  if (page) {
+    add("teamPageConfig.kpis.auto.key", page.kpis?.auto?.key);
+    add("teamPageConfig.kpis.auto.subKey", page.kpis?.auto?.subKey);
+    add("teamPageConfig.kpis.teleop.key", page.kpis?.teleop?.key);
+    add("teamPageConfig.kpis.teleop.subKey", page.kpis?.teleop?.subKey);
+
+    (["autoPerformance", "teleopPerformance"] as const).forEach((section) => {
+      page[section]?.metrics?.forEach((m, i) =>
+        add(`teamPageConfig.${section}.metrics[${i}].key`, m.key),
+      );
+      page[section]?.pointsFormula?.forEach((f, i) =>
+        add(`teamPageConfig.${section}.pointsFormula[${i}].key`, f.key),
+      );
+    });
+
+    page.scoringBreakdownChart?.items?.forEach((item, i) =>
+      add(`teamPageConfig.scoringBreakdownChart.items[${i}].key`, item.key),
+    );
+    add("teamPageConfig.endgame.stateKey", page.endgame?.stateKey);
+    add("teamPageConfig.endgame.breakdownKey", page.endgame?.breakdownKey);
+    add("teamPageConfig.penalties.minorKey", page.penalties?.minorKey);
+    add("teamPageConfig.penalties.majorKey", page.penalties?.majorKey);
+
+    page.customSections?.forEach((section, i) => {
+      add(`teamPageConfig.customSections[${i}].fieldKey`, section.fieldKey);
+
+      if (section.type === "distribution") {
+        // Items are states of fieldKey, not metric keys of their own
+        const fieldName = section.fieldKey?.split(".").pop();
+        const states = fieldName
+          ? config.scoring?.endgame?.[fieldName]?.pointValues
+          : undefined;
+        if (states) {
+          section.items?.forEach((item, j) => {
+            if (!(item.key in states)) {
+              warnings.push(
+                `teamPageConfig.customSections[${i}].items[${j}] uses state '${item.key}', which '${fieldName}' does not define.`,
+              );
+            }
+          });
+        }
+      } else {
+        section.items?.forEach((item, j) =>
+          add(`teamPageConfig.customSections[${i}].items[${j}].key`, item.key),
+        );
+      }
+    });
+  }
+
+  for (const { path, key } of references) {
+    if (!findDatapoint(registry, key)) {
+      warnings.push(
+        `${path} references '${key}', which is not defined in this config. It will read as 0.`,
+      );
+    }
+  }
+
+  // Derived metrics can only aggregate raw scouted fields, not each other
+  const derivedKeys = new Set((config.derivedMetrics || []).map((m) => m.key));
+  const rawRegistry = registry.filter(
+    (d) => !d.pitSection && !derivedKeys.has(d.key) && d.key !== "epa",
+  );
+
+  config.derivedMetrics?.forEach((metric, i) => {
+    [...(metric.inputs || []), ...(metric.denominator || [])].forEach((input) => {
+      if (!findDatapoint(rawRegistry, input)) {
+        warnings.push(
+          `derivedMetrics[${i}] ('${metric.key}') references '${input}', which is not a scouted field. It will contribute 0.`,
+        );
+      }
+    });
+  });
+
+  // Endgame state values must exist among the state field's configured options
+  const stateFieldName = matchup?.endgame?.stateKey?.split(".").pop();
+  const stateField = stateFieldName
+    ? config.scoring?.endgame?.[stateFieldName]
+    : undefined;
+  const allowedStates = stateField?.pointValues
+    ? Object.keys(stateField.pointValues)
+    : null;
+
+  if (allowedStates) {
+    matchup?.endgame?.states?.forEach((state, i) => {
+      if (!allowedStates.includes(state.key)) {
+        warnings.push(
+          `matchupCardConfig.endgame.states[${i}] uses state '${state.key}', which '${stateFieldName}' does not define.`,
+        );
+      }
+    });
+    page?.endgame?.states?.forEach((state, i) => {
+      if (!allowedStates.includes(state.value)) {
+        warnings.push(
+          `teamPageConfig.endgame.states[${i}] uses state '${state.value}', which '${stateFieldName}' does not define.`,
+        );
+      }
+    });
+  }
 }
 
 function validateScoringDefinition(

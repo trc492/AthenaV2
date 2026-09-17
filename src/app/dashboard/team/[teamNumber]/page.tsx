@@ -1,7 +1,6 @@
 import TeamPageClient from "./team-page-client";
 
 export async function generateStaticParams() {
-  // Example team numbers to pre-render
   const teamNumbers = [492];
 
   return teamNumbers.map((number) => ({

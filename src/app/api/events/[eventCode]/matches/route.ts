@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEventMatches as getTbaEventMatches } from "@/lib/api/tba";
-import { getEventMatches as getFtcEventMatches } from "@/lib/api/ftcevents";
+import {
+  getEventMatches as getFtcEventMatches,
+  getEventSchedule as getFtcEventSchedule,
+} from "@/lib/api/ftcevents";
 import { TbaMatch } from "@/lib/api/tba-types";
+import { parseEventRequest } from "@/lib/server/event-request";
 
 export async function GET(
   request: NextRequest,
@@ -9,37 +13,33 @@ export async function GET(
 ) {
   try {
     const { eventCode } = await params;
-    const { searchParams } = new URL(request.url);
-    const competitionType = searchParams.get("competitionType") || "FRC";
+    const parsed = parseEventRequest(request, { requireFtcYear: true });
+    if (parsed.error) return parsed.error;
+    const { competitionType, year: seasonNum } = parsed.data;
 
     if (!eventCode) {
       return NextResponse.json({ error: "Missing eventCode" }, { status: 400 });
     }
 
     if (competitionType === "FTC") {
-      // For FTC, we need season/year parameter
-      const season = searchParams.get("season") || searchParams.get("year");
-      if (!season) {
-        return NextResponse.json(
-          { error: "Missing season/year parameter for FTC" },
-          { status: 400 },
-        );
-      }
-
-      const seasonNum = parseInt(season);
-      if (isNaN(seasonNum)) {
-        return NextResponse.json(
-          { error: "Invalid season/year" },
-          { status: 400 },
-        );
-      }
-
-      const response = await getFtcEventMatches(seasonNum, eventCode);
+      const response = await getFtcEventMatches(seasonNum!, eventCode);
       const matches = response.matches || [];
+      const qualificationMatches = matches.filter(
+        (match) => match.tournamentLevel === "QUALIFICATION",
+      );
+      const scheduleResponse = await getFtcEventSchedule(
+        seasonNum!,
+        eventCode,
+        "qual",
+      ).catch(() => null);
+      const qualificationSchedule = scheduleResponse?.schedule ?? [];
 
       return NextResponse.json({
         matches,
         totalMatches: matches.length,
+        qualMatchesCount:
+          qualificationSchedule.length || qualificationMatches.length,
+        qualificationSchedule,
       });
     }
 

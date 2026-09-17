@@ -6,12 +6,6 @@ vi.mock("@/db/azuresql-database-service", () => ({
   },
 }));
 
-vi.mock("@/db/local-database-service", () => ({
-  LocalDatabaseService: class LocalDatabaseService {
-    constructor(public config: any) {}
-  },
-}));
-
 vi.mock("@/db/firebase-database-service", () => ({
   FirebaseDatabaseService: class FirebaseDatabaseService {
     constructor(public config: any) {}

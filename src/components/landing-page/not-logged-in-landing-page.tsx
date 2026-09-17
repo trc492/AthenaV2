@@ -23,8 +23,6 @@ export function NotLoggedInLandingPage() {
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
-  // const highlightStats = []
-
   const missionHighlights = [
     {
       title: "Purpose-built workflows",
@@ -51,7 +49,7 @@ export function NotLoggedInLandingPage() {
       title: "Scheduling",
       description: "Collect anywhere, sync later",
       icon: Calendar,
-      targetId: "offline-capable",
+      targetId: "scheduling",
     },
     {
       title: "Pit Scouting",
@@ -82,7 +80,6 @@ export function NotLoggedInLandingPage() {
       }
     };
 
-    // Check for dark mode
     const checkDarkMode = () => {
       setIsDark(document.documentElement.classList.contains("dark"));
     };
@@ -122,16 +119,21 @@ export function NotLoggedInLandingPage() {
             <span className="font-bold text-lg">Athena</span>
           </div>
           <div className="flex items-center gap-3">
-            {/* <ModeToggle /> */}
             <Link href="/signup">
-              <Button variant="outline" size="lg" className="inline-flex gap-1">
-                {/* < className="h-5 w-5" /> */}
+              <Button
+                variant="outline"
+                size="lg"
+                className="inline-flex h-11 gap-1"
+              >
                 Sign up
               </Button>
             </Link>
             <Link href="/login">
-              <Button variant="default" size="lg" className="inline-flex gap-1">
-                {/* <LogIn className="h-5 w-5" /> */}
+              <Button
+                variant="default"
+                size="lg"
+                className="inline-flex h-11 gap-1"
+              >
                 Log in
               </Button>
             </Link>
@@ -142,9 +144,10 @@ export function NotLoggedInLandingPage() {
       {/* Hero Section */}
       <section className="relative z-10 w-full max-h-[70vh] sm:max-h-[80vh] flex items-center py-2 sm:py-12">
         <Image
-          src="/assets/HeroSwapped.PNG"
+          src="/assets/HeroSwapped.png"
           alt=""
           fill
+          priority
           className="object-cover object-left sm:object-center -z-5"
           sizes="100vw"
         />
@@ -159,13 +162,13 @@ export function NotLoggedInLandingPage() {
                   A Modern Scouting Solution for FIRST.
                 </h1>
                 <p className="text-lg sm:text-xl text-white max-w-2xl">
-                  Athena provides a one platform for scouting, metrics, and
-                  alliance prep.
+                  One platform for scouting, performance metrics, and alliance
+                  preparation.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-end items-center sm:items-start">
                 <Link href="/signup">
-                  <Button size="lg" className="gap-2 text-lg">
+                  <Button size="lg" className="h-11 gap-2 text-lg">
                     <UserPlus className="h-10 w-10" />
                     Get Started
                   </Button>
@@ -176,7 +179,7 @@ export function NotLoggedInLandingPage() {
 
           {/* Scroll Indicator */}
           <div
-            className={`flex justify-center mt-20 sm:mt-50 animate-bounce transition-opacity duration-300 ${hasScrolled ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+            className={`flex justify-center mt-20 sm:mt-50 animate-bounce motion-reduce:animate-none transition-opacity duration-300 ${hasScrolled ? "opacity-0 pointer-events-none" : "opacity-100"}`}
           >
             <div className="text-center">
               <p className="text-sm text-white mb-2">Why choose Athena?</p>
@@ -289,13 +292,12 @@ export function NotLoggedInLandingPage() {
                 Scheduling
               </h2>
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-                Here's a super cool description of this feature that's yet to be
-                written. You should use this cool feature. Here's a super cool
-                description of this feature that's yet to be written. You should
-                use this cool feature.
+                Build reliable scouting rotations, assign each seat, and keep
+                every match covered. Scouts can see what is next without
+                searching through a separate schedule.
               </p>
               <Link href="/login">
-                <Button variant="outline" size="lg" className="gap-2">
+                <Button variant="outline" size="lg" className="h-11 gap-2">
                   GET STARTED <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -322,7 +324,7 @@ export function NotLoggedInLandingPage() {
                 strategy.
               </p>
               <Link href="/login">
-                <Button variant="outline" size="lg" className="gap-2">
+                <Button variant="outline" size="lg" className="h-11 gap-2">
                   GET STARTED <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -351,7 +353,7 @@ export function NotLoggedInLandingPage() {
             <div className="relative">
               <div className="aspect-square rounded-lg bg-background flex items-center justify-center overflow-hidden">
                 <Image
-                  src="/assets/Scouting.JPG"
+                  src="/assets/Tablets.JPG"
                   width={600}
                   height={600}
                   alt="Students scouting using green scouting tablets."
@@ -369,7 +371,7 @@ export function NotLoggedInLandingPage() {
                 competition.
               </p>
               <Link href="/login">
-                <Button variant="outline" size="lg" className="gap-2">
+                <Button variant="outline" size="lg" className="h-11 gap-2">
                   GET STARTED <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -391,7 +393,7 @@ export function NotLoggedInLandingPage() {
                 strategy.
               </p>
               <Link href="/login">
-                <Button variant="outline" size="lg" className="gap-2">
+                <Button variant="outline" size="lg" className="h-11 gap-2">
                   GET STARTED <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>

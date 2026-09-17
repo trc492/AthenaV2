@@ -305,7 +305,6 @@ export const teamApi = {
     const response = await fetch(`${ENTRIES_BASE}/team?${params}`);
     if (!response.ok) throw new Error("Failed to fetch team data");
     const data = await response.json();
-    // console.log("Data:", data);
     return data;
   },
 };
@@ -324,8 +323,8 @@ export const dataApi = {
   },
 
   async importData(data: {
-    pitEntries: PitEntry[];
-    matchEntries: MatchEntry[];
+    pitEntries?: PitEntry[];
+    matchEntries?: MatchEntry[];
   }): Promise<void> {
     const response = await fetch(`${ADMIN_BASE}/import`, {
       method: "POST",

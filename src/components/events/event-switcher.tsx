@@ -77,9 +77,7 @@ export function EventSwitcher() {
     competitionType,
     config,
     setCurrentYear,
-    getCurrentYearConfig,
   } = useGameConfig();
-  const currentConfig = getCurrentYearConfig();
 
   // Get years for the currently selected competition type
   const availableYears = Object.keys(config[competitionType] || {}).sort(
@@ -446,14 +444,13 @@ export function EventSwitcher() {
               <DropdownMenuLabel className="text-muted-foreground text-xs">
                 Events
               </DropdownMenuLabel>
-              {events.map((event, index) => (
+              {events.map((event) => (
                 <div key={event.name} className="relative">
                   <DropdownMenuItem
                     onClick={() => setSelectedEvent(event)}
                     className={`gap-2 p-2 pr-16 ${event.name == selectedEvent.name && "bg-sidebar-accent"}`}
                   >
                     {event.name}
-                    {/* <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut> */}
                   </DropdownMenuItem>
                   {isCustomEvent(event.eventCode) && (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">

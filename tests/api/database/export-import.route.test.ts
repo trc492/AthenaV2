@@ -71,7 +71,20 @@ describe("/api/scouting/admin/export and import", () => {
     expect(body.matchEntries).toBeUndefined();
   });
 
-  it("imports json payload", async () => {
+  it("exports json with both pit and match when types=pit,match", async () => {
+    const route = await import("@/app/api/scouting/admin/export/route");
+    const req = new Request(
+      "http://test/api/scouting/admin/export?format=json&types=pit,match",
+    );
+    const res = await route.GET(req as any);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.pitEntries?.length).toBe(1);
+    expect(body.matchEntries?.length).toBe(1);
+  });
+
+  it("imports json payload with both empty arrays", async () => {
     const route = await import("@/app/api/scouting/admin/import/route");
     const req = new Request("http://test/api/scouting/admin/import", {
       method: "POST",
@@ -88,5 +101,132 @@ describe("/api/scouting/admin/export and import", () => {
       pitEntries: [],
       matchEntries: [],
     });
+  });
+
+  it("imports json payload with only matchEntries (pitEntries omitted)", async () => {
+    const timestamp = "2025-09-01T05:48:29.718Z";
+    const route = await import("@/app/api/scouting/admin/import/route");
+    const req = new Request("http://test/api/scouting/admin/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matchEntries: [
+          {
+            teamNumber: 111,
+            matchNumber: 1,
+            year: 2025,
+            competitionType: "FRC",
+            alliance: "red",
+            notes: "Great match",
+            timestamp,
+            gameSpecificData: {
+              autonomous: { leave: true },
+            },
+          },
+        ],
+      }),
+    });
+
+    const res = await route.POST(req as any);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(service.importData).toHaveBeenCalledTimes(1);
+    const callArg = service.importData.mock.calls[0][0];
+    expect(callArg.pitEntries).toEqual([]);
+    expect(callArg.matchEntries.length).toBe(1);
+    expect(callArg.matchEntries[0].timestamp).toEqual(new Date(timestamp));
+  });
+
+  it("rejects an invalid match timestamp", async () => {
+    const route = await import("@/app/api/scouting/admin/import/route");
+    const req = new Request("http://test/api/scouting/admin/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matchEntries: [
+          {
+            teamNumber: 111,
+            matchNumber: 1,
+            year: 2025,
+            competitionType: "FRC",
+            alliance: "red",
+            notes: "",
+            timestamp: "not-a-date",
+            gameSpecificData: {},
+          },
+        ],
+      }),
+    });
+
+    const res = await route.POST(
+      req as unknown as Parameters<typeof route.POST>[0],
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("Invalid timestamp for match 1, team 111");
+    expect(service.importData).not.toHaveBeenCalled();
+  });
+
+  it("imports json payload with only pitEntries (matchEntries omitted)", async () => {
+    const route = await import("@/app/api/scouting/admin/import/route");
+    const req = new Request("http://test/api/scouting/admin/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pitEntries: [
+          {
+            teamNumber: 111,
+            year: 2025,
+            competitionType: "FRC",
+            driveTrain: "Tank",
+            gameSpecificData: {
+              autonomous_startingPosition: "Left Barge",
+            },
+          },
+        ],
+      }),
+    });
+
+    const res = await route.POST(req as any);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(service.importData).toHaveBeenCalledTimes(1);
+    const callArg = service.importData.mock.calls[0][0];
+    expect(callArg.pitEntries.length).toBe(1);
+    expect(callArg.matchEntries).toEqual([]);
+  });
+
+  it("rejects import if schema configuration is missing for the year", async () => {
+    const route = await import("@/app/api/scouting/admin/import/route");
+    const req = new Request("http://test/api/scouting/admin/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matchEntries: [
+          {
+            teamNumber: 111,
+            matchNumber: 1,
+            year: 1999, // Unconfigured year
+            competitionType: "FRC",
+            alliance: "red",
+            notes: "",
+            timestamp: new Date().toISOString(),
+            gameSpecificData: {},
+          },
+        ],
+      }),
+    });
+
+    const res = await route.POST(req as any);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("Missing schema configuration");
+    expect(service.importData).not.toHaveBeenCalled();
   });
 });

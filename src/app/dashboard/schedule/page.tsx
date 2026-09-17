@@ -189,12 +189,13 @@ export default function SchedulePage() {
     apiMatchCount,
     isApiMatchCountAvailable,
     competitionType,
+    scheduleScopeKey,
     isLoading,
     error,
     hasEvent,
     generateBlocks,
     syncMatchCountFromApi,
-    assignScoutRange,
+    replaceAllAssignments,
     deleteAllBlocks,
     refreshData,
   } = useScheduleData();
@@ -267,6 +268,7 @@ export default function SchedulePage() {
     }
 
     const fingerprint = JSON.stringify({
+      scheduleScopeKey,
       matchCount,
       scoutsPerAlliance,
       rows: matchAssignments,
@@ -286,6 +288,7 @@ export default function SchedulePage() {
     matchCount,
     scoutsPerAlliance,
     matchAssignments,
+    scheduleScopeKey,
     lastSyncedFingerprint,
     buildInitialMatches,
   ]);
@@ -297,6 +300,17 @@ export default function SchedulePage() {
   }, [localMatches]);
 
   const hasUnsavedChanges = useMemo(() => {
+    if (
+      matchAssignments.some(
+        (row) =>
+          row.matchNumber < 1 ||
+          row.matchNumber > matchCount ||
+          row.position < 0 ||
+          row.position >= scoutsPerAlliance,
+      )
+    ) {
+      return true;
+    }
     const dbMap = new Map<string, string | null>();
     matchAssignments.forEach((row) =>
       dbMap.set(
@@ -315,7 +329,7 @@ export default function SchedulePage() {
     }
 
     return false;
-  }, [localMatches, matchAssignments, scoutsPerAlliance]);
+  }, [localMatches, matchAssignments, scoutsPerAlliance, matchCount]);
 
   const computeUserWorkload = useCallback(
     (targetMatches: MatchAssignment[]) => {
@@ -505,126 +519,84 @@ export default function SchedulePage() {
 
     setIsAutoAssigning(true);
     try {
-      setLocalMatches((prev) => {
-        const draft = prev.map((match) => ({
-          ...match,
-          redScouts: [...match.redScouts],
-          blueScouts: [...match.blueScouts],
-        }));
-        const workload = computeUserWorkload(draft);
+      const draft = localMatches.map((match) => ({
+        ...match,
+        redScouts: [...match.redScouts],
+        blueScouts: [...match.blueScouts],
+      }));
+      const workload = computeUserWorkload(draft);
 
-        for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-          const block = blocks[blockIndex];
-          const blockMatchIndexes = block.matches
+      for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+        const blockMatchIndexes = blocks[blockIndex].matches
+          .map((matchNumber) => matchNumber - 1)
+          .filter((index) => index >= 0 && index < draft.length);
+        if (blockMatchIndexes.length === 0) continue;
+
+        const previousBlockScouts = new Set<string>();
+        if (blockIndex > 0) {
+          blocks[blockIndex - 1].matches
             .map((matchNumber) => matchNumber - 1)
-            .filter((index) => index >= 0 && index < draft.length);
-
-          if (blockMatchIndexes.length === 0) continue;
-
-          const previousBlockScouts = new Set<string>();
-          if (blockIndex > 0) {
-            const previousBlock = blocks[blockIndex - 1];
-            previousBlock.matches
-              .map((matchNumber) => matchNumber - 1)
-              .filter((index) => index >= 0 && index < draft.length)
-              .forEach((index) => {
-                draft[index].redScouts.forEach((s) => {
-                  if (s) previousBlockScouts.add(s);
-                });
-                draft[index].blueScouts.forEach((s) => {
-                  if (s) previousBlockScouts.add(s);
-                });
-              });
-          }
-
-          const representativeMatch = draft[blockMatchIndexes[0]];
-
-          const assignGroupSlot = (
-            alliance: "red" | "blue",
-            position: number,
-          ) => {
-            const slotHasOpenMatch = blockMatchIndexes.some((index) => {
-              const match = draft[index];
-              const slots =
-                alliance === "red" ? match.redScouts : match.blueScouts;
-              return slots[position] === null;
+            .filter((index) => index >= 0 && index < draft.length)
+            .forEach((index) => {
+              [...draft[index].redScouts, ...draft[index].blueScouts].forEach(
+                (scoutId) => scoutId && previousBlockScouts.add(scoutId),
+              );
             });
-            if (!slotHasOpenMatch) return;
-
-            const alreadyChosenForGroup = new Set<string>();
-            for (let p = 0; p < scoutsPerAlliance; p++) {
-              const redScout = representativeMatch.redScouts[p];
-              const blueScout = representativeMatch.blueScouts[p];
-              if (redScout) alreadyChosenForGroup.add(redScout);
-              if (blueScout) alreadyChosenForGroup.add(blueScout);
-            }
-
-            let best: UserWithPartners | null = null;
-            let bestScore: [number, number, number, number] | null = null;
-
-            for (let idx = 0; idx < sortedActiveUsers.length; idx++) {
-              const candidate = sortedActiveUsers[idx];
-              if (alreadyChosenForGroup.has(candidate.id)) continue;
-
-              const score: [number, number, number, number] = [
-                previousBlockScouts.has(candidate.id) ? 1 : 0,
-                workload.get(candidate.id) ?? 0,
-                hasPreferredPartnerInMatch(candidate.id, representativeMatch)
-                  ? 0
-                  : 1,
-                idx,
-              ];
-
-              if (
-                !bestScore ||
-                score[0] < bestScore[0] ||
-                (score[0] === bestScore[0] && score[1] < bestScore[1]) ||
-                (score[0] === bestScore[0] &&
-                  score[1] === bestScore[1] &&
-                  score[2] < bestScore[2]) ||
-                (score[0] === bestScore[0] &&
-                  score[1] === bestScore[1] &&
-                  score[2] === bestScore[2] &&
-                  score[3] < bestScore[3])
-              ) {
-                bestScore = score;
-                best = candidate;
-              }
-            }
-
-            if (!best) return;
-
-            representativeMatch[
-              alliance === "red" ? "redScouts" : "blueScouts"
-            ][position] = best.id;
-
-            blockMatchIndexes.forEach((index) => {
-              const match = draft[index];
-              const slots =
-                alliance === "red" ? match.redScouts : match.blueScouts;
-              if (slots[position] !== null) return;
-
-              const assignedInMatch = new Set<string>([
-                ...match.redScouts.filter((s): s is string => s !== null),
-                ...match.blueScouts.filter((s): s is string => s !== null),
-              ]);
-              if (assignedInMatch.has(best!.id)) return;
-
-              slots[position] = best!.id;
-              workload.set(best!.id, (workload.get(best!.id) ?? 0) + 1);
-            });
-          };
-
-          for (let pos = 0; pos < scoutsPerAlliance; pos++)
-            assignGroupSlot("red", pos);
-          for (let pos = 0; pos < scoutsPerAlliance; pos++)
-            assignGroupSlot("blue", pos);
         }
 
-        return draft;
-      });
+        const assignGroupSlot = (alliance: "red" | "blue", position: number) => {
+          const openIndexes = blockMatchIndexes.filter((index) => {
+            const slots = alliance === "red" ? draft[index].redScouts : draft[index].blueScouts;
+            return slots[position] === null;
+          });
+          if (openIndexes.length === 0) return;
 
-      toast.success("Auto-assigned all matches using virtual groups");
+          const candidates = sortedActiveUsers.filter((candidate) =>
+            openIndexes.every((index) => {
+              const assigned = [...draft[index].redScouts, ...draft[index].blueScouts];
+              return !assigned.includes(candidate.id);
+            }),
+          );
+          const representativeMatch = draft[openIndexes[0]];
+          candidates.sort((a, b) => {
+            const score = (candidate: UserWithPartners) => [
+              previousBlockScouts.has(candidate.id) ? 1 : 0,
+              workload.get(candidate.id) ?? 0,
+              hasPreferredPartnerInMatch(candidate.id, representativeMatch) ? 0 : 1,
+              sortedActiveUsers.findIndex((user) => user.id === candidate.id),
+            ];
+            const aScore = score(a);
+            const bScore = score(b);
+            for (let index = 0; index < aScore.length; index++) {
+              if (aScore[index] !== bScore[index]) return aScore[index] - bScore[index];
+            }
+            return 0;
+          });
+
+          const best = candidates[0];
+          if (!best) return;
+          openIndexes.forEach((index) => {
+            const slots = alliance === "red" ? draft[index].redScouts : draft[index].blueScouts;
+            slots[position] = best.id;
+            workload.set(best.id, (workload.get(best.id) ?? 0) + 1);
+          });
+        };
+
+        for (let pos = 0; pos < scoutsPerAlliance; pos++) assignGroupSlot("red", pos);
+        for (let pos = 0; pos < scoutsPerAlliance; pos++) assignGroupSlot("blue", pos);
+      }
+
+      setLocalMatches(draft);
+      const unfilled = draft.reduce(
+        (count, match) =>
+          count + [...match.redScouts, ...match.blueScouts].filter((id) => !id).length,
+        0,
+      );
+      if (unfilled > 0) {
+        toast.warning(`Auto-fill completed with ${unfilled} unfilled slots`);
+      } else {
+        toast.success("Auto-assigned all matches using virtual groups");
+      }
     } catch (err) {
       console.error("Error auto-assigning matches:", err);
       toast.error("Failed to auto-assign matches");
@@ -637,6 +609,7 @@ export default function SchedulePage() {
     hasPreferredPartnerInMatch,
     scoutsPerAlliance,
     blocks,
+    localMatches,
   ]);
 
   const clearAssignments = useCallback(() => {
@@ -653,118 +626,77 @@ export default function SchedulePage() {
   const saveAllChanges = async () => {
     setIsSaving(true);
     try {
-      const dbMap = new Map<string, string | null>();
-      matchAssignments.forEach((row) =>
-        dbMap.set(
-          `${row.matchNumber}-${row.alliance}-${row.position}`,
-          row.userId,
-        ),
-      );
-
       const changes: Array<{
-        matchNumber: number;
+        startMatch: number;
+        endMatch: number;
         alliance: "red" | "blue";
         position: number;
         userId: string | null;
       }> = [];
       localMatches.forEach((match) => {
         for (let pos = 0; pos < scoutsPerAlliance; pos++) {
-          const dbRed = dbMap.get(`${match.matchNumber}-red-${pos}`) ?? null;
-          const dbBlue = dbMap.get(`${match.matchNumber}-blue-${pos}`) ?? null;
-          if ((match.redScouts[pos] ?? null) !== dbRed) {
+          if (match.redScouts[pos]) {
             changes.push({
-              matchNumber: match.matchNumber,
+              startMatch: match.matchNumber,
+              endMatch: match.matchNumber,
               alliance: "red",
               position: pos,
-              userId: match.redScouts[pos] ?? null,
+              userId: match.redScouts[pos],
             });
           }
-          if ((match.blueScouts[pos] ?? null) !== dbBlue) {
+          if (match.blueScouts[pos]) {
             changes.push({
-              matchNumber: match.matchNumber,
+              startMatch: match.matchNumber,
+              endMatch: match.matchNumber,
               alliance: "blue",
               position: pos,
-              userId: match.blueScouts[pos] ?? null,
+              userId: match.blueScouts[pos],
             });
           }
         }
       });
-
-      type RangeChange = {
-        startMatch: number;
-        endMatch: number;
-        alliance: "red" | "blue";
-        position: number;
-        userId: string | null;
-      };
-
       const grouped = new Map<string, number[]>();
-      for (const change of changes) {
-        const key = `${change.alliance}|${change.position}|${change.userId ?? "null"}`;
-        const matches = grouped.get(key);
-        if (matches) matches.push(change.matchNumber);
-        else grouped.set(key, [change.matchNumber]);
-      }
-
-      const compactedChanges: RangeChange[] = [];
+      changes.forEach((change) => {
+        const key = `${change.alliance}|${change.position}|${change.userId}`;
+        grouped.set(key, [...(grouped.get(key) ?? []), change.startMatch]);
+      });
+      const compacted: typeof changes = [];
       grouped.forEach((matchNumbers, key) => {
-        const [allianceRaw, positionRaw, userIdRaw] = key.split("|");
-        const alliance = allianceRaw as "red" | "blue";
-        const position = parseInt(positionRaw, 10);
-        const userId = userIdRaw === "null" ? null : userIdRaw;
-
-        const sortedMatches = [...matchNumbers].sort((a, b) => a - b);
-        let start = sortedMatches[0];
-        let prev = sortedMatches[0];
-
-        for (let i = 1; i < sortedMatches.length; i++) {
-          const current = sortedMatches[i];
-          if (current === prev + 1) {
-            prev = current;
-            continue;
+        const [alliance, positionRaw, userId] = key.split("|");
+        const sorted = matchNumbers.sort((a, b) => a - b);
+        let start = sorted[0];
+        let end = sorted[0];
+        for (const matchNumber of sorted.slice(1)) {
+          if (matchNumber === end + 1) {
+            end = matchNumber;
+          } else {
+            compacted.push({
+              startMatch: start,
+              endMatch: end,
+              alliance: alliance as "red" | "blue",
+              position: Number(positionRaw),
+              userId,
+            });
+            start = matchNumber;
+            end = matchNumber;
           }
-
-          compactedChanges.push({
-            startMatch: start,
-            endMatch: prev,
-            alliance,
-            position,
-            userId,
-          });
-          start = current;
-          prev = current;
         }
-
-        compactedChanges.push({
+        compacted.push({
           startMatch: start,
-          endMatch: prev,
-          alliance,
-          position,
+          endMatch: end,
+          alliance: alliance as "red" | "blue",
+          position: Number(positionRaw),
           userId,
         });
       });
-
-      const batchSize = 20;
-      for (let i = 0; i < compactedChanges.length; i += batchSize) {
-        const batch = compactedChanges.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map((change) =>
-            assignScoutRange(
-              change.startMatch,
-              change.endMatch,
-              change.userId,
-              change.alliance,
-              change.position,
-            ),
-          ),
-        );
-      }
-
+      await replaceAllAssignments(compacted);
       refreshData();
       toast.success("Changes saved");
     } catch (err) {
       console.error("Error saving changes:", err);
-      toast.error("Failed to save changes");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save changes",
+      );
     } finally {
       setIsSaving(false);
     }

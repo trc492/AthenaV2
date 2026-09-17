@@ -60,19 +60,19 @@ export function FormSubmitButtons({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className="border rounded-xl shadow-sm sm:py-4">
+      <Card className="sticky bottom-0 z-20 rounded-xl border bg-background/95 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:py-4">
         <CardContent className="">
           {isEditMode ? (
-            <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
-              <div className="text-sm text-muted-foreground">
+            <div className="grid grid-cols-2 items-center gap-3 md:flex md:justify-between">
+              <div className="order-3 col-span-2 text-center text-xs text-muted-foreground md:order-1 md:col-span-1 md:text-left md:text-sm">
                 Update the entry and return to dashboard
               </div>
-              <div className="flex flex-col md:flex-row gap-3">
+              <div className="col-span-2 grid grid-cols-2 gap-3 md:order-2 md:flex">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={onCancel}
-                  className="hover:bg-green-50 h-10"
+                  className="h-11 hover:bg-muted"
                   size="lg"
                 >
                   Cancel
@@ -80,7 +80,7 @@ export function FormSubmitButtons({
                 <Button
                   onClick={onSubmit}
                   disabled={isSubmitting}
-                  className="min-w-[140px] h-10 bg-green-600 hover:bg-green-700 text-base"
+                  className="h-11 min-w-[140px] text-base"
                   size="lg"
                 >
                   {isSubmitting ? (
@@ -95,26 +95,26 @@ export function FormSubmitButtons({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-              <div className="flex-shrink-0">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 md:flex">
+              <div className="min-w-0 md:flex-shrink-0">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setShowClearConfirm(true)}
-                  className="hover:bg-green-50 h-10 w-full md:w-auto"
+                  className="h-11 w-full hover:bg-muted md:w-auto"
                   size="lg"
                 >
                   Clear Form
                 </Button>
               </div>
-              <div className="text-sm text-muted-foreground text-center flex-1">
-                Data saves locally and syncs automatically
+              <div className="order-3 col-span-2 text-center text-xs text-muted-foreground md:order-none md:col-span-1 md:flex-1 md:text-sm">
+                Saved locally first, then synced automatically
               </div>
               <div className="flex-shrink-0">
                 <Button
                   onClick={onSubmit}
                   disabled={isSubmitting}
-                  className="min-w-[140px] h-10 bg-green-600 hover:bg-green-700 text-base w-full md:w-auto"
+                  className="h-11 w-full min-w-[140px] text-base md:w-auto"
                   size="lg"
                 >
                   {isSubmitting ? (

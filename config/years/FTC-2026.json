@@ -50,7 +50,7 @@
     },
     "endgame": {
       "ending_based_state": {
-        "label": "",
+        "label": "Ending Base State",
         "description": "Robot's final base state during endgame",
         "pointValues": {
           "none": 0,
@@ -124,6 +124,27 @@
       }
     }
   },
+  "derivedMetrics": [
+    {
+      "key": "calculated.auto_artifacts",
+      "label": "Auto Artifacts",
+      "op": "sum",
+      "inputs": [
+        "autonomous.artifacts_classified",
+        "autonomous.artifacts_overflow"
+      ]
+    },
+    {
+      "key": "calculated.teleop_artifacts",
+      "label": "Teleop Artifacts",
+      "op": "sum",
+      "inputs": [
+        "teleop.artifacts_classified",
+        "teleop.artifacts_overflow",
+        "teleop.artifacts_depot"
+      ]
+    }
+  ],
   "matchupCardConfig": {
     "autoIcon": "Package",
     "autoMetrics": [

@@ -2,20 +2,18 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ModeToggle } from "@/components/ui/light-dark-toggle";
 import { ThemeSelector } from "@/components/settings/theme-selector";
-import { ArrowLeft, Users, UserRound } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, UserRound } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -25,13 +23,13 @@ interface LoginFormData {
 }
 
 export default function Page() {
-  const router = useRouter();
   const [formData, setFormData] = useState<LoginFormData>({
     username: "",
     password: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleInputChange = (field: keyof LoginFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -42,19 +40,16 @@ export default function Page() {
     setIsSubmitting(true);
 
     try {
-      console.log("Attempting login with username:", formData.username);
       const result = await signIn("credentials", {
         username: formData.username,
         password: formData.password,
         redirect: false,
       });
 
-      console.log("SignIn result:", result);
-
       if (result?.error) {
         console.error("Login error:", result.error);
         toast.error("Login failed", {
-          description: "Invalid email or password",
+          description: "Invalid username or password",
         });
       } else if (result?.ok) {
         toast.success("Login successful!", {
@@ -83,7 +78,7 @@ export default function Page() {
       <div className="flex min-h-screen w-full items-center justify-center p-6 md:p-10">
         <div className="fixed top-4 left-4">
           <Link href="/">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="h-11 md:h-8">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
             </Button>
@@ -100,9 +95,9 @@ export default function Page() {
         <div className="w-full max-w-md">
           <Card className="shadow-lg rounded-2xl backdrop-blur-sm">
             <CardHeader className="text-center mt-2">
-              <CardTitle className="text-2xl font-semibold text-primary">
+              <h1 className="text-2xl font-semibold text-primary">
                 Log In
-              </CardTitle>
+              </h1>
               <CardDescription className="text-muted-foreground">
                 Log in to your TRC Athena account
               </CardDescription>
@@ -120,29 +115,42 @@ export default function Page() {
                     onChange={(e) =>
                       handleInputChange("username", e.target.value)
                     }
-                    className="focus:ring-2 focus:ring-primary/30"
+                    className="h-11 focus:ring-2 focus:ring-primary/30 md:h-9"
                     required
                   />
                 </div>
                 {/* Password */}
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      handleInputChange("password", e.target.value)
-                    }
-                    className="focus:ring-2 focus:ring-primary/30"
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) =>
+                        handleInputChange("password", e.target.value)
+                      }
+                      className="h-11 pr-12 focus:ring-2 focus:ring-primary/30 md:h-9 md:pr-10"
+                      autoComplete="current-password"
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 size-11 md:size-9"
+                      onClick={() => setShowPassword((value) => !value)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff /> : <Eye />}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Submit Button */}
                 <Button
                   type="submit"
-                  className="w-full mt-6"
+                  className="mt-6 h-11 w-full md:h-9"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (

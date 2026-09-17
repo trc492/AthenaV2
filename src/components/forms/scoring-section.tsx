@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { ScoringField } from "./scoring-field";
 import type { ScoringDefinition, DynamicMatchData } from "@/lib/types";
+import { encodeStartPosition } from "./match-form-utils";
 interface ScoringSectionProps {
   title: string;
   description?: string;
@@ -77,8 +78,8 @@ export function ScoringSection({
                   gameConfig.startPositions.length > 0 ? (
                     gameConfig.startPositions.map((position: string) => (
                       <SelectItem
-                        key={position.toLowerCase().replace(/\s+/g, "-")}
-                        value={position.toLowerCase().replace(/\s+/g, "-")}
+                        key={encodeStartPosition(position)}
+                        value={encodeStartPosition(position)}
                       >
                         {position}
                       </SelectItem>

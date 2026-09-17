@@ -57,6 +57,7 @@ export const PERMISSIONS = {
   VIEW_SETTINGS: "view_settings",
   EDIT_SETTINGS: "edit_settings",
   MANAGE_SYSTEM_CONFIG: "manage_system_config",
+  MANAGE_DATABASE: "manage_database",
 
   // Advanced Features
   MANAGE_GAME_CONFIG: "manage_game_config",
@@ -204,4 +205,12 @@ export function getRolePermissions(role: string): string[] {
 
 export function getAllPermissions(): string[] {
   return Object.values(PERMISSIONS);
+}
+
+export function hasRole(userRole: string | null, role: string): boolean {
+  return userRole === role;
+}
+
+export function hasAnyRole(userRole: string | null, roles: string[]): boolean {
+  return roles.includes(userRole || "");
 }

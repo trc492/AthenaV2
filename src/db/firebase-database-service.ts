@@ -456,19 +456,25 @@ export class FirebaseDatabaseService implements DatabaseService {
   }
 
   async importData(data: {
-    pitEntries: PitEntry[];
-    matchEntries: MatchEntry[];
+    pitEntries?: PitEntry[];
+    matchEntries?: MatchEntry[];
   }): Promise<void> {
     const batch = this.admin.firestore().batch();
-    const pitRef = this.collection("pitEntries");
-    const matchRef = this.collection("matchEntries");
-    for (const p of data.pitEntries) {
-      const docRef = pitRef.doc();
-      batch.set(docRef, p);
+    const pitEntries = data.pitEntries || [];
+    const matchEntries = data.matchEntries || [];
+    if (pitEntries.length > 0) {
+      const pitRef = this.collection("pitEntries");
+      for (const p of pitEntries) {
+        const docRef = pitRef.doc();
+        batch.set(docRef, p);
+      }
     }
-    for (const m of data.matchEntries) {
-      const docRef = matchRef.doc();
-      batch.set(docRef, m);
+    if (matchEntries.length > 0) {
+      const matchRef = this.collection("matchEntries");
+      for (const m of matchEntries) {
+        const docRef = matchRef.doc();
+        batch.set(docRef, m);
+      }
     }
     await batch.commit();
   }

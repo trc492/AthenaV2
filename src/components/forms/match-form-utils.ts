@@ -46,6 +46,10 @@ export const parseCombinedAlliancePosition = (
   };
 };
 
+/** Encode a start position label the way the scouting form persists it. */
+export const encodeStartPosition = (label: string): string =>
+  label.toLowerCase().replace(/\s+/g, "-");
+
 // Function to initialize form data with all game config fields
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const initializeFormData = (gameConfig: any): DynamicMatchData => {
@@ -76,7 +80,7 @@ export const initializeFormData = (gameConfig: any): DynamicMatchData => {
   // Add startPosition field for autonomous with first configured position as default
   const defaultPosition =
     gameConfig.startPositions && gameConfig.startPositions.length > 0
-      ? gameConfig.startPositions[0].toLowerCase().replace(/\s+/g, "-")
+      ? encodeStartPosition(gameConfig.startPositions[0])
       : "center";
   data.autonomous.startPosition = defaultPosition;
 

@@ -1,6 +1,6 @@
 # Team Pages Directory
 
-This directory contains the universal JSON-configurable team analysis page component and backwards-compatible export wrappers.
+This directory contains the universal JSON-configurable team analysis page component.
 
 ## JSON-Driven Configuration Architecture
 
@@ -17,9 +17,6 @@ Team pages are now fully configuration-driven. When you add or update a year con
 ## Main Components
 
 - `configurable-team-page.tsx` - The universal, responsive, JSON-driven team page component.
-- `frc-team-2025-page.tsx` - Backwards-compatible wrapper for FRC 2025.
-- `frc-team-2026-page.tsx` - Backwards-compatible wrapper for FRC 2026.
-- `ftc-team-2026-page.tsx` - Backwards-compatible wrapper for FTC 2026.
 
 ## How to Configure a Year
 

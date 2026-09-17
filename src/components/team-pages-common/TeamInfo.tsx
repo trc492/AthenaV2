@@ -25,14 +25,6 @@ export function TeamInfo({
           <span className="text-sm text-muted-foreground">Team Number</span>
           <span className="font-medium">{teamNumber}</span>
         </div>
-        {/* <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Location</span>
-          <span className="font-medium">{location}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Rookie Year</span>
-          <span className="font-medium">{rookieYear}</span>
-        </div> */}
         <div className="flex justify-between">
           <span className="text-sm text-muted-foreground">Drivetrain</span>
           <span className="font-medium">

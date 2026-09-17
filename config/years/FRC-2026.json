@@ -244,6 +244,16 @@
       }
     ]
   },
+  "derivedMetrics": [
+    {
+      "key": "teleop.fuel_accuracy",
+      "label": "Teleop Fuel Accuracy",
+      "op": "ratio",
+      "inputs": ["teleop.fuel_scored"],
+      "denominator": ["teleop.fuel_scored", "teleop.fuel_missed"],
+      "asPercent": true
+    }
+  ],
   "matchupCardConfig": {
     "autoIcon": "Flame",
     "autoMetrics": [
@@ -345,7 +355,9 @@
     "endgame": {
       "title": "Endgame Climb Distribution",
       "description": "Percentage of matches at each climb level",
-      "displayType": "chart",
+      "displayType": "both",
+      "summaryTitle": "Endgame Climb Performance",
+      "summaryDescription": "Climb level success rates across matches",
       "stateKey": "endgame.ending_robot_state",
       "breakdownKey": "endgame.robot_broke_down",
       "states": [

@@ -11,6 +11,20 @@ export interface ScoringDefinition {
   increments?: number[];
 }
 
+/**
+ * A metric computed from other fields rather than scouted directly.
+ * `sum` averages the summed inputs per match; `ratio` divides the summed
+ * inputs by the summed denominator.
+ */
+export interface DerivedMetricDefinition {
+  key: string;
+  label: string;
+  op: "sum" | "ratio";
+  inputs: string[];
+  denominator?: string[];
+  asPercent?: boolean;
+}
+
 export interface MetricDisplayConfig {
   key: string;
   label: string;
@@ -93,7 +107,10 @@ export interface TeamPageConfig {
   endgame: {
     title: string;
     description: string;
-    displayType?: "cards" | "chart";
+    /** "both" renders the distribution chart plus a separate rate/points summary card. */
+    displayType?: "cards" | "chart" | "both";
+    summaryTitle?: string;
+    summaryDescription?: string;
     stateKey: string;
     breakdownKey?: string;
     states: {
@@ -179,6 +196,7 @@ export interface YearConfig {
       }
     >;
   };
+  derivedMetrics?: DerivedMetricDefinition[];
   analysisInsights?: AnalysisInsightsConfig;
   matchupCardConfig?: MatchupCardConfig;
   teamPageConfig?: TeamPageConfig;

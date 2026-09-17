@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import { useEventConfig } from "./use-event-config";
 import { useGameConfig } from "./use-game-config";
 import { statsApi } from "@/lib/api/database-client";
-// We'll call a server-side proxy route instead of calling TBA directly from the client
-// to avoid CORS and exposing the TBA API key.
 
 export interface DashboardStats {
   teamsScouted: number;
@@ -15,6 +13,7 @@ export interface DashboardStats {
   pitScoutingProgress: { current: number; total: number };
   qualificationProgress: { current: number; total: number };
   nextMatch: string | null;
+  eventComplete: boolean;
   recentActivity: Array<{
     type: "pit" | "match" | "analysis";
     message: string;
@@ -35,6 +34,7 @@ const DEFAULT_DASHBOARD_STATS: DashboardStats = {
   pitScoutingProgress: { current: 0, total: 0 },
   qualificationProgress: { current: 0, total: 0 },
   nextMatch: null,
+  eventComplete: false,
   recentActivity: [],
   topTeams: [],
 };
@@ -68,6 +68,18 @@ export function useDashboardStats() {
 
         // Fetch qualification matches count from our server-side proxy
         let qualMatchesCount = 0;
+        let liveStatus: { label: string | null; complete: boolean } = {
+          label: null,
+          complete: false,
+        };
+
+        const statusRequest = fetch(
+          `/api/events/${encodeURIComponent(selectedEvent.eventCode)}/status?competitionType=${competitionType}&season=${currentYear}`,
+        )
+          .then(async (response) => {
+            if (response.ok) liveStatus = await response.json();
+          })
+          .catch(() => undefined);
 
         // Use unified matches API
         try {
@@ -122,13 +134,13 @@ export function useDashboardStats() {
             );
           }
         }
-        // const qualMatchesCount = 0;
         // Fetch stats from API
         const apiStats = await statsApi.getDashboardStats(
           currentYear,
           selectedEvent.eventCode,
           competitionType,
         );
+        await statusRequest;
 
         // Transform API response to hook format
         const transformedStats: DashboardStats = {
@@ -148,7 +160,8 @@ export function useDashboardStats() {
             current: apiStats.uniqueMatches,
             total: qualMatchesCount,
           },
-          nextMatch: null, // Could be calculated from schedule
+          nextMatch: liveStatus.label,
+          eventComplete: liveStatus.complete,
           recentActivity: apiStats.recentActivity.map((activity) => ({
             type: "match" as const,
             message: `Match ${activity.matchNumber} scouted for Team ${activity.teamNumber}`,

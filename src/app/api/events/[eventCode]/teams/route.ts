@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEventTeams, getTeamMedia } from "@/lib/api/tba";
 import { getSeasonTeams } from "@/lib/api/ftcevents";
+import { parseEventRequest } from "@/lib/server/event-request";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ eventCode: string; year?: number }> },
+  { params }: { params: Promise<{ eventCode: string }> },
 ) {
   try {
-    const { eventCode, year } = await params;
-    const { searchParams } = new URL(request.url);
-    const competitionType = searchParams.get("competitionType") || "FRC";
+    const { eventCode } = await params;
+    const parsed = parseEventRequest(request, { requireFtcYear: true });
+    if (parsed.error) return parsed.error;
+    const { competitionType, year } = parsed.data;
 
     if (!eventCode) {
       return NextResponse.json(
@@ -21,7 +23,7 @@ export async function GET(
     if (competitionType === "FTC") {
       // Handle FTC events
       const ftcTeamsResponse = await getSeasonTeams(
-        year ? year : new Date().getFullYear(),
+        year!,
         undefined,
         eventCode,
       );

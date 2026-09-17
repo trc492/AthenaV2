@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -16,20 +15,20 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useScheduleData } from "@/hooks/use-schedule-data";
+import { useSelectedEvent } from "@/hooks/use-event-config";
+import { getLastSubmittedMatch } from "@/components/forms/match-form-utils";
 import { EventInfoCard } from "@/components/events/event-info-card";
-import { OfflineStatusWidget } from "@/components/sync/offline-status-widget";
 
 interface MatchItem {
   matchNumber: number;
-  teamNumber: number;
   alliance: "red" | "blue";
 }
 
 export function LoggedInLandingPage() {
   const { data: session } = useSession();
   const [isDark, setIsDark] = useState(false);
-  const { blocks, isLoading, error } = useScheduleData();
-  const [upcomingMatches, setUpcomingMatches] = useState<MatchItem[]>([]);
+  const { matchAssignments, isLoading, error } = useScheduleData();
+  const selectedEvent = useSelectedEvent();
 
   useEffect(() => {
     // Check for dark mode
@@ -46,40 +45,28 @@ export function LoggedInLandingPage() {
     };
   }, []);
 
-  // Extract upcoming matches from blocks where user is assigned
-  useEffect(() => {
-    if (blocks && blocks.length > 0 && session?.user?.id) {
-      const matches: MatchItem[] = [];
-      const userId = session.user.id;
-
-      blocks.forEach((block) => {
-        // Check if user is assigned to red alliance
-        const redIndex = block.redScouts?.indexOf(userId);
-        if (redIndex !== undefined && redIndex !== -1) {
-          matches.push({
-            matchNumber: block.startMatch,
-            teamNumber: 0, // Placeholder - could be derived from position
-            alliance: "red",
-          });
-        }
-
-        // Check if user is assigned to blue alliance
-        const blueIndex = block.blueScouts?.indexOf(userId);
-        if (blueIndex !== undefined && blueIndex !== -1) {
-          matches.push({
-            matchNumber: block.startMatch,
-            teamNumber: 0,
-            alliance: "blue",
-          });
-        }
-      });
-
-      // Only show next 3 upcoming assignments
-      setUpcomingMatches(matches.slice(0, 3));
-    } else {
-      setUpcomingMatches([]);
-    }
-  }, [blocks, session?.user?.id]);
+  // Extract the user's actual per-match assignments rather than lossy virtual groups.
+  const upcomingMatches: MatchItem[] = (() => {
+    if (!session?.user?.id) return [];
+    const lastSubmitted = selectedEvent?.eventCode
+      ? getLastSubmittedMatch(selectedEvent.eventCode)
+      : 0;
+    const seen = new Set<string>();
+    return matchAssignments
+      .filter(
+        (row) =>
+          row.userId === session.user.id && row.matchNumber > lastSubmitted,
+      )
+      .sort((a, b) => a.matchNumber - b.matchNumber)
+      .filter((row) => {
+        const key = `${row.matchNumber}-${row.alliance}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 3)
+      .map(({ matchNumber, alliance }) => ({ matchNumber, alliance }));
+  })();
 
   return (
     <div className="min-h-screen flex flex-col bg-background relative overflow-hidden">

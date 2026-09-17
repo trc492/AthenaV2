@@ -7,11 +7,10 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Users, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -31,6 +30,8 @@ export function SignupForm() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleInputChange = (
     field: keyof SignupFormData,
@@ -80,7 +81,7 @@ export function SignupForm() {
           description: data.error || "An error occurred during registration",
         });
       }
-    } catch (error) {
+    } catch {
       toast.error("Registration failed", {
         description: "Network error. Please try again.",
       });
@@ -92,9 +93,9 @@ export function SignupForm() {
   return (
     <Card className="shadow-lg rounded-2xl backdrop-blur-sm">
       <CardHeader className="text-center mt-2">
-        <CardTitle className="text-2xl font-semibold text-primary">
+        <h1 className="text-2xl font-semibold text-primary">
           Create Account
-        </CardTitle>
+        </h1>
         <CardDescription className="text-muted-foreground">
           Join the TRC Athena Scouting platform
         </CardDescription>
@@ -113,7 +114,7 @@ export function SignupForm() {
                   handleInputChange("name", e.target.value)
                 }
                 required
-                className="focus:ring-2 focus:ring-primary/30"
+                className="h-11 focus:ring-2 focus:ring-primary/30 md:h-9"
               />
             </div>
           </div>
@@ -127,43 +128,85 @@ export function SignupForm() {
                 handleInputChange("username", e.target.value)
               }
               required
-              className="focus:ring-2 focus:ring-primary/30"
+              className="h-11 focus:ring-2 focus:ring-primary/30 md:h-9"
             />
           </div>
 
           {/* Password */}
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={formData.password}
-              onChange={(e) =>
-                handleInputChange("password", e.target.value)
-              }
-              required
-              className="focus:ring-2 focus:ring-primary/30"
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={(e) =>
+                  handleInputChange("password", e.target.value)
+                }
+                required
+                minLength={8}
+                autoComplete="new-password"
+                aria-describedby="password-requirements"
+                className="h-11 pr-12 focus:ring-2 focus:ring-primary/30 md:h-9 md:pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 size-11 md:size-9"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff /> : <Eye />}
+              </Button>
+            </div>
+            <p id="password-requirements" className="text-xs text-muted-foreground">
+              Use at least 8 characters.
+            </p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={formData.confirmPassword}
-              onChange={(e) =>
-                handleInputChange("confirmPassword", e.target.value)
-              }
-              required
-              className="focus:ring-2 focus:ring-primary/30"
-            />
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                value={formData.confirmPassword}
+                onChange={(e) =>
+                  handleInputChange("confirmPassword", e.target.value)
+                }
+                required
+                minLength={8}
+                autoComplete="new-password"
+                aria-invalid={
+                  formData.confirmPassword.length > 0 &&
+                  formData.password !== formData.confirmPassword
+                }
+                className="h-11 pr-12 focus:ring-2 focus:ring-primary/30 md:h-9 md:pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 size-11 md:size-9"
+                onClick={() => setShowConfirmPassword((value) => !value)}
+                aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
+              >
+                {showConfirmPassword ? <EyeOff /> : <Eye />}
+              </Button>
+            </div>
+            {formData.confirmPassword.length > 0 &&
+              formData.password !== formData.confirmPassword && (
+                <p className="text-xs text-destructive" role="alert">
+                  Passwords do not match.
+                </p>
+              )}
           </div>
 
           {/* Submit Button */}
           <Button
             type="submit"
-            className="w-full mt-6"
+            className="mt-6 h-11 w-full md:h-9"
             disabled={isSubmitting}
           >
             {isSubmitting ? (

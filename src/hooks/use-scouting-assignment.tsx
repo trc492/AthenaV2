@@ -6,8 +6,11 @@ import { useSelectedEvent } from "./use-event-config";
 import { useGameConfig } from "./use-game-config";
 
 const assignmentsCache = new Map<string, MatchAssignmentRow[]>();
-const getAssignmentsCacheKey = (eventCode: string, year: number) =>
-  `${eventCode}-${year}`;
+const getAssignmentsCacheKey = (
+  eventCode: string,
+  year: number,
+  competitionType: string,
+) => `${competitionType}-${eventCode}-${year}`;
 
 interface ScoutingAssignment {
   blockId: number;
@@ -34,9 +37,44 @@ export function useScoutingAssignment() {
   const [rows, setRows] = useState<MatchAssignmentRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (
+        detail?.eventCode === selectedEvent?.eventCode &&
+        detail?.year === currentYear &&
+        detail?.competitionType === competitionType
+      ) {
+        assignmentsCache.delete(
+          getAssignmentsCacheKey(detail.eventCode, detail.year, detail.competitionType),
+        );
+        setRefreshNonce((value) => value + 1);
+      }
+    };
+    const refreshOnFocus = () => setRefreshNonce((value) => value + 1);
+    const refreshFromStorage = (event: StorageEvent) => {
+      const expectedKey = selectedEvent?.eventCode
+        ? `schedule-updated:${competitionType}-${selectedEvent.eventCode}-${currentYear}`
+        : null;
+      if (expectedKey && event.key === expectedKey) refreshOnFocus();
+    };
+    const intervalId = window.setInterval(refreshOnFocus, 30_000);
+    window.addEventListener("schedule-updated", refresh);
+    window.addEventListener("focus", refreshOnFocus);
+    window.addEventListener("storage", refreshFromStorage);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("schedule-updated", refresh);
+      window.removeEventListener("focus", refreshOnFocus);
+      window.removeEventListener("storage", refreshFromStorage);
+    };
+  }, [selectedEvent?.eventCode, currentYear, competitionType]);
 
   // Fetch per-match scouting assignments for the event
   useEffect(() => {
+    const controller = new AbortController();
     const fetchAssignments = async () => {
       if (!selectedEvent?.eventCode) {
         setRows([]);
@@ -50,6 +88,7 @@ export function useScoutingAssignment() {
         const cacheKey = getAssignmentsCacheKey(
           selectedEvent.eventCode,
           currentYear,
+          competitionType,
         );
         const cachedRows = assignmentsCache.get(cacheKey);
         if (cachedRows) {
@@ -58,7 +97,8 @@ export function useScoutingAssignment() {
         }
 
         const res = await fetch(
-          `/api/scouting/entries/match-assignments?eventCode=${selectedEvent.eventCode}&year=${currentYear}`,
+          `/api/scouting/entries/match-assignments?eventCode=${encodeURIComponent(selectedEvent.eventCode)}&year=${currentYear}&competitionType=${competitionType}`,
+          { signal: controller.signal, cache: "no-cache" },
         );
 
         if (!res.ok) {
@@ -70,6 +110,7 @@ export function useScoutingAssignment() {
         assignmentsCache.set(cacheKey, data);
         setRows(data);
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error("Error loading scouting schedule:", err);
         setError(
           err instanceof Error
@@ -78,7 +119,11 @@ export function useScoutingAssignment() {
         );
         if (
           !assignmentsCache.get(
-            getAssignmentsCacheKey(selectedEvent.eventCode, currentYear),
+            getAssignmentsCacheKey(
+              selectedEvent.eventCode,
+              currentYear,
+              competitionType,
+            ),
           )
         ) {
           setRows([]);
@@ -89,7 +134,8 @@ export function useScoutingAssignment() {
     };
 
     fetchAssignments();
-  }, [selectedEvent?.eventCode, currentYear, competitionType]);
+    return () => controller.abort();
+  }, [selectedEvent?.eventCode, currentYear, competitionType, refreshNonce]);
 
   // Find the current user's assignments across all matches
   const userAssignments = useMemo((): ScoutingAssignment[] => {
@@ -135,7 +181,7 @@ export function useScoutingAssignment() {
    * Get the recommended next assignment based on the last submitted match.
    * Finds the assignment block that covers `lastSubmittedMatch + 1`.
    * If no block covers it, falls back to the next block whose start is > lastSubmittedMatch,
-   * then falls back to the first assignment.
+   * Returns null once every scheduled assignment has passed.
    */
   const getNextAssignment = (
     lastSubmittedMatch: number,
@@ -147,7 +193,7 @@ export function useScoutingAssignment() {
     );
     if (upcoming) return upcoming;
 
-    return firstAssignment;
+    return null;
   };
 
   // Check if user has any scouting assignments

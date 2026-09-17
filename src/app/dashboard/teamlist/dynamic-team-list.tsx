@@ -16,6 +16,7 @@ import { useSelectedEvent } from "@/hooks/use-event-config";
 import { TeamWithImages } from "@/lib/types/team/team";
 import { TeamCardSkeleton } from "@/components/team-card-skeleton";
 import { Event } from "@/lib/types";
+import { useGameConfig } from "@/hooks/use-game-config";
 
 interface DynamicTeamListProps {
   initialEvent: Event;
@@ -27,6 +28,7 @@ export function DynamicTeamList({
   initialTeams,
 }: DynamicTeamListProps) {
   const selectedEvent = useSelectedEvent();
+  const { competitionType, currentYear } = useGameConfig();
   const [teams, setTeams] = useState<TeamWithImages[]>(initialTeams);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export function DynamicTeamList({
 
         // Use API route instead of direct TBA calls to avoid CORS
         const response = await fetch(
-          `/api/events/${selectedEvent.eventCode}/teams`,
+          `/api/events/${encodeURIComponent(selectedEvent.eventCode)}/teams?competitionType=${competitionType}&year=${currentYear}`,
         );
 
         if (!response.ok) {
@@ -77,7 +79,13 @@ export function DynamicTeamList({
     }
 
     fetchTeams();
-  }, [selectedEvent?.eventCode, initialEvent.eventCode, teams.length]);
+  }, [
+    selectedEvent?.eventCode,
+    initialEvent.eventCode,
+    teams.length,
+    competitionType,
+    currentYear,
+  ]);
 
   const currentEvent = selectedEvent || initialEvent;
 

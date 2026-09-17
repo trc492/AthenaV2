@@ -5,7 +5,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 
 // NOTE: This route exists for compatibility with build-time tooling/tests that import it.
 // Schedule persistence is handled via the `matchAssignments` table, but the UI uses
-// `/api/schedule/*` routes.
+// `/api/scouting/schedule/*` routes.
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,25 +21,29 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const eventCode = searchParams.get("eventCode");
     const yearRaw = searchParams.get("year");
+    const competitionType = searchParams.get("competitionType");
 
-    if (!eventCode || !yearRaw) {
+    if (!eventCode || !yearRaw || !["FRC", "FTC"].includes(competitionType ?? "")) {
       return NextResponse.json(
-        { error: "eventCode and year are required" },
+        { error: "eventCode, year, and competitionType are required" },
         { status: 400 },
       );
     }
 
-    const year = parseInt(yearRaw);
-    if (Number.isNaN(year)) {
+    const year = Number(yearRaw);
+    if (!Number.isInteger(year) || year < 1992 || year > 2100) {
       return NextResponse.json(
-        { error: "year must be a number" },
+        { error: "year must be an integer between 1992 and 2100" },
         { status: 400 },
       );
     }
 
     const service = databaseManager.getService();
     if (!service.query) {
-      return NextResponse.json([]);
+      return NextResponse.json(
+        { error: "Schedule assignments require a SQL-backed provider" },
+        { status: 501 },
+      );
     }
 
     const result = await service.query<{
@@ -53,10 +57,13 @@ export async function GET(request: NextRequest) {
         SELECT eventCode, year, matchNumber, alliance, position, userId
         FROM matchAssignments
         WHERE eventCode = @eventCode AND year = @year
+          AND competitionType = @competitionType
         ORDER BY matchNumber, alliance, position
-      `, { eventCode, year });
+      `, { eventCode, year, competitionType });
 
-    return NextResponse.json(result.recordset);
+    return NextResponse.json(result.recordset, {
+      headers: { "Cache-Control": "private, max-age=0, must-revalidate" },
+    });
   } catch (error) {
     console.error("Error fetching match assignments:", error);
     return NextResponse.json(
@@ -82,29 +89,35 @@ export async function DELETE(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const eventCode = searchParams.get("eventCode");
     const yearRaw = searchParams.get("year");
+    const competitionType = searchParams.get("competitionType");
 
-    if (!eventCode || !yearRaw) {
+    if (!eventCode || !yearRaw || !["FRC", "FTC"].includes(competitionType ?? "")) {
       return NextResponse.json(
-        { error: "eventCode and year are required" },
+        { error: "eventCode, year, and competitionType are required" },
         { status: 400 },
       );
     }
 
-    const year = parseInt(yearRaw);
-    if (Number.isNaN(year)) {
+    const year = Number(yearRaw);
+    if (!Number.isInteger(year) || year < 1992 || year > 2100) {
       return NextResponse.json(
-        { error: "year must be a number" },
+        { error: "year must be an integer between 1992 and 2100" },
         { status: 400 },
       );
     }
 
     const service = databaseManager.getService();
-    if (service.query) {
-      await service.query(
-        "DELETE FROM matchAssignments WHERE eventCode = @eventCode AND year = @year",
-        { eventCode, year },
+    if (!service.applyScheduleAssignmentChanges) {
+      return NextResponse.json(
+        { error: "Schedule assignments require a SQL-backed provider" },
+        { status: 501 },
       );
     }
+    await service.applyScheduleAssignmentChanges(
+      { eventCode, year, competitionType: competitionType as "FRC" | "FTC" },
+      [],
+      true,
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

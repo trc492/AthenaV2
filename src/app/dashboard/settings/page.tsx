@@ -1,169 +1,84 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Database, Users, Info, KeyRound, FileJson } from "lucide-react";
-import { DatabaseSyncComponent } from "@/components/sync/database-sync";
-import { DatabaseConfigurationComponent } from "@/components/settings/database-configuration";
-import { OfflinePrecache } from "@/components/sync/offline-precache";
-import { DataExportImportComponent } from "@/components/settings/data-export-import";
-import { DatabaseResetComponent } from "@/components/settings/database-reset";
-import { CacheRevalidationComponent } from "@/components/cache-revalidation";
-import { NotificationSender } from "@/components/notification-sender";
-import { TeamManagement } from "@/components/settings/team-management";
-import { ApiKeysConfiguration } from "@/components/settings/api-keys-configuration";
-import { GameConfigStudio } from "@/components/settings/game-config-studio";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
-import { PERMISSIONS } from "@/lib/auth/roles";
-import { SignupSettings } from "@/components/settings/signup-settings";
+import { OfflinePrecache } from "@/components/sync/offline-precache";
+import { ROLES } from "@/lib/auth/roles";
+import {
+  Database,
+  Users,
+  KeyRound,
+  FileJson,
+  Bell,
+  ArrowRight,
+  Info,
+  Shield,
+  Layers,
+} from "lucide-react";
 
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-            <p className="text-muted-foreground">
-              Configure your scouting system and manage data synchronization.
-            </p>
-          </div>
-        </div>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-bold tracking-tight">Settings & System</h1>
+        <p className="text-muted-foreground">
+          System configuration, offline capabilities, and administration tools.
+        </p>
       </div>
 
-      <Tabs defaultValue="database" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1">
-          <TabsTrigger
-            value="database"
-            className="flex items-center gap-2 text-xs sm:text-sm"
-          >
-            <Database className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Database</span>
-            <span className="sm:hidden">DB</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="team"
-            className="flex items-center gap-2 text-xs sm:text-sm"
-          >
-            <Users className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span>Team</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="api-keys"
-            className="flex items-center gap-2 text-xs sm:text-sm"
-          >
-            <KeyRound className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">API Keys</span>
-            <span className="sm:hidden">Keys</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="configs"
-            className="flex items-center gap-2 text-xs sm:text-sm"
-          >
-            <FileJson className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Game Configs</span>
-            <span className="sm:hidden">Configs</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="about"
-            className="flex items-center gap-2 text-xs sm:text-sm"
-          >
-            <Info className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span>About</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="notification-examples"
-            className="flex items-center gap-2 text-xs sm:text-sm"
-          >
-            <Settings className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Notification</span>
-            <span className="sm:hidden">Notif</span>
-          </TabsTrigger>
-        </TabsList>
+      {/* Offline Pre-cache (Available to all scouts) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-primary" />
+          <h2 className="text-lg font-semibold tracking-tight">Offline Data Cache</h2>
+        </div>
+        <OfflinePrecache />
+      </div>
 
-        <TabsContent value="database" className="space-y-4">
-          <DatabaseSyncComponent />
-          <PermissionGuard permission={PERMISSIONS.MANAGE_SYSTEM_CONFIG}>
-            <DatabaseConfigurationComponent />
-          </PermissionGuard>
-          <OfflinePrecache />
-          <PermissionGuard
-            permissions={[PERMISSIONS.IMPORT_DATA, PERMISSIONS.EXPORT_DATA]}
-          >
-            <DataExportImportComponent />
-          </PermissionGuard>
-          <PermissionGuard permission={PERMISSIONS.REVALIDATE_CACHE}>
-            <CacheRevalidationComponent />
-          </PermissionGuard>
-          <PermissionGuard permission={PERMISSIONS.RESET_DATABASE}>
-            <DatabaseResetComponent />
-          </PermissionGuard>
-        </TabsContent>
-
-        <TabsContent value="team" className="space-y-4">
-          <TeamManagement />
-          <PermissionGuard permission={PERMISSIONS.MANAGE_SYSTEM_CONFIG}>
-            <SignupSettings />
-          </PermissionGuard>
-        </TabsContent>
-
-        <TabsContent value="api-keys" className="space-y-4">
-          <PermissionGuard permission={PERMISSIONS.MANAGE_SYSTEM_CONFIG}>
-            <ApiKeysConfiguration />
-          </PermissionGuard>
-        </TabsContent>
-
-        <TabsContent value="configs" className="space-y-4">
-          <PermissionGuard
-            permissions={[
-              PERMISSIONS.MANAGE_GAME_CONFIG,
-              PERMISSIONS.MANAGE_SYSTEM_CONFIG,
-            ]}
-          >
-            <GameConfigStudio />
-          </PermissionGuard>
-        </TabsContent>
-
-        <TabsContent value="about" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>About Athena V2</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-medium">Version</h4>
-                <p className="text-sm text-muted-foreground">2.0.0</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Features</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Year-configurable scouting forms</li>
-                  <li>• Cloud database support</li>
-                  <li>• Mobile-responsive design</li>
-                  <li>• Advanced statistics and EPA calculations</li>
-                  <li>• Data export/import functionality</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium">Supported Games</h4>
-                <p className="text-sm text-muted-foreground">
-                  FRC 2026 (REBUILT)
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  FRC 2025 (REEFSCAPE)
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  FTC 2026 (DECODE)
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="notification-examples" className="space-y-4">
-          <NotificationSender />
-        </TabsContent>
-      </Tabs>
+      {/* About Athena V2 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Info className="h-5 w-5 text-primary" />
+            <CardTitle>About Athena V2</CardTitle>
+          </div>
+          <CardDescription>
+            A high-performance, offline-first scouting and analytics system for FIRST Robotics.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h4 className="font-medium text-sm">Version</h4>
+            <p className="text-sm text-muted-foreground">2.0.0</p>
+          </div>
+          <div>
+            <h4 className="font-medium text-sm">Features</h4>
+            <ul className="text-sm text-muted-foreground space-y-1 mt-1">
+              <li>• Year-configurable scouting forms and analytics</li>
+              <li>• Multi-cloud database support (Azure SQL, MariaDB, Cosmos DB, Firestore)</li>
+              <li>• Offline-first PWA with IndexedDB syncing</li>
+              <li>• Advanced statistics, Scout Performance Ratings (SPR), and EPA calculations</li>
+              <li>• Dynamic picklists and real-time matchup predictions</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-medium text-sm">Supported Games</h4>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                FRC 2026 (REBUILT)
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                FRC 2025 (REEFSCAPE)
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                FTC 2026 (DECODE)
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

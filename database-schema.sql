@@ -76,10 +76,30 @@ CREATE TABLE customEvents (
     updated_at DATETIME DEFAULT GETDATE()
 );
 
+-- Per-match scouting schedule assignments
+CREATE TABLE matchAssignments (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    eventCode NVARCHAR(50) NOT NULL,
+    year INT NOT NULL,
+    competitionType NVARCHAR(10) DEFAULT 'FRC' NOT NULL,
+    matchNumber INT NOT NULL,
+    alliance NVARCHAR(10) NOT NULL,
+    position INT NOT NULL,
+    userId NVARCHAR(255) NOT NULL,
+    created_at DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT ck_match_assignment_alliance CHECK (alliance IN ('red', 'blue')),
+    CONSTRAINT ck_match_assignment_position CHECK (position BETWEEN 0 AND 2),
+    CONSTRAINT uq_match_assignment UNIQUE
+        (eventCode, year, competitionType, matchNumber, alliance, position)
+);
+
 -- Create indexes for performance
 CREATE INDEX idx_pit_entries_competition ON pitEntries(competitionType, year);
 CREATE INDEX idx_match_entries_competition ON matchEntries(competitionType, year);
 CREATE INDEX idx_custom_events_competition ON customEvents(competitionType, year);
+CREATE INDEX idx_match_assignments_event
+    ON matchAssignments(eventCode, year, competitionType, matchNumber);
 
 -- Picklists table for alliance selection
 CREATE TABLE picklists (

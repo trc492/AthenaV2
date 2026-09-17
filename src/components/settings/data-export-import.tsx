@@ -37,16 +37,6 @@ export function DataExportImportComponent() {
   const [includePit, setIncludePit] = useState(false);
   const [includeMatch, setIncludeMatch] = useState(false);
 
-  // Enforce mutual exclusivity: never allow exporting both pit + match in the same file.
-  const setIncludePitExclusive = (checked: boolean) => {
-    setIncludePit(checked);
-    if (checked) setIncludeMatch(false);
-  };
-
-  const setIncludeMatchExclusive = (checked: boolean) => {
-    setIncludeMatch(checked);
-    if (checked) setIncludePit(false);
-  };
 
   // Get available years for the current competition type
   const availableYears = useMemo(() => {
@@ -62,11 +52,6 @@ export function DataExportImportComponent() {
     // Validate selection before starting
     if (!includePit && !includeMatch) {
       toast.error("Please select at least one data type to export");
-      return;
-    }
-
-    if (includePit && includeMatch) {
-      toast.error("Please export only one data type at a time (Pit or Match)");
       return;
     }
 
@@ -94,8 +79,8 @@ export function DataExportImportComponent() {
       if (includePit) types.push("pit");
       if (includeMatch) types.push("match");
 
-      if (types.length !== 1) {
-        throw new Error("Please select exactly one data type to export");
+      if (types.length === 0) {
+        throw new Error("Please select at least one data type to export");
       }
 
       params.append("types", types.join(","));
@@ -113,7 +98,11 @@ export function DataExportImportComponent() {
         : null;
 
       const dataTypeStr =
-        types[0] === "pit" ? "pit-scouting" : "match-scouting";
+        types.length === 2
+          ? "all-scouting"
+          : types[0] === "pit"
+          ? "pit-scouting"
+          : "match-scouting";
 
       const yearStr = yearInfo
         ? `${yearInfo.year}-${yearInfo.gameName.replace(/\s+/g, "-")}`
@@ -264,18 +253,14 @@ export function DataExportImportComponent() {
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox
                 checked={includePit}
-                onCheckedChange={(checked) =>
-                  setIncludePitExclusive(checked === true)
-                }
+                onCheckedChange={(checked) => setIncludePit(checked === true)}
               />
               Pit Scouting
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox
                 checked={includeMatch}
-                onCheckedChange={(checked) =>
-                  setIncludeMatchExclusive(checked === true)
-                }
+                onCheckedChange={(checked) => setIncludeMatch(checked === true)}
               />
               Match Scouting
             </label>
@@ -367,7 +352,7 @@ export function DataExportImportComponent() {
             <Badge variant="secondary">JSON, CSV, XLSX supported</Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Import will replace existing data for the imported years
+            Import will replace existing data for the imported types and years
           </p>
         </div>
       </CardContent>

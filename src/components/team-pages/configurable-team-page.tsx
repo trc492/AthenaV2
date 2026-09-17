@@ -33,6 +33,7 @@ import { PerformanceOverTimeChart } from "@/components/charts/performance-over-t
 import { useTeamData } from "@/hooks/use-team-data";
 import { useGameConfig } from "@/hooks/use-game-config";
 import { calculateDetailedGameStats, extractScoutingNotes } from "@/lib/statistics";
+import type { TeamData, YearConfig } from "@/lib/types";
 import {
   BarChart as RechartsBarChart,
   Bar,
@@ -50,6 +51,10 @@ import {
 
 export interface TeamPageProps {
   teamNumber: string;
+  /** Renders against supplied data instead of fetching — used by the config designer. */
+  configOverride?: YearConfig;
+  teamDataOverride?: TeamData;
+  yearOverride?: number;
 }
 
 function renderDynamicIcon(iconName?: string) {
@@ -74,16 +79,32 @@ function renderDynamicIcon(iconName?: string) {
   }
 }
 
-export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
+export function ConfigurableTeamPage({
+  teamNumber,
+  configOverride,
+  teamDataOverride,
+  yearOverride,
+}: TeamPageProps) {
+  const isPreview = !!teamDataOverride;
   const [searchNote, setSearchNote] = useState("");
-  const { teamData, loading, error } = useTeamData(teamNumber);
-  const { currentYear, competitionType, getCurrentYearConfig } = useGameConfig();
-  const yearConfig = getCurrentYearConfig();
-  const [averageScore, setAverageScore] = useState<number>(0);
+  const {
+    teamData: fetchedTeamData,
+    loading: fetchLoading,
+    error: fetchError,
+  } = useTeamData(isPreview ? "" : teamNumber);
+  const { currentYear: selectedYear, competitionType: selectedCompetition, getCurrentYearConfig } = useGameConfig();
+  const currentYear = yearOverride ?? selectedYear;
+  const competitionType = configOverride?.competitionType ?? selectedCompetition;
+  const yearConfig = configOverride ?? getCurrentYearConfig();
+  const teamData = teamDataOverride ?? fetchedTeamData;
+  const loading = isPreview ? false : fetchLoading;
+  const error = isPreview ? null : fetchError;
+  const [averageScore, setAverageScore] = useState<number>(isPreview ? 58.3 : 0);
 
   // Fetch average score from TBA or FIRST Events API
   useEffect(() => {
     async function fetchAverageScore() {
+      if (isPreview) return;
       if (!teamData?.year || !teamData?.eventCode) return;
 
       try {
@@ -101,7 +122,7 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
     }
 
     fetchAverageScore();
-  }, [teamNumber, teamData?.year, teamData?.eventCode, competitionType]);
+  }, [isPreview, teamNumber, teamData?.year, teamData?.eventCode, competitionType]);
 
   const stats = yearConfig
     ? calculateDetailedGameStats(teamData?.matchEntries, yearConfig, teamData)
@@ -167,29 +188,58 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
   } satisfies ChartConfig;
 
   // Auto / Teleop KPI calculations
-  const autoKpiVal = stats
-    ? pageConfig?.kpis?.auto?.key
+  const autoKpiVal =
+    stats && pageConfig?.kpis?.auto?.key
       ? stats.getMetricValue(pageConfig.kpis.auto.key)
-      : stats.getMetricValue("calculated.auto_coral") ||
-        stats.getMetricValue("autonomous.fuel_scored") ||
-        stats.getMetricValue("calculated.auto_artifacts")
-    : 0;
+      : 0;
 
   const autoKpiSubVal = stats && pageConfig?.kpis?.auto?.subKey
     ? stats.getMetricValue(pageConfig.kpis.auto.subKey)
     : null;
 
-  const teleopKpiVal = stats
-    ? pageConfig?.kpis?.teleop?.key
+  const teleopKpiVal =
+    stats && pageConfig?.kpis?.teleop?.key
       ? stats.getMetricValue(pageConfig.kpis.teleop.key)
-      : stats.getMetricValue("calculated.teleop_coral") ||
-        stats.getMetricValue("teleop.fuel_scored") ||
-        stats.getMetricValue("calculated.teleop_artifacts")
-    : 0;
+      : 0;
 
   const teleopKpiSubVal = stats && pageConfig?.kpis?.teleop?.subKey
     ? stats.getMetricValue(pageConfig.kpis.teleop.subKey)
     : null;
+
+  const endgameStateCards = pageConfig?.endgame ? (
+    <div
+      className={`grid grid-cols-2 md:grid-cols-${Math.min(pageConfig.endgame.states.length, 4)} gap-4`}
+    >
+      {pageConfig.endgame.states.map((st) => {
+        const stateKey = pageConfig.endgame.stateKey;
+        const rate =
+          stats?.rates[`${stateKey}.${st.value}`] ??
+          stats?.rates[`${stateKey.split(".").pop()}.${st.value}`] ??
+          stats?.rates[st.value] ??
+          0;
+
+        return (
+          <div key={st.value}>
+            <h4 className="font-semibold mb-2">{st.label}</h4>
+            <Badge
+              variant={
+                st.highlightThreshold && rate > st.highlightThreshold
+                  ? "default"
+                  : "secondary"
+              }
+            >
+              {rate.toFixed(1)}%
+            </Badge>
+            {st.points != null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {st.points} pts
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
 
   // Endgame chart data if displayType === "chart"
   const endgameChartData = stats && pageConfig?.endgame
@@ -197,8 +247,7 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
         const stateKey = pageConfig.endgame.stateKey;
         const rate =
           stats.rates[`${stateKey}.${state.value}`] ??
-          stats.rates[`ending_robot_state.${state.value}`] ??
-          stats.rates[`ending_based_state.${state.value}`] ??
+          stats.rates[`${stateKey.split(".").pop()}.${state.value}`] ??
           stats.rates[state.value] ??
           0;
         return {
@@ -360,7 +409,7 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
                         {m.unit || ""}
                       </Badge>
                     ) : (
-                      <span className="font-medium">{val}</span>
+                      <span className="font-medium">{val}{m.unit || (m.type === "rate" ? "%" : "")}</span>
                     )}
                   </div>
                 );
@@ -399,7 +448,7 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
                         {m.unit || ""}
                       </Badge>
                     ) : (
-                      <span className="font-medium">{val}</span>
+                      <span className="font-medium">{val}{m.unit || (m.type === "rate" ? "%" : "")}</span>
                     )}
                   </div>
                 );
@@ -489,7 +538,8 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
               <CardDescription>{pageConfig.endgame.description}</CardDescription>
             </CardHeader>
             <CardContent>
-              {pageConfig.endgame.displayType === "chart" ? (
+              {pageConfig.endgame.displayType === "chart" ||
+              pageConfig.endgame.displayType === "both" ? (
                 <ChartContainer config={endgameThemeConfig}>
                   <RechartsBarChart
                     data={endgameChartData}
@@ -511,37 +561,7 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
                   </RechartsBarChart>
                 </ChartContainer>
               ) : (
-                <div className={`grid grid-cols-2 md:grid-cols-${Math.min(pageConfig.endgame.states.length, 4)} gap-4`}>
-                  {pageConfig.endgame.states.map((st) => {
-                    const stateKey = pageConfig.endgame?.stateKey ?? "endgame.ending_robot_state";
-                    const rate =
-                      stats?.rates[`${stateKey}.${st.value}`] ??
-                      stats?.rates[`ending_robot_state.${st.value}`] ??
-                      stats?.rates[`ending_based_state.${st.value}`] ??
-                      stats?.rates[st.value] ??
-                      0;
-
-                    return (
-                      <div key={st.value}>
-                        <h4 className="font-semibold mb-2">{st.label}</h4>
-                        <Badge
-                          variant={
-                            st.highlightThreshold && rate > st.highlightThreshold
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {rate.toFixed(1)}%
-                        </Badge>
-                        {st.points != null && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {st.points} pts
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                endgameStateCards
               )}
             </CardContent>
           </Card>
@@ -612,6 +632,22 @@ export function ConfigurableTeamPage({ teamNumber }: TeamPageProps) {
           </Card>
         )}
       </div>
+
+      {/* Endgame Summary — shown alongside the chart when displayType is "both" */}
+      {pageConfig?.endgame?.displayType === "both" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {pageConfig.endgame.summaryTitle || "Endgame Performance"}
+            </CardTitle>
+            <CardDescription>
+              {pageConfig.endgame.summaryDescription ||
+                "Success rate at each endgame state across matches"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>{endgameStateCards}</CardContent>
+        </Card>
+      )}
 
       {/* Custom Sections (e.g. Playstyle, Patterns) */}
       {pageConfig?.customSections?.map((section) => {

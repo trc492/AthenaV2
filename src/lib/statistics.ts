@@ -1,4 +1,12 @@
-import type { MatchEntry, TeamStats, EPABreakdown, YearConfig, ScoringDefinition, TeamData, PitEntry } from "../lib/types";
+import type {
+  MatchEntry,
+  TeamStats,
+  EPABreakdown,
+  YearConfig,
+  ScoringDefinition,
+  TeamData,
+  PitEntry,
+} from "../lib/types";
 
 /**
  * Calculate Expected Points Added (EPA) for a team based on their match performance
@@ -803,7 +811,10 @@ export function calculateDetailedGameStats(
         const fullKey = `${period}.${rawKey}`;
         const shortKey = rawKey;
 
-        if (typeof val === "number" || (!isNaN(Number(val)) && typeof val === "string" && val.trim() !== "")) {
+        if (
+          typeof val === "number" ||
+          (!isNaN(Number(val)) && typeof val === "string" && val.trim() !== "")
+        ) {
           const num = Number(val);
           numTotals[fullKey] = (numTotals[fullKey] || 0) + num;
           numTotals[shortKey] = (numTotals[shortKey] || 0) + num;
@@ -839,102 +850,52 @@ export function calculateDetailedGameStats(
     }
   }
 
-  // Precompute specific composite metrics
+  // Composite metrics declared by the year config
   const ratios: Record<string, number> = {};
 
-  // Fuel accuracy
-  const totalTeleopFuelAttempts =
-    (numTotals["teleop.fuel_scored"] || 0) +
-    (numTotals["teleop.fuel_missed"] || 0);
-  if (totalTeleopFuelAttempts > 0) {
-    ratios["teleop.fuel_accuracy"] = parseFloat(
-      (
-        ((numTotals["teleop.fuel_scored"] || 0) / totalTeleopFuelAttempts) *
-        100
-      ).toFixed(1),
-    );
-  } else {
-    ratios["teleop.fuel_accuracy"] = 0;
+  const sumInputs = (keys: string[]) =>
+    keys.reduce((total, k) => total + (numTotals[k] || 0), 0);
+
+  for (const metric of config.derivedMetrics || []) {
+    if (metric.op === "ratio") {
+      const numerator = sumInputs(metric.inputs);
+      const denominator = sumInputs(metric.denominator || metric.inputs);
+      const scale = metric.asPercent === false ? 1 : 100;
+      ratios[metric.key] =
+        denominator > 0
+          ? parseFloat(((numerator / denominator) * scale).toFixed(1))
+          : 0;
+    } else {
+      averages[metric.key] = parseFloat(
+        (sumInputs(metric.inputs) / count).toFixed(1),
+      );
+    }
   }
 
-  // Coral / Algae aggregates
-  averages["calculated.auto_coral"] = parseFloat(
-    (
-      ((numTotals["autonomous.L1_coral"] || 0) +
-        (numTotals["autonomous.L2_coral"] || 0) +
-        (numTotals["autonomous.L3_coral"] || 0) +
-        (numTotals["autonomous.L4_coral"] || 0)) /
-      count
-    ).toFixed(1),
-  );
+  // Endgame summaries, resolved against the config's declared state field
+  const endgameConfig = config.matchupCardConfig?.endgame;
+  const endgameStateKey = endgameConfig?.stateKey;
 
-  averages["calculated.auto_algae"] = parseFloat(
-    (
-      ((numTotals["autonomous.processor_algae"] || 0) +
-        (numTotals["autonomous.net_algae"] || 0)) /
-      count
-    ).toFixed(1),
-  );
-
-  averages["calculated.teleop_coral"] = parseFloat(
-    (
-      ((numTotals["teleop.L1_coral"] || 0) +
-        (numTotals["teleop.L2_coral"] || 0) +
-        (numTotals["teleop.L3_coral"] || 0) +
-        (numTotals["teleop.L4_coral"] || 0)) /
-      count
-    ).toFixed(1),
-  );
-
-  averages["calculated.teleop_algae"] = parseFloat(
-    (
-      ((numTotals["teleop.processor_algae"] || 0) +
-        (numTotals["teleop.net_algae"] || 0)) /
-      count
-    ).toFixed(1),
-  );
-
-  // Artifact aggregates
-  averages["calculated.auto_artifacts"] = parseFloat(
-    (
-      ((numTotals["autonomous.artifacts_classified"] || 0) +
-        (numTotals["autonomous.artifacts_overflow"] || 0)) /
-      count
-    ).toFixed(1),
-  );
-
-  averages["calculated.teleop_artifacts"] = parseFloat(
-    (
-      ((numTotals["teleop.artifacts_classified"] || 0) +
-        (numTotals["teleop.artifacts_overflow"] || 0) +
-        (numTotals["teleop.artifacts_depot"] || 0)) /
-      count
-    ).toFixed(1),
-  );
-
-  // Determine best endgame state
-  const allEndgameStates = matches.map((m) => {
-    const eg = (m.gameSpecificData?.endgame as Record<string, string>) || {};
-    return (
-      eg.cage_climb ||
-      eg.ending_robot_state ||
-      eg.ending_based_state ||
-      eg.climb_state ||
-      "none"
-    );
-  });
-  const stateFrequency: Record<string, number> = {};
-  allEndgameStates.forEach((s) => {
-    stateFrequency[s] = (stateFrequency[s] || 0) + 1;
-  });
+  const stateFrequency = endgameStateKey
+    ? enumCounts[endgameStateKey] || {}
+    : {};
   const bestEndgame =
-    Object.entries(stateFrequency).sort((a, b) => b[1] - a[1])[0]?.[0] || "none";
+    Object.entries(stateFrequency).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+    "none";
 
-  // Best climb
-  const l3Rate = rates["endgame.ending_robot_state.L3"] || rates["ending_robot_state.L3"] || 0;
-  const l2Rate = rates["endgame.ending_robot_state.L2"] || rates["ending_robot_state.L2"] || 0;
-  const l1Rate = rates["endgame.ending_robot_state.L1"] || rates["ending_robot_state.L1"] || 0;
-  const bestClimb = l3Rate > 0 ? "L3" : l2Rate > 0 ? "L2" : l1Rate > 0 ? "L1" : "None";
+  // States are declared best-first, so the first one the team ever reached wins
+  const bestClimb = (() => {
+    if (!endgameConfig?.bestClimbKey) return "None";
+    const ranked = endgameConfig.states || [];
+    for (const state of ranked) {
+      const rate =
+        rates[`${endgameStateKey}.${state.key}`] ??
+        rates[`${endgameConfig.bestClimbKey}.${state.key}`] ??
+        0;
+      if (rate > 0) return state.key;
+    }
+    return "None";
+  })();
 
   // Calculate estimated points
   const autoEstimatedPoints = (() => {
@@ -1019,7 +980,9 @@ export function calculateDetailedGameStats(
 /**
  * Extract and deduplicate all scouting notes from team data
  */
-export function extractScoutingNotes(teamData: TeamData | null | undefined): string[] {
+export function extractScoutingNotes(
+  teamData: TeamData | null | undefined,
+): string[] {
   if (!teamData) return [];
   const notes: string[] = [];
 
@@ -1053,4 +1016,3 @@ export function extractScoutingNotes(teamData: TeamData | null | undefined): str
 
   return [...new Set(notes)];
 }
-

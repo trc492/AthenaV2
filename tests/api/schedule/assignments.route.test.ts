@@ -47,7 +47,8 @@ describe("/api/schedule/assignments", () => {
 
     serviceMock = {
       getPool: vi.fn().mockResolvedValue(pool),
-      query: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ recordset: [{ id: "user-1" }] }),
+      applyScheduleAssignmentChanges: vi.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -63,7 +64,7 @@ describe("/api/schedule/assignments", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when provider not sql", async () => {
+  it("returns 501 when provider is not SQL-backed", async () => {
     serviceMock = {};
     const route = await import("@/app/api/scouting/schedule/assignments/route");
     const req = new Request("http://test/api/scouting/schedule/assignments", {
@@ -72,6 +73,7 @@ describe("/api/schedule/assignments", () => {
       body: JSON.stringify({
         eventCode: "EVT",
         year: 2025,
+        competitionType: "FRC",
         startMatch: 1,
         endMatch: 1,
         alliance: "red",
@@ -81,7 +83,7 @@ describe("/api/schedule/assignments", () => {
     });
 
     const res = await route.POST(req as any);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(501);
   });
 
   it("creates assignments when valid", async () => {
@@ -92,6 +94,7 @@ describe("/api/schedule/assignments", () => {
       body: JSON.stringify({
         eventCode: "EVT",
         year: 2025,
+        competitionType: "FRC",
         startMatch: 1,
         endMatch: 2,
         alliance: "red",
@@ -105,14 +108,27 @@ describe("/api/schedule/assignments", () => {
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(serviceMock.query).toHaveBeenCalled();
+    expect(serviceMock.applyScheduleAssignmentChanges).toHaveBeenCalledWith(
+      { eventCode: "EVT", year: 2025, competitionType: "FRC" },
+      [
+        {
+          startMatch: 1,
+          endMatch: 2,
+          alliance: "red",
+          position: 1,
+          userId: "user-1",
+        },
+      ],
+      false,
+      undefined,
+    );
   });
 
   it("clears assignments on delete", async () => {
     const route = await import("@/app/api/scouting/schedule/assignments/route");
     const req = {
       nextUrl: new URL(
-        "http://test/api/scouting/schedule/assignments?eventCode=EVT&year=2025",
+        "http://test/api/scouting/schedule/assignments?eventCode=EVT&year=2025&competitionType=FRC",
       ),
     } as any;
 
@@ -121,5 +137,71 @@ describe("/api/schedule/assignments", () => {
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
+    expect(serviceMock.applyScheduleAssignmentChanges).toHaveBeenCalledWith(
+      { eventCode: "EVT", year: 2025, competitionType: "FRC" },
+      [],
+      true,
+    );
+  });
+
+  it("rejects an FTC position that cannot be displayed", async () => {
+    const route = await import("@/app/api/scouting/schedule/assignments/route");
+    const req = new Request("http://test/api/scouting/schedule/assignments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        eventCode: "EVT",
+        year: 2025,
+        competitionType: "FTC",
+        startMatch: 1,
+        endMatch: 1,
+        alliance: "red",
+        position: 2,
+        userId: "user-1",
+      }),
+    });
+
+    expect((await route.POST(req as any)).status).toBe(400);
+  });
+
+  it("rejects permissive parseInt-style values", async () => {
+    const route = await import("@/app/api/scouting/schedule/assignments/route");
+    const req = new Request("http://test/api/scouting/schedule/assignments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        eventCode: "EVT",
+        year: "2025junk",
+        competitionType: "FRC",
+        startMatch: 1,
+        endMatch: 1,
+        alliance: "red",
+        position: 0,
+        userId: "user-1",
+      }),
+    });
+
+    expect((await route.POST(req as any)).status).toBe(400);
+  });
+
+  it("returns 409 instead of overwriting a concurrently changed schedule", async () => {
+    const conflict = new Error("Schedule changed since it was loaded");
+    conflict.name = "ScheduleConflictError";
+    serviceMock.applyScheduleAssignmentChanges.mockRejectedValueOnce(conflict);
+    const route = await import("@/app/api/scouting/schedule/assignments/route");
+    const req = new Request("http://test/api/scouting/schedule/assignments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        eventCode: "EVT",
+        year: 2025,
+        competitionType: "FRC",
+        changes: [],
+        replaceAll: true,
+        expectedAssignments: [],
+      }),
+    });
+
+    expect((await route.POST(req as any)).status).toBe(409);
   });
 });

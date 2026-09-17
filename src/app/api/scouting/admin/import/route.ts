@@ -3,6 +3,7 @@ import { databaseManager } from "@/db/database-manager";
 import { PitEntry, MatchEntry, DatabaseService } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { validateImportAgainstSchema } from "@/lib/server/import-schema-validator";
 
 // Initialize database service
 let dbService: DatabaseService;
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
     const contentType = request.headers.get("content-type") || "";
 
-    let data: { pitEntries: PitEntry[]; matchEntries: MatchEntry[] };
+    let data: { pitEntries?: PitEntry[]; matchEntries?: MatchEntry[] };
 
     if (contentType.includes("multipart/form-data")) {
       // Handle file upload
@@ -56,6 +57,33 @@ export async function POST(request: NextRequest) {
     } else {
       // Handle JSON data
       data = await request.json();
+    }
+
+    data.pitEntries = Array.isArray(data.pitEntries) ? data.pitEntries : [];
+    data.matchEntries = Array.isArray(data.matchEntries) ? data.matchEntries : [];
+
+    for (const entry of data.matchEntries) {
+      if (!(entry.timestamp instanceof Date)) {
+        entry.timestamp = new Date(entry.timestamp);
+      }
+
+      if (Number.isNaN(entry.timestamp.getTime())) {
+        return NextResponse.json(
+          {
+            error: `Invalid timestamp for match ${entry.matchNumber}, team ${entry.teamNumber}`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Validate schema configurations match the imported data
+    const validation = validateImportAgainstSchema(data);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.error },
+        { status: 400 },
+      );
     }
 
     const service = getDbService();
@@ -91,12 +119,16 @@ async function parseCSV(
           "id",
           "teamNumber",
           "year",
+          "competitionType",
           "driveTrain",
           "weight",
           "length",
           "width",
           "eventName",
           "eventCode",
+          "userId",
+          "notes",
+          "autoDrawing",
         ]);
         const matchStandardFields = new Set([
           "type",
@@ -104,9 +136,12 @@ async function parseCSV(
           "matchNumber",
           "teamNumber",
           "year",
+          "competitionType",
           "alliance",
+          "alliancePosition",
           "eventName",
           "eventCode",
+          "userId",
           "notes",
           "timestamp",
         ]);
@@ -145,16 +180,20 @@ async function parseCSV(
               id: entryData.id ? parseInt(entryData.id as string) : undefined,
               teamNumber: parseInt(entryData.teamNumber as string),
               year: parseInt(entryData.year as string),
+              competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
               driveTrain: entryData.driveTrain as
                 | "Swerve"
                 | "Mecanum"
                 | "Tank"
                 | "Other",
-              weight: parseFloat(entryData.weight as string),
-              length: parseFloat(entryData.length as string),
-              width: parseFloat(entryData.width as string),
+              weight: entryData.weight ? parseFloat(entryData.weight as string) : undefined,
+              length: entryData.length ? parseFloat(entryData.length as string) : undefined,
+              width: entryData.width ? parseFloat(entryData.width as string) : undefined,
               eventName: (entryData.eventName as string) || undefined,
               eventCode: (entryData.eventCode as string) || undefined,
+              userId: (entryData.userId as string) || undefined,
+              notes: (entryData.notes as string) || undefined,
+              autoDrawing: (entryData.autoDrawing as string) || undefined,
               gameSpecificData,
             } as PitEntry);
           } else if (type === "match") {
@@ -163,9 +202,14 @@ async function parseCSV(
               matchNumber: parseInt(entryData.matchNumber as string),
               teamNumber: parseInt(entryData.teamNumber as string),
               year: parseInt(entryData.year as string),
+              competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
               alliance: entryData.alliance as "red" | "blue",
+              alliancePosition: entryData.alliancePosition
+                ? parseInt(entryData.alliancePosition as string)
+                : undefined,
               eventName: (entryData.eventName as string) || undefined,
               eventCode: (entryData.eventCode as string) || undefined,
+              userId: (entryData.userId as string) || undefined,
               notes: (entryData.notes as string) || "",
               timestamp: entryData.timestamp
                 ? new Date(entryData.timestamp as string)
@@ -207,12 +251,16 @@ async function parseXLSX(
     "id",
     "teamNumber",
     "year",
+    "competitionType",
     "driveTrain",
     "weight",
     "length",
     "width",
     "eventName",
     "eventCode",
+    "userId",
+    "notes",
+    "autoDrawing",
   ]);
   const matchStandardFields = new Set([
     "type",
@@ -220,9 +268,12 @@ async function parseXLSX(
     "matchNumber",
     "teamNumber",
     "year",
+    "competitionType",
     "alliance",
+    "alliancePosition",
     "eventName",
     "eventCode",
+    "userId",
     "notes",
     "timestamp",
   ]);
@@ -261,16 +312,20 @@ async function parseXLSX(
         id: entryData.id ? parseInt(entryData.id as string) : undefined,
         teamNumber: parseInt(entryData.teamNumber as string),
         year: parseInt(entryData.year as string),
+        competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
         driveTrain: entryData.driveTrain as
           | "Swerve"
           | "Mecanum"
           | "Tank"
           | "Other",
-        weight: parseFloat(entryData.weight as string),
-        length: parseFloat(entryData.length as string),
-        width: parseFloat(entryData.width as string),
+        weight: entryData.weight ? parseFloat(entryData.weight as string) : undefined,
+        length: entryData.length ? parseFloat(entryData.length as string) : undefined,
+        width: entryData.width ? parseFloat(entryData.width as string) : undefined,
         eventName: (entryData.eventName as string) || undefined,
         eventCode: (entryData.eventCode as string) || undefined,
+        userId: (entryData.userId as string) || undefined,
+        notes: (entryData.notes as string) || undefined,
+        autoDrawing: (entryData.autoDrawing as string) || undefined,
         gameSpecificData,
       } as PitEntry);
     } else if (type === "match") {
@@ -279,9 +334,14 @@ async function parseXLSX(
         matchNumber: parseInt(entryData.matchNumber as string),
         teamNumber: parseInt(entryData.teamNumber as string),
         year: parseInt(entryData.year as string),
+        competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
         alliance: entryData.alliance as "red" | "blue",
+        alliancePosition: entryData.alliancePosition
+          ? parseInt(entryData.alliancePosition as string)
+          : undefined,
         eventName: (entryData.eventName as string) || undefined,
         eventCode: (entryData.eventCode as string) || undefined,
+        userId: (entryData.userId as string) || undefined,
         notes: (entryData.notes as string) || "",
         timestamp: entryData.timestamp
           ? new Date(entryData.timestamp as string)

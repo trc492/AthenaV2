@@ -735,20 +735,26 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async importData(data: {
-    pitEntries: PitEntry[];
-    matchEntries: MatchEntry[];
+    pitEntries?: PitEntry[];
+    matchEntries?: MatchEntry[];
   }): Promise<void> {
     this.ensure();
     const db = this.client.database(this.config!.databaseId || "athena");
-    const pitContainer = db.container(this.config!.containerId || "pitEntries");
-    const matchContainer = db.container(
-      this.config!.containerId || "matchEntries",
-    );
-    for (const p of data.pitEntries) {
-      await pitContainer.items.create(p);
+    const pitEntries = data.pitEntries || [];
+    const matchEntries = data.matchEntries || [];
+    if (pitEntries.length > 0) {
+      const pitContainer = db.container(this.config!.containerId || "pitEntries");
+      for (const p of pitEntries) {
+        await pitContainer.items.create(p);
+      }
     }
-    for (const m of data.matchEntries) {
-      await matchContainer.items.create(m);
+    if (matchEntries.length > 0) {
+      const matchContainer = db.container(
+        this.config!.containerId || "matchEntries",
+      );
+      for (const m of matchEntries) {
+        await matchContainer.items.create(m);
+      }
     }
   }
 

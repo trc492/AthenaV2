@@ -371,7 +371,7 @@ export function AccountSettingsDialog({
           <div>
             <h3 className="text-lg font-semibold mb-3">Change Password</h3>
             <form onSubmit={handleChangePassword} className="space-y-4">
-              {/* <div className="space-y-2">
+              <div className="space-y-2">
                 <Label htmlFor="current-password">Current Password</Label>
                 <Input
                   id="current-password"
@@ -381,7 +381,7 @@ export function AccountSettingsDialog({
                   placeholder="Enter current password"
                   autoComplete="current-password"
                 />
-              </div> */}
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="new-password">New Password</Label>
                 <Input

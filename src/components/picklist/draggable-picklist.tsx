@@ -560,11 +560,6 @@ export function DraggablePicklist({
     [],
   );
 
-  // console.log('EVENT TEAMS:', allEventTeams.length);
-  // console.log('PICK1:', pick1.picklist, pick1.entries);
-  // console.log('PICK2:', pick2.picklist, pick2.entries);
-  // console.log('BLACKLIST:', blacklist.picklist, blacklist.entries);
-
   //helper method to remove a team from all lists
   const removeTeamFromAllLists = (teamNumber: number) => {
     setLocalPick1Order((prev) =>

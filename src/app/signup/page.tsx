@@ -23,7 +23,7 @@ export default function Page() {
       <div className="flex min-h-screen w-full items-center justify-center p-6 md:p-10">
         <div className="fixed top-4 left-4">
           <Link href="/">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="h-11 md:h-8">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
             </Button>

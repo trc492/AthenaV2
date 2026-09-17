@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEventRankings as getTbaEventRankings } from "@/lib/api/tba";
 import { getEventRankings as getFtcEventRankings } from "@/lib/api/ftcevents";
+import { parseEventRequest } from "@/lib/server/event-request";
 
 export async function GET(
   request: NextRequest,
@@ -8,36 +9,21 @@ export async function GET(
 ) {
   try {
     const { eventCode } = await params;
-    const { searchParams } = new URL(request.url);
-    const competitionType = searchParams.get("competitionType") || "FRC";
+    const parsed = parseEventRequest(request, { requireFtcYear: true });
+    if (parsed.error) return parsed.error;
+    const { competitionType, year: seasonNum } = parsed.data;
+    const { searchParams } = request.nextUrl;
 
     if (!eventCode) {
       return NextResponse.json({ error: "Missing eventCode" }, { status: 400 });
     }
 
     if (competitionType === "FTC") {
-      // For FTC, we need season/year parameter
-      const season = searchParams.get("season") || searchParams.get("year");
-      if (!season) {
-        return NextResponse.json(
-          { error: "Missing season/year parameter for FTC" },
-          { status: 400 },
-        );
-      }
-
-      const seasonNum = parseInt(season);
-      if (isNaN(seasonNum)) {
-        return NextResponse.json(
-          { error: "Invalid season/year" },
-          { status: 400 },
-        );
-      }
-
       const teamNumber = searchParams.get("teamNumber");
       const top = searchParams.get("top");
 
       const response = await getFtcEventRankings(
-        seasonNum,
+        seasonNum!,
         eventCode,
         teamNumber ? parseInt(teamNumber) : undefined,
         top ? parseInt(top) : undefined,
