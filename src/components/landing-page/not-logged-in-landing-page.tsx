@@ -18,6 +18,13 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import {
+  APP_LOGO,
+  APP_LOGO_DARK,
+  APP_NAME,
+  ORGANIZATION_NAME,
+  ORGANIZATION_URL,
+} from "@/lib/app-config";
 
 export function NotLoggedInLandingPage() {
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -109,14 +116,14 @@ export function NotLoggedInLandingPage() {
           <div className="flex items-center gap-2">
             <div className="relative flex items-center justify-center">
               <Image
-                src={isDark ? "/TRCLogoWhite.png" : "/TRCLogo.webp"}
-                alt="TRC Scouting Logo"
+                src={isDark ? APP_LOGO_DARK : APP_LOGO}
+                alt={`${APP_NAME} logo`}
                 width={40}
                 height={40}
                 className="rounded"
               />
             </div>
-            <span className="font-bold text-lg">Athena</span>
+            <span className="font-bold text-lg">{APP_NAME}</span>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/signup">
@@ -412,25 +419,19 @@ export function NotLoggedInLandingPage() {
         </div>
       </section>
 
-      {/* About Titan Robotics Club */}
+      {/* About the platform */}
       <section
-        id="about-trc"
+        id="about"
         className="relative z-10 w-full py-12 sm:py-16 bg-background/50"
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            About Titan Robotics Club
+            Built for the full competition workflow
           </h2>
           <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-            Titan Robotics Club (TRC) is a middle and high school robotics
-            program at the International School in Bellevue, Washington. We aim
-            to spread awareness and raise interest within our school and our
-            community about robotics and the programs of FIRST (For Inspiration
-            and Recognition of Science and Technology). As part of the annual
-            FIRST Robotics Competition, FIRST Tech Challenge, and FIRST Lego
-            League, our team of 100+ students works with field professionals and
-            adult mentors to earn valuable life experience with robotics,
-            technology, and science.
+            {APP_NAME} keeps collection, coordination, and analysis in one
+            configurable workspace. Adapt the app to your organization while
+            giving scouts and strategy leads a shared source of truth.
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2 justify-center max-w-xl mx-auto">
@@ -465,15 +466,24 @@ export function NotLoggedInLandingPage() {
             <span>
               Made with
               <Heart className="inline-block h-4 w-4 mx-1 text-green-500" />
-              by&nbsp;
-              <a
-                href="https://titanrobotics.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-primary transition-colors"
-              >
-                Titan Robotics Club
-              </a>
+              for FIRST teams
+              {ORGANIZATION_NAME && (
+                <>
+                  {" · "}
+                  {ORGANIZATION_URL ? (
+                    <a
+                      href={ORGANIZATION_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-primary transition-colors"
+                    >
+                      {ORGANIZATION_NAME}
+                    </a>
+                  ) : (
+                    ORGANIZATION_NAME
+                  )}
+                </>
+              )}
             </span>
           </div>
         </div>

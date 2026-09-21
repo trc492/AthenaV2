@@ -1,5 +1,6 @@
 import webPush from "web-push";
 import { databaseManager } from "@/db/database-manager";
+import { APP_LOGO } from "@/lib/app-config";
 
 export interface StoredSubscription {
   endpoint: string;
@@ -120,8 +121,8 @@ export async function sendPushNotification(params: {
   const notificationData = {
     title: payload.title,
     body: payload.body || "",
-    icon: payload.icon || "/TRCLogo.webp",
-    badge: payload.badge || "/TRCLogo.webp",
+    icon: payload.icon || APP_LOGO,
+    badge: payload.badge || APP_LOGO,
     data: {
       ...payload.data,
       url: payload.url || "/dashboard",
@@ -224,8 +225,8 @@ export async function sendPushNotificationToUser(params: {
   const notificationData = {
     title: params.payload.title,
     body: params.payload.body || "",
-    icon: params.payload.icon || "/TRCLogo.webp",
-    badge: params.payload.badge || "/TRCLogo.webp",
+    icon: params.payload.icon || APP_LOGO,
+    badge: params.payload.badge || APP_LOGO,
     data: {
       ...params.payload.data,
       url: params.payload.url || "/dashboard",

@@ -1,7 +1,8 @@
 import { MetadataRoute } from "next";
+import { getPublicAppUrl } from "@/lib/app-config";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://trcscouting.com";
+  const baseUrl = getPublicAppUrl();
 
   return [
     {

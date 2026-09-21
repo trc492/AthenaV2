@@ -25,11 +25,17 @@ type PingPayload = {
   message_data: { title?: string; desc?: string };
 };
 
+/** Message types beyond the ones handled below are ignored. */
+type UnknownPayload = {
+  message_type?: string;
+  message_data?: unknown;
+};
+
 type TbaWebhookPayload =
   | VerificationPayload
   | UpcomingMatchPayload
   | PingPayload
-  | Record<string, unknown>;
+  | UnknownPayload;
 
 function constantTimeEquals(a: string, b: string) {
   const aBuf = Buffer.from(a);
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Always respond quickly (TBA timeout is 10s)
-  if ((payload as any)?.message_type === "verification") {
+  if (payload.message_type === "verification") {
     const verificationKey = (payload as VerificationPayload).message_data
       ?.verification_key;
     return NextResponse.json(
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if ((payload as any)?.message_type !== "upcoming_match") {
+  if (payload.message_type !== "upcoming_match") {
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 
@@ -112,7 +118,7 @@ export async function POST(req: NextRequest) {
       `, { eventCode: data.event_key, matchNumber: notifyMatch });
 
     const userIds: string[] =
-      result.recordset?.map((r: any) => r.userId).filter(Boolean) ?? [];
+      result.recordset?.map((r) => r.userId).filter(Boolean) ?? [];
 
     await Promise.all(
       userIds.map((userId) =>

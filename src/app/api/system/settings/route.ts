@@ -13,8 +13,7 @@ async function requireAdmin() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role: string = (session.user as any).role ?? "";
+  const role: string = session.user.role ?? "";
   if (!hasPermission(role, PERMISSIONS.MANAGE_SYSTEM_CONFIG)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

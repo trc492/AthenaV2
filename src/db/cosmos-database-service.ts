@@ -1,11 +1,17 @@
 import { DatabaseService } from "@/lib/types";
 import type { PitEntry, MatchEntry, CustomEvent } from "@/lib/types";
 import type { CompetitionType } from "@/lib/types";
+import type { Picklist, PicklistEntry, PicklistNote } from "@/lib/types";
+import type {
+  Container,
+  CosmosClient,
+  Database,
+  SqlParameter,
+} from "@azure/cosmos";
 
 // Minimal Azure Cosmos DB-backed service using @azure/cosmos
 export class CosmosDatabaseService implements DatabaseService {
-  private client: any;
-  private container: any;
+  private client: CosmosClient | null = null;
 
   constructor(
     private config?: {
@@ -17,12 +23,11 @@ export class CosmosDatabaseService implements DatabaseService {
   ) {
     try {
       // dynamic import to avoid hard dependency when not used
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { CosmosClient } = require("@azure/cosmos");
       if (!config || !config.endpoint || !config.key) {
         // allow lazy initialization; throw on operations
         this.client = null;
-        this.container = null;
       } else {
         this.client = new CosmosClient({
           endpoint: config.endpoint,
@@ -31,7 +36,6 @@ export class CosmosDatabaseService implements DatabaseService {
       }
     } catch (err) {
       this.client = null;
-      this.container = null;
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
         "CosmosDatabaseService: @azure/cosmos not available",
@@ -40,14 +44,23 @@ export class CosmosDatabaseService implements DatabaseService {
     }
   }
 
-  private ensure() {
+  private getDatabase(): Database {
     if (!this.client) throw new Error("Cosmos client not initialized");
+    return this.client.database(this.config?.databaseId || "athena");
+  }
+
+  /**
+   * Containers are configurable; each method passes the container it would use
+   * by default when no override is configured.
+   */
+  private getContainer(defaultContainerId: string): Container {
+    return this.getDatabase().container(
+      this.config?.containerId || defaultContainerId,
+    );
   }
 
   async addPitEntry(entry: Omit<PitEntry, "id">): Promise<number> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "pitEntries");
+    const container = this.getContainer("pitEntries");
     const numericId = Date.now();
     await container.items.create({
       ...entry,
@@ -62,9 +75,7 @@ export class CosmosDatabaseService implements DatabaseService {
     year: number,
     competitionType?: CompetitionType,
   ): Promise<PitEntry | undefined> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "pitEntries");
+    const container = this.getContainer("pitEntries");
     const query = {
       query: "SELECT * FROM c WHERE c.teamNumber=@teamNumber AND c.year=@year",
       parameters: [
@@ -82,11 +93,9 @@ export class CosmosDatabaseService implements DatabaseService {
     eventCode?: string,
     competitionType?: CompetitionType,
   ): Promise<PitEntry[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "pitEntries");
+    const container = this.getContainer("pitEntries");
     let q = "SELECT * FROM c";
-    const params: any[] = [];
+    const params: SqlParameter[] = [];
     const where: string[] = [];
     if (year !== undefined) {
       where.push("c.year=@year");
@@ -108,9 +117,7 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async updatePitEntry(id: number, updates: Partial<PitEntry>): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "pitEntries");
+    const container = this.getContainer("pitEntries");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -126,9 +133,7 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async deletePitEntry(id: number): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "pitEntries");
+    const container = this.getContainer("pitEntries");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -138,7 +143,7 @@ export class CosmosDatabaseService implements DatabaseService {
     for (const r of resources) {
       try {
         await container.item(r.id).delete();
-      } catch (e) {}
+      } catch {}
     }
   }
 
@@ -146,9 +151,7 @@ export class CosmosDatabaseService implements DatabaseService {
     teamNumber: number,
     eventCode: string,
   ): Promise<boolean> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "pitEntries");
+    const container = this.getContainer("pitEntries");
     const { resources } = await container.items
       .query({
         query:
@@ -163,9 +166,7 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async addMatchEntry(entry: Omit<MatchEntry, "id">): Promise<number> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "matchEntries");
+    const container = this.getContainer("matchEntries");
     const numericId = Date.now();
     await container.items.create({
       ...entry,
@@ -179,11 +180,9 @@ export class CosmosDatabaseService implements DatabaseService {
     year?: number,
     competitionType?: CompetitionType,
   ): Promise<MatchEntry[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "matchEntries");
+    const container = this.getContainer("matchEntries");
     let q = "SELECT * FROM c WHERE c.teamNumber=@teamNumber";
-    const params: any[] = [{ name: "@teamNumber", value: teamNumber }];
+    const params: SqlParameter[] = [{ name: "@teamNumber", value: teamNumber }];
     if (year !== undefined) {
       q += " AND c.year=@year";
       params.push({ name: "@year", value: year });
@@ -202,12 +201,10 @@ export class CosmosDatabaseService implements DatabaseService {
     eventCode?: string,
     competitionType?: CompetitionType,
   ): Promise<MatchEntry[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "matchEntries");
+    const container = this.getContainer("matchEntries");
     let q = "SELECT * FROM c";
     const where: string[] = [];
-    const params: any[] = [];
+    const params: SqlParameter[] = [];
     if (year !== undefined) {
       where.push("c.year=@year");
       params.push({ name: "@year", value: year });
@@ -230,9 +227,7 @@ export class CosmosDatabaseService implements DatabaseService {
     id: number,
     updates: Partial<MatchEntry>,
   ): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "matchEntries");
+    const container = this.getContainer("matchEntries");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -247,9 +242,7 @@ export class CosmosDatabaseService implements DatabaseService {
     }
   }
   async deleteMatchEntry(id: number): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "matchEntries");
+    const container = this.getContainer("matchEntries");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -259,7 +252,7 @@ export class CosmosDatabaseService implements DatabaseService {
     for (const r of resources) {
       try {
         await container.item(r.id).delete();
-      } catch (e) {}
+      } catch {}
     }
   }
   async checkMatchScoutExists(
@@ -267,9 +260,7 @@ export class CosmosDatabaseService implements DatabaseService {
     matchNumber: number,
     eventCode: string,
   ): Promise<boolean> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "matchEntries");
+    const container = this.getContainer("matchEntries");
     const { resources } = await container.items
       .query({
         query:
@@ -285,9 +276,7 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async addCustomEvent(event: Omit<CustomEvent, "id">): Promise<number> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "customEvents");
+    const container = this.getContainer("customEvents");
     const numericId = Date.now();
     await container.items.create({
       ...event,
@@ -301,11 +290,9 @@ export class CosmosDatabaseService implements DatabaseService {
     eventCode: string,
     competitionType?: CompetitionType,
   ): Promise<CustomEvent | undefined> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "customEvents");
+    const container = this.getContainer("customEvents");
     let q = "SELECT * FROM c WHERE c.eventCode=@eventCode";
-    const params: any[] = [{ name: "@eventCode", value: eventCode }];
+    const params: SqlParameter[] = [{ name: "@eventCode", value: eventCode }];
     if (competitionType) {
       q += " AND c.competitionType=@competitionType";
       params.push({ name: "@competitionType", value: competitionType });
@@ -321,12 +308,10 @@ export class CosmosDatabaseService implements DatabaseService {
     year?: number,
     competitionType?: CompetitionType,
   ): Promise<CustomEvent[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "customEvents");
+    const container = this.getContainer("customEvents");
     let q = "SELECT * FROM c";
     const where: string[] = [];
-    const params: any[] = [];
+    const params: SqlParameter[] = [];
     if (year !== undefined) {
       where.push("c.year=@year");
       params.push({ name: "@year", value: year });
@@ -346,9 +331,7 @@ export class CosmosDatabaseService implements DatabaseService {
     eventCode: string,
     updates: Partial<CustomEvent>,
   ): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "customEvents");
+    const container = this.getContainer("customEvents");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.eventCode=@eventCode",
@@ -365,9 +348,7 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async deleteCustomEvent(eventCode: string): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "customEvents");
+    const container = this.getContainer("customEvents");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.eventCode=@eventCode",
@@ -377,7 +358,7 @@ export class CosmosDatabaseService implements DatabaseService {
     for (const r of resources) {
       try {
         await container.item(r.id).delete();
-      } catch (e) {
+      } catch {
         /* best-effort */
       }
     }
@@ -387,28 +368,24 @@ export class CosmosDatabaseService implements DatabaseService {
     userId: string,
     preferredPartners: string[],
   ): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "users");
+    const container = this.getContainer("users");
     await container.items.upsert({ id: userId, preferredPartners });
   }
 
   async getUserPreferredPartners(userId: string): Promise<string[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "users");
+    const container = this.getContainer("users");
     try {
       const { resource } = await container.item(userId).read();
       return resource?.preferredPartners || [];
-    } catch (e) {
+    } catch {
       return [];
     }
   }
 
-  async addPicklist(picklist: any): Promise<number> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklists");
+  async addPicklist(
+    picklist: Omit<Picklist, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
+    const container = this.getContainer("picklists");
     const numericId = Date.now();
     await container.items.create({
       ...picklist,
@@ -418,10 +395,8 @@ export class CosmosDatabaseService implements DatabaseService {
     return numericId;
   }
 
-  async getPicklist(id: number): Promise<any | undefined> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklists");
+  async getPicklist(id: number): Promise<Picklist | undefined> {
+    const container = this.getContainer("picklists");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -434,15 +409,13 @@ export class CosmosDatabaseService implements DatabaseService {
   async getPicklistByEvent(
     eventCode: string,
     year: number,
-    competitionType: string,
+    competitionType: CompetitionType,
     picklistType?: string,
-  ): Promise<any | undefined> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklists");
+  ): Promise<Picklist | undefined> {
+    const container = this.getContainer("picklists");
     let q =
       "SELECT * FROM c WHERE c.eventCode=@eventCode AND c.year=@year AND c.competitionType=@competitionType";
-    const params: any[] = [
+    const params: SqlParameter[] = [
       { name: "@eventCode", value: eventCode },
       { name: "@year", value: year },
       { name: "@competitionType", value: competitionType },
@@ -460,11 +433,9 @@ export class CosmosDatabaseService implements DatabaseService {
   async getPicklistsByEvent(
     eventCode: string,
     year: number,
-    competitionType: string,
-  ): Promise<any[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklists");
+    competitionType: CompetitionType,
+  ): Promise<Picklist[]> {
+    const container = this.getContainer("picklists");
     const { resources } = await container.items
       .query({
         query:
@@ -479,10 +450,8 @@ export class CosmosDatabaseService implements DatabaseService {
     return resources || [];
   }
 
-  async updatePicklist(id: number, updates: Partial<any>): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklists");
+  async updatePicklist(id: number, updates: Partial<Picklist>): Promise<void> {
+    const container = this.getContainer("picklists");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -498,9 +467,7 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async deletePicklist(id: number): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklists");
+    const container = this.getContainer("picklists");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -510,16 +477,14 @@ export class CosmosDatabaseService implements DatabaseService {
     for (const r of resources) {
       try {
         await container.item(r.id).delete();
-      } catch (e) {}
+      } catch {}
     }
   }
 
-  async addPicklistEntry(entry: any): Promise<number> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(
-      this.config!.containerId || "picklistEntries",
-    );
+  async addPicklistEntry(
+    entry: Omit<PicklistEntry, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
+    const container = this.getContainer("picklistEntries");
     const numericId = Date.now();
     await container.items.create({
       ...entry,
@@ -529,12 +494,8 @@ export class CosmosDatabaseService implements DatabaseService {
     return numericId;
   }
 
-  async getPicklistEntry(id: number): Promise<any | undefined> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(
-      this.config!.containerId || "picklistEntries",
-    );
+  async getPicklistEntry(id: number): Promise<PicklistEntry | undefined> {
+    const container = this.getContainer("picklistEntries");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -544,12 +505,8 @@ export class CosmosDatabaseService implements DatabaseService {
     return (resources && resources[0]) || undefined;
   }
 
-  async getPicklistEntries(picklistId: number): Promise<any[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(
-      this.config!.containerId || "picklistEntries",
-    );
+  async getPicklistEntries(picklistId: number): Promise<PicklistEntry[]> {
+    const container = this.getContainer("picklistEntries");
     const { resources } = await container.items
       .query({
         query:
@@ -560,12 +517,11 @@ export class CosmosDatabaseService implements DatabaseService {
     return resources || [];
   }
 
-  async updatePicklistEntry(id: number, updates: Partial<any>): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(
-      this.config!.containerId || "picklistEntries",
-    );
+  async updatePicklistEntry(
+    id: number,
+    updates: Partial<PicklistEntry>,
+  ): Promise<void> {
+    const container = this.getContainer("picklistEntries");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -581,11 +537,7 @@ export class CosmosDatabaseService implements DatabaseService {
   }
 
   async deletePicklistEntry(id: number): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(
-      this.config!.containerId || "picklistEntries",
-    );
+    const container = this.getContainer("picklistEntries");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -595,7 +547,7 @@ export class CosmosDatabaseService implements DatabaseService {
     for (const r of resources) {
       try {
         await container.item(r.id).delete();
-      } catch (e) {}
+      } catch {}
     }
   }
 
@@ -604,11 +556,7 @@ export class CosmosDatabaseService implements DatabaseService {
     teamNumber: number,
     rank: number,
   ): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(
-      this.config!.containerId || "picklistEntries",
-    );
+    const container = this.getContainer("picklistEntries");
     const { resources } = await container.items
       .query({
         query:
@@ -636,10 +584,10 @@ export class CosmosDatabaseService implements DatabaseService {
     }
   }
 
-  async addPicklistNote(note: any): Promise<number> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklistNotes");
+  async addPicklistNote(
+    note: Omit<PicklistNote, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
+    const container = this.getContainer("picklistNotes");
     const numericId = Date.now();
     await container.items.create({
       ...note,
@@ -648,10 +596,8 @@ export class CosmosDatabaseService implements DatabaseService {
     });
     return numericId;
   }
-  async getPicklistNote(id: number): Promise<any | undefined> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklistNotes");
+  async getPicklistNote(id: number): Promise<PicklistNote | undefined> {
+    const container = this.getContainer("picklistNotes");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -663,12 +609,10 @@ export class CosmosDatabaseService implements DatabaseService {
   async getPicklistNotes(
     picklistId: number,
     teamNumber?: number,
-  ): Promise<any[]> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklistNotes");
+  ): Promise<PicklistNote[]> {
+    const container = this.getContainer("picklistNotes");
     let q = "SELECT * FROM c WHERE c.picklistId=@picklistId";
-    const params: any[] = [{ name: "@picklistId", value: picklistId }];
+    const params: SqlParameter[] = [{ name: "@picklistId", value: picklistId }];
     if (teamNumber !== undefined) {
       q += " AND c.teamNumber=@teamNumber";
       params.push({ name: "@teamNumber", value: teamNumber });
@@ -678,10 +622,11 @@ export class CosmosDatabaseService implements DatabaseService {
       .fetchAll();
     return resources || [];
   }
-  async updatePicklistNote(id: number, updates: Partial<any>): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklistNotes");
+  async updatePicklistNote(
+    id: number,
+    updates: Partial<PicklistNote>,
+  ): Promise<void> {
+    const container = this.getContainer("picklistNotes");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -696,9 +641,7 @@ export class CosmosDatabaseService implements DatabaseService {
     }
   }
   async deletePicklistNote(id: number): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const container = db.container(this.config!.containerId || "picklistNotes");
+    const container = this.getContainer("picklistNotes");
     const { resources } = await container.items
       .query({
         query: "SELECT * FROM c WHERE c.numericId=@id",
@@ -708,7 +651,7 @@ export class CosmosDatabaseService implements DatabaseService {
     for (const r of resources) {
       try {
         await container.item(r.id).delete();
-      } catch (e) {}
+      } catch {}
     }
   }
 
@@ -716,12 +659,8 @@ export class CosmosDatabaseService implements DatabaseService {
     pitEntries: PitEntry[];
     matchEntries: MatchEntry[];
   }> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
-    const pitContainer = db.container(this.config!.containerId || "pitEntries");
-    const matchContainer = db.container(
-      this.config!.containerId || "matchEntries",
-    );
+    const pitContainer = this.getContainer("pitEntries");
+    const matchContainer = this.getContainer("matchEntries");
     const pitRes = await pitContainer.items
       .query({ query: "SELECT * FROM c" })
       .fetchAll();
@@ -738,29 +677,28 @@ export class CosmosDatabaseService implements DatabaseService {
     pitEntries?: PitEntry[];
     matchEntries?: MatchEntry[];
   }): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
     const pitEntries = data.pitEntries || [];
     const matchEntries = data.matchEntries || [];
     if (pitEntries.length > 0) {
-      const pitContainer = db.container(this.config!.containerId || "pitEntries");
-      for (const p of pitEntries) {
-        await pitContainer.items.create(p);
+      const pitContainer = this.getContainer("pitEntries");
+      for (const { id, ...entry } of pitEntries) {
+        // Cosmos reserves a string `id`; the numeric domain id lives on
+        // `numericId`, matching addPitEntry.
+        await pitContainer.items.create({ ...entry, numericId: id ?? Date.now() });
       }
     }
     if (matchEntries.length > 0) {
-      const matchContainer = db.container(
-        this.config!.containerId || "matchEntries",
-      );
-      for (const m of matchEntries) {
-        await matchContainer.items.create(m);
+      const matchContainer = this.getContainer("matchEntries");
+      for (const { id, ...entry } of matchEntries) {
+        await matchContainer.items.create({
+          ...entry,
+          numericId: id ?? Date.now(),
+        });
       }
     }
   }
 
   async resetDatabase(): Promise<void> {
-    this.ensure();
-    const db = this.client.database(this.config!.databaseId || "athena");
     const containers = [
       "pitEntries",
       "matchEntries",
@@ -771,14 +709,14 @@ export class CosmosDatabaseService implements DatabaseService {
       "users",
     ];
     for (const name of containers) {
-      const container = db.container(this.config!.containerId || name);
+      const container = this.getContainer(name);
       const { resources } = await container.items
         .query({ query: "SELECT * FROM c" })
         .fetchAll();
       for (const r of resources) {
         try {
           await container.item(r.id).delete();
-        } catch (e) {}
+        } catch {}
       }
     }
   }

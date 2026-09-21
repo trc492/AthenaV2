@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Users, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { APP_NAME } from "@/lib/app-config";
 
 interface SignupFormData {
   name: string;
@@ -72,7 +73,7 @@ export function SignupForm() {
 
       if (response.ok) {
         toast.success("Account created successfully!", {
-          description: "Welcome to TRC Athena Scouting! Please sign in.",
+          description: `Welcome to ${APP_NAME}! Please sign in.`,
         });
         // Redirect to login page
         window.location.href = "/login";
@@ -97,7 +98,7 @@ export function SignupForm() {
           Create Account
         </h1>
         <CardDescription className="text-muted-foreground">
-          Join the TRC Athena Scouting platform
+          Join the {APP_NAME} scouting platform
         </CardDescription>
       </CardHeader>
       <CardContent>

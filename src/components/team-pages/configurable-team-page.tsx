@@ -79,6 +79,14 @@ function renderDynamicIcon(iconName?: string) {
   }
 }
 
+function formatKpiValue(
+  value: number,
+  format: "percent" | "number" = "number",
+) {
+  const formattedValue = Number.isNaN(value) ? "0.0" : value.toFixed(1);
+  return `${formattedValue}${format === "percent" ? "%" : ""}`;
+}
+
 export function ConfigurableTeamPage({
   teamNumber,
   configOverride,
@@ -347,15 +355,15 @@ export function ConfigurableTeamPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isNaN(autoKpiVal) ? "0.0" : autoKpiVal.toFixed(1)}
+              {formatKpiValue(autoKpiVal, pageConfig?.kpis?.auto?.format)}
             </div>
             <p className="text-xs text-muted-foreground">
               Average autonomous scoring
             </p>
             {autoKpiSubVal != null && (
               <p className="text-xs text-muted-foreground mt-1">
-                {pageConfig?.kpis?.auto?.subLabel}: {autoKpiSubVal}
-                {pageConfig?.kpis?.auto?.subFormat === "percent" ? "%" : ""}
+                {pageConfig?.kpis?.auto?.subLabel}:{" "}
+                {formatKpiValue(autoKpiSubVal, pageConfig?.kpis?.auto?.subFormat)}
               </p>
             )}
           </CardContent>
@@ -371,15 +379,15 @@ export function ConfigurableTeamPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isNaN(teleopKpiVal) ? "0.0" : teleopKpiVal.toFixed(1)}
-              {pageConfig?.kpis?.teleop?.subFormat === "percent" ? "%" : ""}
+              {formatKpiValue(teleopKpiVal, pageConfig?.kpis?.teleop?.format)}
             </div>
             <p className="text-xs text-muted-foreground">
               Average teleop scoring
             </p>
             {teleopKpiSubVal != null && (
               <p className="text-xs text-muted-foreground mt-1">
-                {pageConfig?.kpis?.teleop?.subLabel}: {teleopKpiSubVal}%
+                {pageConfig?.kpis?.teleop?.subLabel}:{" "}
+                {formatKpiValue(teleopKpiSubVal, pageConfig?.kpis?.teleop?.subFormat)}
               </p>
             )}
           </CardContent>

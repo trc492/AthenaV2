@@ -39,7 +39,19 @@ import {
   ArrowRight,
   Lock,
 } from "lucide-react";
-import type { YearConfig, ScoringDefinition } from "@/lib/types";
+import type {
+  YearConfig,
+  ScoringDefinition,
+  PitScoutingFieldDefinition,
+} from "@/lib/types";
+
+/** A value entered while previewing a field in test mode. */
+type TestValue = string | number | boolean | string[];
+
+/** Coerce a test value to the number the numeric preview inputs expect. */
+function toTestNumber(value: TestValue | undefined): number {
+  return typeof value === "number" ? value : Number(value) || 0;
+}
 import {
   getFieldType,
   encodeStartPosition,
@@ -80,7 +92,7 @@ export function VisualCanvas({
 }: VisualCanvasProps) {
   const [isPaletteDragOver, setIsPaletteDragOver] = useState(false);
   const dragCounterRef = useRef(0);
-  const [testData, setTestData] = useState<Record<string, any>>({});
+  const [testData, setTestData] = useState<Record<string, TestValue>>({});
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
 
@@ -139,7 +151,7 @@ export function VisualCanvas({
     }
   };
 
-  const updateTestValue = (key: string, val: any) => {
+  const updateTestValue = (key: string, val: TestValue) => {
     setTestData((prev) => ({ ...prev, [key]: val }));
   };
 
@@ -174,7 +186,9 @@ export function VisualCanvas({
 
   // Active section items
   const matchSectionItems = (config.scoring?.[activeSection as keyof typeof config.scoring] || {}) as Record<string, ScoringDefinition>;
-  const pitSectionItems = (config.pitScouting?.[activeSection as keyof typeof config.pitScouting] || {}) as Record<string, any>;
+  const pitSectionItems = (config.pitScouting?.[
+    activeSection as keyof typeof config.pitScouting
+  ] || {}) as Record<string, PitScoutingFieldDefinition>;
   const currentItems = scoutingMode === "match" ? matchSectionItems : pitSectionItems;
   const currentItemKeys = Object.keys(currentItems);
 
@@ -584,8 +598,8 @@ function MatchCanvasItem({
   isSelected: boolean;
   isDropTarget: boolean;
   isTestMode: boolean;
-  testValue: any;
-  onTestChange: (val: any) => void;
+  testValue: TestValue | undefined;
+  onTestChange: (val: TestValue) => void;
   onSelect: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -877,14 +891,14 @@ function PitCanvasItem({
   onDropOn,
 }: {
   fieldKey: string;
-  field: any;
+  field: PitScoutingFieldDefinition;
   index: number;
   totalItems: number;
   isSelected: boolean;
   isDropTarget: boolean;
   isTestMode: boolean;
-  testValue: any;
-  onTestChange: (val: any) => void;
+  testValue: TestValue | undefined;
+  onTestChange: (val: TestValue) => void;
   onSelect: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -964,7 +978,7 @@ function PitCanvasItem({
 
       {field.type === "text" && (
         <Input
-          value={testValue || ""}
+          value={typeof testValue === "string" ? testValue : ""}
           onChange={(e) => onTestChange(e.target.value)}
           placeholder="Enter notes..."
           className="h-10 text-xs"
@@ -980,14 +994,14 @@ function PitCanvasItem({
             className="h-10 w-10 shrink-0"
             onClick={(e) => {
               e.stopPropagation();
-              onTestChange(Math.max(0, (testValue || 0) - 1));
+              onTestChange(Math.max(0, toTestNumber(testValue) - 1));
             }}
           >
             <Minus className="h-4 w-4" />
           </Button>
           <Input
             type="number"
-            value={testValue ?? 0}
+            value={toTestNumber(testValue)}
             onChange={(e) => onTestChange(parseFloat(e.target.value) || 0)}
             className="text-center font-mono font-bold text-sm h-10"
           />
@@ -998,7 +1012,7 @@ function PitCanvasItem({
             className="h-10 w-10 shrink-0"
             onClick={(e) => {
               e.stopPropagation();
-              onTestChange((testValue || 0) + 1);
+              onTestChange(toTestNumber(testValue) + 1);
             }}
           >
             <Plus className="h-4 w-4" />
@@ -1014,7 +1028,10 @@ function PitCanvasItem({
       )}
 
       {field.type === "select" && (
-        <Select value={testValue || ""} onValueChange={(val) => onTestChange(val)}>
+        <Select
+          value={typeof testValue === "string" ? testValue : ""}
+          onValueChange={(val) => onTestChange(val)}
+        >
           <SelectTrigger className="h-10 text-xs">
             <SelectValue placeholder="Select option" />
           </SelectTrigger>
@@ -1031,7 +1048,9 @@ function PitCanvasItem({
       {field.type === "multiselect" && (
         <div className="space-y-1.5 p-2 rounded-lg bg-muted/30 border">
           {(field.options || []).map((opt: string, i: number) => {
-            const selected: string[] = testValue || [];
+            const selected: string[] = Array.isArray(testValue)
+              ? testValue
+              : [];
             const isChecked = selected.includes(opt);
             return (
               <div key={i} className="flex items-center gap-2">

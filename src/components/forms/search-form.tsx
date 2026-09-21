@@ -11,7 +11,7 @@ import {
 import { useSidebar } from "@/components/ui/sidebar";
 
 export function SearchForm({ ...props }: React.ComponentProps<"form">) {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const router = useRouter();
   const [teamId, setTeamId] = useState("");
 
@@ -19,6 +19,7 @@ export function SearchForm({ ...props }: React.ComponentProps<"form">) {
     e.preventDefault();
     if (teamId) {
       router.push(`/dashboard/team/${teamId}`);
+      if (isMobile) setOpenMobile(false);
     }
   };
 

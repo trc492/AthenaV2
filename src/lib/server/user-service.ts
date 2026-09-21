@@ -78,7 +78,7 @@ export async function hasAnyAdmin(): Promise<boolean> {
   );
   const row = result?.recordset?.[0];
   if (!row) return false;
-  const countVal = (row as any).count;
+  const countVal = row.count;
   if (typeof countVal !== "undefined" && countVal !== null) {
     return Number(countVal) > 0;
   }

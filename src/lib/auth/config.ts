@@ -86,14 +86,7 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   callbacks: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async jwt({
-      token,
-      user,
-    }: {
-      token: any;
-      user: any;
-    }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.username = user.username;
@@ -103,10 +96,10 @@ export const authConfig: NextAuthConfig = {
       }
       return token;
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async session({ session, token }: { session: any; token: any }) {
+    async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.id || token.sub;
+        const userId = token.id || token.sub;
+        if (userId) session.user.id = userId;
         session.user.username = token.username;
         session.user.role = token.role;
         session.user.image = token.image;
@@ -114,7 +107,6 @@ export const authConfig: NextAuthConfig = {
       }
       return session;
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
       // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;

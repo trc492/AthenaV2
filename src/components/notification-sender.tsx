@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Send, Users, AlertTriangle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
+import { APP_LOGO, APP_NAME } from "@/lib/app-config";
 
 interface SendResult {
   successful: number;
@@ -52,8 +53,8 @@ export function NotificationSender() {
             title: title.trim(),
             body: body.trim() || undefined,
             url: url.trim() || "/dashboard",
-            icon: "/TRCLogo.webp",
-            badge: "/TRCLogo.webp",
+            icon: APP_LOGO,
+            badge: APP_LOGO,
             data: {
               timestamp: new Date().toISOString(),
             },
@@ -93,7 +94,7 @@ export function NotificationSender() {
   const handleTestNotification = async () => {
     const testTitle = "Test Notification";
     const testBody =
-      "This is a test notification from TRC Scouting admin panel.";
+      `This is a test notification from the ${APP_NAME} admin panel.`;
 
     setTitle(testTitle);
     setBody(testBody);

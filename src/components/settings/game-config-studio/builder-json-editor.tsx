@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import type { YearConfig } from "@/lib/types";
 import { validateYearConfig } from "@/lib/server/config-validator";
+import { getErrorMessage } from "@/lib/utils";
 
 interface BuilderJsonEditorProps {
   config: YearConfig;
@@ -46,8 +47,8 @@ export function BuilderJsonEditor({
       const val = validateYearConfig(config);
       setValidationErrors(val.errors);
       setValidationWarnings(val.warnings);
-    } catch (err: any) {
-      setParseError(err.message);
+    } catch (err) {
+      setParseError(getErrorMessage(err));
     }
   }, [config]);
 
@@ -63,8 +64,8 @@ export function BuilderJsonEditor({
       if (valRes.valid) {
         onUpdateConfig(parsed);
       }
-    } catch (err: any) {
-      setParseError(err.message);
+    } catch (err) {
+      setParseError(getErrorMessage(err));
     }
   };
 
@@ -74,8 +75,8 @@ export function BuilderJsonEditor({
       setJsonText(JSON.stringify(parsed, null, 2));
       setParseError(null);
       toast.success("JSON formatted successfully");
-    } catch (err: any) {
-      toast.error(`Invalid JSON syntax: ${err.message}`);
+    } catch (err) {
+      toast.error(`Invalid JSON syntax: ${getErrorMessage(err)}`);
     }
   };
 
@@ -118,8 +119,8 @@ export function BuilderJsonEditor({
         setJsonText(JSON.stringify(parsed, null, 2));
         onUpdateConfig(parsed);
         toast.success(`Imported ${file.name}`);
-      } catch (err: any) {
-        toast.error(`Failed to parse file: ${err.message}`);
+      } catch (err) {
+        toast.error(`Failed to parse file: ${getErrorMessage(err)}`);
       }
     };
     reader.readAsText(file);

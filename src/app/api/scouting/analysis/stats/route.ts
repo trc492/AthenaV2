@@ -108,7 +108,10 @@ export async function GET(request: NextRequest) {
 
       return {
         teamNumber,
-        name: teamPit?.name || `Team ${teamNumber}`,
+        // Older pit documents may carry a team name; the schema does not.
+        name:
+          (teamPit as { name?: string } | undefined)?.name ||
+          `Team ${teamNumber}`,
         matchesPlayed: teamMatches.length,
         totalEPA: isNaN(totalEPA) ? 0 : totalEPA,
       };

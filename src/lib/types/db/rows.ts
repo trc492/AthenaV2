@@ -50,6 +50,8 @@ export interface PicklistRow {
   year: number;
   competitionType: string;
   picklistType: string;
+  name: string | null;
+  createdBy: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -59,6 +61,8 @@ export interface PicklistEntryRow {
   picklistId: number;
   teamNumber: number;
   rank: number;
+  source: string | null;
+  notes: string | null;
   created_at: Date;
   updated_at: Date;
 }

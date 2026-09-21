@@ -2,19 +2,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("@/db/azuresql-database-service", () => ({
   AzureSqlDatabaseService: class AzureSqlDatabaseService {
-    constructor(public config: any) {}
+    constructor(public config: unknown) {}
   },
 }));
 
 vi.mock("@/db/firebase-database-service", () => ({
   FirebaseDatabaseService: class FirebaseDatabaseService {
-    constructor(public config: any) {}
+    constructor(public config: unknown) {}
   },
 }));
 
 vi.mock("@/db/cosmos-database-service", () => ({
   CosmosDatabaseService: class CosmosDatabaseService {
-    constructor(public config: any) {}
+    constructor(public config: unknown) {}
   },
 }));
 

@@ -19,7 +19,6 @@ export interface PitEntry {
   >;
   autoDrawing?: string;
   notes?: string;
-  [extra: string]: unknown;
 }
 
 export interface MatchEntry {

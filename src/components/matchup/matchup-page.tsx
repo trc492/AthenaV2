@@ -247,10 +247,9 @@ export default function MatchupPage() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Match Matchup</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Match Preview</h1>
             <p className="text-muted-foreground">
-              Compare alliances side-by-side — view robot capabilities and
-              performance data
+              Compare both alliances side by side before the match.
             </p>
           </div>
         </div>
@@ -624,7 +623,7 @@ export default function MatchupPage() {
             <h3 className="text-lg font-semibold mb-2">No Teams Selected</h3>
             <p className="text-muted-foreground max-w-md">
               {hasScheduleData
-                ? "Navigate to a match number above to see the alliance matchup."
+                ? "Choose a match number above to preview both alliances."
                 : "Load a schedule by selecting an event, or use manual entry to input team numbers."}
             </p>
           </CardContent>

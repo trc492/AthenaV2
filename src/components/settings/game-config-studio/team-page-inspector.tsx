@@ -2,6 +2,13 @@
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DatapointPicker } from "./datapoint-picker";
 import { buildDatapointRegistry } from "@/lib/game-config/datapoint-registry";
 import type { TeamPageConfig, YearConfig } from "@/lib/types";
@@ -26,12 +33,19 @@ function NumberField({ label, value, onChange }: {
 function Choice<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: readonly T[]; onChange: (value: T) => void;
 }) {
-  return <label className="block space-y-1 text-xs">{label}
-    <select aria-label={label} className="w-full rounded-md border bg-background p-2"
-      value={value} onChange={(e) => onChange(e.target.value as T)}>
-      {options.map((option) => <option key={option} value={option}>{option}</option>)}
-    </select>
-  </label>;
+  return <div className="space-y-1 text-xs">
+    <span>{label}</span>
+    <Select value={value} onValueChange={(nextValue) => onChange(nextValue as T)}>
+      <SelectTrigger aria-label={label} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>{option}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>;
 }
 
 export function TeamPageInspector({ section, config, value, onChange }: {
@@ -63,6 +77,8 @@ export function TeamPageInspector({ section, config, value, onChange }: {
         <p className="text-sm font-semibold">{phase === "auto" ? "Autonomous KPI" : "Teleop KPI"}</p>
         <TextField label="Label" value={kpi.label} onChange={(label) => update({ label })} />
         {field("Field", kpi.key, (key) => update({ key }))}
+        <Choice label="Primary format" value={kpi.format ?? "number"} options={["number", "percent"]}
+          onChange={(format) => update({ format })} />
         {field("Secondary field", kpi.subKey, (subKey) => update({ subKey }))}
         {kpi.subKey && remove("Remove secondary field", () => update({ subKey: undefined }))}
         <TextField label="Secondary label" value={kpi.subLabel} onChange={(subLabel) => update({ subLabel })} />

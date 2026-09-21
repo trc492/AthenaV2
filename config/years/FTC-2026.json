@@ -184,6 +184,7 @@
       "auto": {
         "key": "calculated.auto_artifacts",
         "label": "Auto Artifacts",
+        "format": "number",
         "subKey": "autonomous.leave",
         "subLabel": "Leave rate",
         "subFormat": "percent",
@@ -192,6 +193,7 @@
       "teleop": {
         "key": "calculated.teleop_artifacts",
         "label": "Teleop Artifacts",
+        "format": "number",
         "icon": "BarChart"
       }
     },

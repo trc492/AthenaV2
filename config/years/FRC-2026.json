@@ -266,7 +266,6 @@
     "teleopMetrics": [
       { "key": "teleop.fuel_scored", "label": "Fuel Scored" },
       { "key": "teleop.fuel_accuracy", "label": "Accuracy", "type": "badge", "threshold": 60, "unit": "%" },
-      { "key": "teleop.fuel_passed", "label": "Passed" },
       { "key": "teleop.fuel_corraled", "label": "Corraled" },
       { "key": "teleop.fuel_shuttled", "label": "Shuttled", "hideIfZero": true }
     ],
@@ -297,6 +296,7 @@
       "auto": {
         "key": "autonomous.fuel_scored",
         "label": "Avg Fuel (Auto)",
+        "format": "number",
         "subKey": "autonomous.climb",
         "subLabel": "Climb rate",
         "subFormat": "percent",
@@ -305,6 +305,7 @@
       "teleop": {
         "key": "teleop.fuel_scored",
         "label": "Avg Fuel Scored",
+        "format": "number",
         "subKey": "teleop.fuel_accuracy",
         "subLabel": "Accuracy",
         "subFormat": "percent",
@@ -328,7 +329,6 @@
       "metrics": [
         { "key": "teleop.fuel_scored", "label": "Fuel Scored" },
         { "key": "teleop.fuel_missed", "label": "Fuel Missed" },
-        { "key": "teleop.fuel_passed", "label": "Fuel Passed" },
         { "key": "teleop.fuel_corraled", "label": "Fuel Corraled" },
         { "key": "teleop.fuel_shuttled", "label": "Fuel Shuttled" },
         { "key": "teleop.fuel_accuracy", "label": "Accuracy", "type": "badge", "unit": "%" }
@@ -347,7 +347,6 @@
         { "name": "Auto Shuttled", "key": "autonomous.fuel_shuttled", "fill": "#fde68a" },
         { "name": "Teleop Scored", "key": "teleop.fuel_scored", "fill": "#ef4444" },
         { "name": "Teleop Missed", "key": "teleop.fuel_missed", "fill": "#94a3b8" },
-        { "name": "Teleop Passed", "key": "teleop.fuel_passed", "fill": "#3b82f6" },
         { "name": "Teleop Corraled", "key": "teleop.fuel_corraled", "fill": "#22c55e" },
         { "name": "Teleop Shuttled", "key": "teleop.fuel_shuttled", "fill": "#a3e635" }
       ]

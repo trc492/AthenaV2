@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { asNextRequest } from "../helpers/test-doubles";
 
 const mockSavePersistedDatabaseConfig = vi.fn().mockResolvedValue(undefined);
 const mockConfigure = vi.fn();
@@ -53,7 +54,7 @@ describe("/api/setup/database", () => {
       body: JSON.stringify({}),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(400);
   });
 
@@ -73,7 +74,7 @@ describe("/api/setup/database", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -99,7 +100,7 @@ describe("/api/setup/database", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
 
     expect(res.status).toBe(401);
     expect(mockConfigure).not.toHaveBeenCalled();
@@ -127,7 +128,7 @@ describe("/api/setup/database", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -158,7 +159,7 @@ describe("/api/setup/admin", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(403);
   });
 
@@ -180,7 +181,7 @@ describe("/api/setup/admin", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const data = await res.json();
 
     expect(res.status).toBe(201);
@@ -210,7 +211,7 @@ describe("/api/auth/register", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const data = await res.json();
 
     expect(res.status).toBe(201);
@@ -229,7 +230,7 @@ describe("/api/auth/register", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(400);
   });
 });

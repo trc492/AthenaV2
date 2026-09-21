@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { MockAuthSession, ServiceMock, asNextRequest } from "../../helpers/test-doubles";
 
-let authSession: any = { user: { id: "user-1", role: "admin" } };
+let authSession: MockAuthSession | null = {
+  user: { id: "user-1", role: "admin" },
+};
 let permissionResult = true;
 
 vi.mock("@/lib/auth/config", () => ({
@@ -19,7 +22,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 describe("/api/scouting/entries/pit", () => {
-  let service: any;
+  let service: ServiceMock;
 
   beforeEach(() => {
     vi.resetModules();
@@ -43,14 +46,14 @@ describe("/api/scouting/entries/pit", () => {
     permissionResult = false;
     const route = await import("@/app/api/scouting/entries/pit/route");
     const req = new Request("http://test/api/scouting/entries/pit");
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     expect(res.status).toBe(403);
   });
 
   it("returns 404 when ID not found", async () => {
     const route = await import("@/app/api/scouting/entries/pit/route");
     const req = new Request("http://test/api/scouting/entries/pit?id=99");
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     expect(res.status).toBe(404);
   });
 
@@ -82,7 +85,7 @@ describe("/api/scouting/entries/pit", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(409);
   });
 
@@ -104,7 +107,7 @@ describe("/api/scouting/entries/pit", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const data = await res.json();
 
     expect(res.status).toBe(201);

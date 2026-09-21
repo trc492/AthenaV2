@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { MockAuthSession, ServiceMock, asNextRequest } from "../../helpers/test-doubles";
 
-let authSession: any = { user: { id: "user-1", role: "admin" } };
+let authSession: MockAuthSession | null = {
+  user: { id: "user-1", role: "admin" },
+};
 let permissionResult = true;
 
 vi.mock("@/lib/auth/config", () => ({
@@ -19,7 +22,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 describe("/api/scouting/entries/match", () => {
-  let service: any;
+  let service: ServiceMock;
 
   beforeEach(() => {
     vi.resetModules();
@@ -43,14 +46,14 @@ describe("/api/scouting/entries/match", () => {
     permissionResult = false;
     const route = await import("@/app/api/scouting/entries/match/route");
     const req = new Request("http://test/api/scouting/entries/match");
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     expect(res.status).toBe(403);
   });
 
   it("returns 404 when ID not found", async () => {
     const route = await import("@/app/api/scouting/entries/match/route");
     const req = new Request("http://test/api/scouting/entries/match?id=99");
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     expect(res.status).toBe(404);
   });
 
@@ -83,14 +86,14 @@ describe("/api/scouting/entries/match", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(409);
   });
 
   it("returns 400 when delete lacks id", async () => {
     const route = await import("@/app/api/scouting/entries/match/route");
     const req = new Request("http://test/api/scouting/entries/match");
-    const res = await route.DELETE(req as any);
+    const res = await route.DELETE(asNextRequest(req));
     expect(res.status).toBe(400);
   });
 
@@ -112,7 +115,7 @@ describe("/api/scouting/entries/match", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const data = await res.json();
 
     expect(res.status).toBe(201);

@@ -116,26 +116,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  async redirects() {
-    return [
-      // Only apply redirects if we're on the expected domain
-      ...(process.env.NEXTAUTH_URL?.includes("trcscouting.com")
-        ? [
-            {
-              source: "/:path*",
-              has: [
-                {
-                  type: "host" as const,
-                  value: "www.trcscouting.com",
-                },
-              ],
-              destination: "https://trcscouting.com/:path*",
-              permanent: true,
-            },
-          ]
-        : []),
-    ];
-  },
   images: {
     remotePatterns: [
       {

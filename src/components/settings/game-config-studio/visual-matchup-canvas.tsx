@@ -354,7 +354,7 @@ export function VisualMatchupCanvas({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-extrabold tracking-tight">Team 492</span>
-                <span className="text-xs font-semibold text-muted-foreground">Titan Robotics Club</span>
+                <span className="text-xs font-semibold text-muted-foreground">Team scouting workspace</span>
               </div>
               <div className="flex items-center gap-1.5 mt-1">
                 <Badge variant="outline" className="text-[10px] uppercase font-bold">

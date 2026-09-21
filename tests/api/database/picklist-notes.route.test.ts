@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { MockAuthSession, ServiceMock, asNextRequest } from "../../helpers/test-doubles";
 
-let authSession: any = { user: { id: "user-1", role: "admin" } };
+let authSession: MockAuthSession | null = {
+  user: { id: "user-1", role: "admin" },
+};
 let permissionResult = true;
 
 vi.mock("@/lib/auth/config", () => ({
@@ -16,7 +19,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 describe("/api/scouting/picklist/notes", () => {
-  let service: any;
+  let service: ServiceMock;
 
   beforeEach(() => {
     vi.resetModules();
@@ -38,7 +41,7 @@ describe("/api/scouting/picklist/notes", () => {
   it("returns 400 when picklistId missing on GET", async () => {
     const route = await import("@/app/api/scouting/picklist/notes/route");
     const req = new Request("http://test/api/scouting/picklist/notes");
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     expect(res.status).toBe(400);
   });
 
@@ -50,7 +53,7 @@ describe("/api/scouting/picklist/notes", () => {
       body: JSON.stringify({ picklistId: 1, teamNumber: 111, note: "good" }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -65,7 +68,7 @@ describe("/api/scouting/picklist/notes", () => {
       body: JSON.stringify({ noteId: 9, note: "update" }),
     });
 
-    const res = await route.PUT(req as any);
+    const res = await route.PUT(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -75,7 +78,7 @@ describe("/api/scouting/picklist/notes", () => {
   it("returns 400 when delete missing params", async () => {
     const route = await import("@/app/api/scouting/picklist/notes/route");
     const req = new Request("http://test/api/scouting/picklist/notes");
-    const res = await route.DELETE(req as any);
+    const res = await route.DELETE(asNextRequest(req));
     expect(res.status).toBe(400);
   });
 });

@@ -28,8 +28,8 @@ export type ScheduleAssignmentRecord = {
 };
 
 export interface DatabaseService {
-  getPool?(): Promise<any>;
-  query?<T = any>(
+  getPool?(): Promise<unknown>;
+  query?<T = unknown>(
     sql: string,
     params?: Record<string, unknown>,
   ): Promise<{ recordset: T[] }>;

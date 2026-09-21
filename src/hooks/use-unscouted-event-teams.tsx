@@ -43,7 +43,7 @@ export function useUnscoutedEventTeamNumbers(): {
       }
 
       const submittedSet = new Set<number>();
-      serverEntries.forEach((e: any) => {
+      serverEntries.forEach((e) => {
         if (e && typeof e.teamNumber === "number")
           submittedSet.add(e.teamNumber);
       });
@@ -53,19 +53,16 @@ export function useUnscoutedEventTeamNumbers(): {
         try {
           const queued = await offlineQueueManager.getAllQueuedEntries();
           queued.forEach((q) => {
-            if (
-              q.type === "pit" &&
-              q.data &&
-              typeof (q.data as any).teamNumber === "number"
-            ) {
-              const d = q.data as any;
+            const d = q.data;
+            const teamNumber = d?.teamNumber;
+            if (q.type === "pit" && typeof teamNumber === "number") {
               // Match by year/eventCode/competitionType when available
               if (
                 (currentYear == null || d.year === currentYear) &&
                 (!selectedEvent?.eventCode || d.eventCode === selectedEvent.eventCode) &&
                 (!competitionType || d.competitionType === competitionType)
               ) {
-                submittedSet.add(d.teamNumber);
+                submittedSet.add(teamNumber);
               }
             }
           });

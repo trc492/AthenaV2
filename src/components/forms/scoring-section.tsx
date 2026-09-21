@@ -16,7 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScoringField } from "./scoring-field";
-import type { ScoringDefinition, DynamicMatchData } from "@/lib/types";
+import type {
+  ScoringDefinition,
+  DynamicMatchData,
+  YearConfig,
+} from "@/lib/types";
 import { encodeStartPosition } from "./match-form-utils";
 interface ScoringSectionProps {
   title: string;
@@ -25,7 +29,7 @@ interface ScoringSectionProps {
   section: "autonomous" | "teleop" | "endgame" | "fouls";
   scoringConfig: Record<string, ScoringDefinition>;
   formData: DynamicMatchData;
-  gameConfig?: any;
+  gameConfig?: YearConfig;
   showStartPosition?: boolean;
   onInputChange: (
     section: string,

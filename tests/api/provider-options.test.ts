@@ -1,24 +1,28 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-let authSession: any = { user: { id: "user-1", role: "admin" } };
+import { MockAuthSession, asNextRequest } from "../helpers/test-doubles";
+
+let authSession: MockAuthSession | null = {
+  user: { id: "user-1", role: "admin" },
+};
 const mockReadFileSync = vi.fn();
 const mockMkdir = vi.fn();
 const mockWriteFile = vi.fn();
 
 vi.mock("@/db/azuresql-database-service", () => ({
   AzureSqlDatabaseService: class AzureSqlDatabaseService {
-    constructor(public config: any) {}
+    constructor(public config: unknown) {}
   },
 }));
 
 vi.mock("@/db/firebase-database-service", () => ({
   FirebaseDatabaseService: class FirebaseDatabaseService {
-    constructor(public config: any) {}
+    constructor(public config: unknown) {}
   },
 }));
 
 vi.mock("@/db/cosmos-database-service", () => ({
   CosmosDatabaseService: class CosmosDatabaseService {
-    constructor(public config: any) {}
+    constructor(public config: unknown) {}
   },
 }));
 
@@ -74,17 +78,19 @@ describe("GET /api/scouting/admin/provider-options", () => {
   it("updates the active provider", async () => {
     const route = await import("@/app/api/scouting/admin/provider-options/route");
     const response = await route.POST(
-      new Request("http://test/api/scouting/admin/provider-options", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          provider: "firebase",
-          firebase: {
-            serviceAccountPath: "/tmp/service-account.json",
-            databaseURL: "https://example.firebaseio.com",
-          },
+      asNextRequest(
+        new Request("http://test/api/scouting/admin/provider-options", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            provider: "firebase",
+            firebase: {
+              serviceAccountPath: "/tmp/service-account.json",
+              databaseURL: "https://example.firebaseio.com",
+            },
+          }),
         }),
-      }) as any,
+      ),
     );
 
     const json = await response.json();

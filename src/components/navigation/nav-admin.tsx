@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 export function NavAdmin({
@@ -22,6 +23,7 @@ export function NavAdmin({
   }[];
 }) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   return (
     <SidebarGroup>
@@ -33,7 +35,12 @@ export function NavAdmin({
           return (
             <SidebarMenuItem key={item.name}>
               <SidebarMenuButton asChild tooltip={item.name} isActive={isActive}>
-                <Link href={item.url}>
+                <Link
+                  href={item.url}
+                  onClick={() => {
+                    if (isMobile) setOpenMobile(false);
+                  }}
+                >
                   <item.icon className="size-4" />
                   <span className="group-data-[collapsible=icon]:hidden">{item.name}</span>
                 </Link>

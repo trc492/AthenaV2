@@ -43,7 +43,7 @@ export async function GET() {
         ORDER BY name ASC
       `);
 
-    const users = result.recordset.map((user: any) => {
+    const users = result.recordset.map((user) => {
       let preferredPartners: string[] = [];
       if (user.preferredPartners) {
         try {

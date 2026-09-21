@@ -14,6 +14,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -33,6 +34,10 @@ export function NavMain({
   }[];
 }) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile, setOpen, state } = useSidebar();
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false);
+  };
   const routeIsActive = (url: string) =>
     url === "/" ? pathname === url : pathname === url || pathname.startsWith(`${url}/`);
 
@@ -54,7 +59,13 @@ export function NavMain({
               >
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip={item.title}>
+                    <SidebarMenuButton
+                      tooltip={item.title}
+                      isActive={sectionIsActive}
+                      onClick={() => {
+                        if (!isMobile && state === "collapsed") setOpen(true);
+                      }}
+                    >
                       {item.icon && <item.icon />}
                       <span className="flex w-full items-center group-data-[collapsible=icon]:hidden">
                         {item.title}
@@ -71,7 +82,7 @@ export function NavMain({
                             asChild
                             isActive={routeIsActive(subItem.url)}
                           >
-                            <Link href={subItem.url}>
+                            <Link href={subItem.url} onClick={closeMobileSidebar}>
                               {subItem.title}
                             </Link>
                           </SidebarMenuSubButton>
@@ -92,7 +103,7 @@ export function NavMain({
                 tooltip={item.title}
                 isActive={routeIsActive(item.url!)}
               >
-                <Link href={item.url!}>
+                <Link href={item.url!} onClick={closeMobileSidebar}>
                   {item.icon && <item.icon className="size-4" />}
 
                   <span className="group-data-[collapsible=icon]:hidden">

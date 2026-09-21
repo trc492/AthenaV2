@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { APP_LOGO } from "@/lib/app-config";
 
 export interface NotificationState {
   permission: NotificationPermission;
@@ -179,8 +180,8 @@ export function useNotifications() {
           const registration = await navigator.serviceWorker.ready;
           await registration.showNotification(options.title, {
             body: options.body || "",
-            icon: options.icon || "/TRCLogo.webp",
-            badge: options.badge || "/TRCLogo.webp",
+            icon: options.icon || APP_LOGO,
+            badge: options.badge || APP_LOGO,
             data: options.data || {},
             requireInteraction: options.requireInteraction || false,
             silent: options.silent || false,
@@ -188,7 +189,7 @@ export function useNotifications() {
         } else {
           new Notification(options.title, {
             body: options.body || "",
-            icon: options.icon || "/TRCLogo.webp",
+            icon: options.icon || APP_LOGO,
             data: options.data || {},
           });
         }

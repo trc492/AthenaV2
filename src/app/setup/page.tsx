@@ -16,6 +16,16 @@ export default async function SetupPage() {
     : status.needsDatabase
       ? "database"
       : "admin";
+  const stepAfterAppUrl = status.needsDatabase
+    ? "database"
+    : status.needsAdmin
+      ? "admin"
+      : "complete";
 
-  return <FirstRunSetupPage initialStep={initialStep} />;
+  return (
+    <FirstRunSetupPage
+      initialStep={initialStep}
+      stepAfterAppUrl={stepAfterAppUrl}
+    />
+  );
 }

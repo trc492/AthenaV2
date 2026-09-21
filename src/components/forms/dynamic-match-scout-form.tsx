@@ -72,6 +72,12 @@ export function DynamicMatchScoutForm() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+  const [lastSavedEntry, setLastSavedEntry] = useState<{
+    matchNumber: number;
+    teamNumber: number;
+    nextMatchNumber: number;
+    queued: boolean;
+  } | null>(null);
 
   // Tabs state for swipeable interface
   const [activeTab, setActiveTab] = useState("auto");
@@ -449,6 +455,12 @@ export function DynamicMatchScoutForm() {
           newFormData.teamNumber = nextTeamNumber;
         }
 
+        setLastSavedEntry({
+          matchNumber: submittedMatch,
+          teamNumber: Number(formData.teamNumber),
+          nextMatchNumber: Number(newFormData.matchNumber),
+          queued: result.isQueued,
+        });
         setFormData(newFormData);
         setActiveTab("auto");
       }
@@ -617,6 +629,30 @@ export function DynamicMatchScoutForm() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {lastSavedEntry && (
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4"
+          >
+            {lastSavedEntry.queued ? (
+              <Clock className="mt-0.5 size-5 shrink-0 text-primary" />
+            ) : (
+              <CheckCircle className="mt-0.5 size-5 shrink-0 text-primary" />
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold">
+                Match {lastSavedEntry.matchNumber} · Team {lastSavedEntry.teamNumber}{" "}
+                {lastSavedEntry.queued ? "saved on this device" : "saved successfully"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {lastSavedEntry.queued
+                  ? "It will sync automatically when a connection is available."
+                  : `Match ${lastSavedEntry.nextMatchNumber} is ready below.`}
+              </p>
+            </div>
+          </div>
         )}
 
         {session?.user && (

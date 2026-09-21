@@ -1,10 +1,15 @@
 import { MetadataRoute } from "next";
+import {
+  APP_DESCRIPTION,
+  APP_NAME,
+  APP_SHORT_NAME,
+} from "@/lib/app-config";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TRC Scouting",
-    short_name: "TRC",
-    description: "Scouting app for TRC",
+    name: APP_NAME,
+    short_name: APP_SHORT_NAME,
+    description: APP_DESCRIPTION,
     start_url: "/",
     scope: "/",
     display: "standalone",

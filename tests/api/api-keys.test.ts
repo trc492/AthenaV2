@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { MockAuthSession, asNextRequest } from "../helpers/test-doubles";
 
 const { mockAuthSession, mockWriteFile, mockMkdir, mockExistsSync, mockReadFileSync } = vi.hoisted(() => {
   return {
-    mockAuthSession: { value: { user: { id: "user-admin", role: "admin" } } as any },
+    mockAuthSession: {
+      value: { user: { id: "user-admin", role: "admin" } } as MockAuthSession,
+    },
     mockWriteFile: vi.fn(),
     mockMkdir: vi.fn(),
     mockExistsSync: vi.fn(),
@@ -22,7 +25,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
-  const actual = (await importOriginal()) as any;
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     mkdir: mockMkdir,
@@ -31,7 +34,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 vi.mock("node:fs", async (importOriginal) => {
-  const actual = (await importOriginal()) as any;
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     existsSync: mockExistsSync,
@@ -161,7 +164,7 @@ describe("/api/system/api-keys Route", () => {
       body: JSON.stringify({ tbaApiKey: "tba-test-key" }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);

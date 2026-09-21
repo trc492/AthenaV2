@@ -23,7 +23,13 @@ export default async function middleware(req: NextRequest) {
     req.nextUrl.pathname === "/sitemap.xml";
   const isAsset = req.nextUrl.pathname.startsWith("/_next/static") || req.nextUrl.pathname.startsWith("/assets");
 
-  // Allow access to auth pages, setup pages, API routes, and home page
+  // Authenticated users should not be able to return to authentication pages.
+  if (isAuth && isAuthPage) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  // The home page performs its own setup check before redirecting an active
+  // session, so first-run installations still reach the setup wizard.
   if (
     isAuthPage ||
     isSetupPage ||

@@ -2,6 +2,13 @@
 // Use serializable handler strings ('NetworkFirst' / 'CacheFirst') so serwist can embed
 // these rules into the generated service worker.
 module.exports = [
+  // Entry and authentication pages depend on current server-side session
+  // state. Never serve an old logged-out page from the service-worker cache.
+  {
+    urlPattern: /^(?:\/$|\/(?:login|signup|setup)(?:\/|$))/,
+    handler: "NetworkOnly",
+  },
+
   // Auth session — cache so offline relaunches preserve the logged-in session
   {
     urlPattern: /^\/api\/auth\/session$/,
@@ -96,7 +103,7 @@ module.exports = [
     },
   },
 
-  // Cache images (including TRCLogo.webp) with a Cache First strategy for offline availability
+  // Cache images with a Cache First strategy for offline availability
   {
     urlPattern: /\.(?:png|jpg|jpeg|webp|svg|gif)$/,
     handler: "CacheFirst",

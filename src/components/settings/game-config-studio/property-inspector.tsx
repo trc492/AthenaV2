@@ -26,7 +26,11 @@ import {
   Sparkles,
   Info,
 } from "lucide-react";
-import type { YearConfig, ScoringDefinition } from "@/lib/types";
+import type {
+  YearConfig,
+  ScoringDefinition,
+  PitScoutingFieldDefinition,
+} from "@/lib/types";
 import { slugifyKey } from "./types";
 
 export interface SelectedComponentInfo {
@@ -40,7 +44,6 @@ interface PropertyInspectorProps {
   year: number;
   selectedComponent: SelectedComponentInfo | null;
   onUpdateConfig: (updater: (prev: YearConfig) => YearConfig) => void;
-  onUpdateYear: (year: number) => void;
   onSelectComponent: (comp: SelectedComponentInfo | null) => void;
   onDuplicateComponent: (comp: SelectedComponentInfo) => void;
   onDeleteComponent: (comp: SelectedComponentInfo) => void;
@@ -51,7 +54,6 @@ export function PropertyInspector({
   year,
   selectedComponent,
   onUpdateConfig,
-  onUpdateYear,
   onSelectComponent,
   onDuplicateComponent,
   onDeleteComponent,
@@ -116,9 +118,7 @@ export function PropertyInspector({
               <Label className="text-xs">Competition Program</Label>
               <Select
                 value={config.competitionType || "FRC"}
-                onValueChange={(val: "FRC" | "FTC") =>
-                  onUpdateConfig((prev) => ({ ...prev, competitionType: val }))
-                }
+                disabled
               >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
@@ -136,7 +136,7 @@ export function PropertyInspector({
                 <Input
                   type="number"
                   value={year || ""}
-                  onChange={(e) => onUpdateYear(parseInt(e.target.value, 10) || 0)}
+                  readOnly
                   className="h-8 text-xs"
                 />
               </div>
@@ -152,6 +152,9 @@ export function PropertyInspector({
                 />
               </div>
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Use Rename in the toolbar to change the program or year safely.
+            </p>
           </div>
 
           {/* Starting Positions */}
@@ -535,7 +538,9 @@ export function PropertyInspector({
   }
 
   // Pit Scouting component selected
-  const pitSection = (config.pitScouting?.[section as keyof typeof config.pitScouting] || {}) as Record<string, any>;
+  const pitSection = (config.pitScouting?.[
+    section as keyof typeof config.pitScouting
+  ] || {}) as Record<string, PitScoutingFieldDefinition>;
   const pitDef = pitSection[fieldKey];
 
   if (!pitDef) {
@@ -549,10 +554,13 @@ export function PropertyInspector({
     );
   }
 
-  const updatePitField = (patch: Record<string, any>) => {
+  const updatePitField = (patch: Partial<PitScoutingFieldDefinition>) => {
     onUpdateConfig((prev) => {
       const pit = { ...prev.pitScouting };
-      const sec = { ...((pit[section as keyof typeof pit] || {}) as Record<string, any>) };
+      const sec = {
+        ...((pit[section as keyof typeof pit] ||
+          {}) as Record<string, PitScoutingFieldDefinition>),
+      };
       sec[fieldKey] = { ...sec[fieldKey], ...patch };
       return {
         ...prev,
@@ -616,7 +624,10 @@ export function PropertyInspector({
               if (sanitized && sanitized !== fieldKey) {
                 onUpdateConfig((prev) => {
                   const pit = { ...prev.pitScouting };
-                  const sec = { ...((pit[section as keyof typeof pit] || {}) as Record<string, any>) };
+                  const sec = {
+        ...((pit[section as keyof typeof pit] ||
+          {}) as Record<string, PitScoutingFieldDefinition>),
+      };
                   const existing = sec[fieldKey];
                   delete sec[fieldKey];
                   sec[sanitized] = existing;
@@ -673,7 +684,9 @@ export function PropertyInspector({
                     type="button"
                     onClick={() => {
                       updatePitField({
-                        options: (pitDef.options || []).filter((_: any, idx: number) => idx !== i),
+                        options: (pitDef.options || []).filter(
+                          (_opt: string, idx: number) => idx !== i,
+                        ),
                       });
                     }}
                     className="text-muted-foreground hover:text-destructive"

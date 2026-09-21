@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ModeToggle } from "@/components/ui/light-dark-toggle";
 import { ThemeSelector } from "@/components/settings/theme-selector";
+import { APP_LOGO, APP_LOGO_DARK } from "@/lib/app-config";
 import { DatabaseStep } from "./database-setup";
 import { AdminStep } from "./admin-setup";
 import {
@@ -41,6 +42,7 @@ interface FirstRunSetupPageProps {
   appName?: string;
   redirectHref?: string;
   initialStep?: SetupStep;
+  stepAfterAppUrl?: Exclude<SetupStep, "app-url">;
   onSubmitAppUrl?: (appUrl: string) => Promise<SetupResult>;
   onSubmitDatabase?: (data: DatabaseFormState) => Promise<SetupResult>;
   onSubmitAdmin?: (data: AdminFormValues) => Promise<SetupResult>;
@@ -323,6 +325,7 @@ export function FirstRunSetupPage({
   appName = "Athena",
   redirectHref = "/login",
   initialStep = "app-url",
+  stepAfterAppUrl = "database",
   onSubmitAppUrl = defaultSubmitAppUrl,
   onSubmitDatabase = defaultSubmitDatabase,
   onSubmitAdmin = defaultSubmitAdmin,
@@ -340,7 +343,7 @@ export function FirstRunSetupPage({
     const result = await onSubmitAppUrl(appUrl);
     setIsSubmitting(false);
     if (result.success) {
-      setStep("database");
+      setStep(stepAfterAppUrl);
     } else {
       setError(result.error ?? "Couldn't save the app URL. Please try again.");
     }
@@ -384,14 +387,14 @@ export function FirstRunSetupPage({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Image
-              src="/TRCLogo.webp"
+              src={APP_LOGO}
               alt={`${appName} logo`}
               width={40}
               height={40}
               className="rounded dark:hidden"
             />
             <Image
-              src="/TRCLogoWhite.png"
+              src={APP_LOGO_DARK}
               alt={`${appName} logo`}
               width={40}
               height={40}
@@ -475,12 +478,12 @@ export function FirstRunSetupPage({
                 <AdminStep
                   onSubmit={handleAdminSubmit}
                   onBack={
-                    initialStep === "admin"
-                      ? undefined
-                      : () => {
+                    initialStep === "database" || stepAfterAppUrl === "database"
+                      ? () => {
                           setError(null);
                           setStep("database");
                         }
+                      : undefined
                   }
                   isSubmitting={isSubmitting}
                   error={error}

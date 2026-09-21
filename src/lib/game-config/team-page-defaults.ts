@@ -12,8 +12,8 @@ export function buildTeamPageDefaults(config: YearConfig): TeamPageConfig {
   const fouls = Object.entries(config.scoring.fouls || {});
   return {
     kpis: {
-      auto: auto[0] || { key: "", label: "Autonomous" },
-      teleop: teleop[0] || { key: "", label: "Teleop" },
+      auto: { ...(auto[0] || { key: "", label: "Autonomous" }), format: "number" },
+      teleop: { ...(teleop[0] || { key: "", label: "Teleop" }), format: "number" },
     },
     autoPerformance: { metrics: auto, showPointsEstimate: true },
     teleopPerformance: { metrics: teleop, showPointsEstimate: true },

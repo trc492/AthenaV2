@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { validateYearConfig } from "@/lib/server/config-validator";
 import type { YearConfig } from "@/lib/types";
+import { MockAuthSession, asNextRequest } from "../helpers/test-doubles";
 
 const { mockAuthSession, mockWriteFile, mockMkdir } = vi.hoisted(() => {
   return {
-    mockAuthSession: { value: { user: { id: "user-admin", role: "admin" } } as any },
+    mockAuthSession: {
+      value: { user: { id: "user-admin", role: "admin" } } as MockAuthSession,
+    },
     mockWriteFile: vi.fn(),
     mockMkdir: vi.fn(),
   };
@@ -23,7 +26,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
-  const actual = (await importOriginal()) as any;
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     mkdir: mockMkdir,
@@ -112,7 +115,9 @@ describe("Admin Configs API Route", () => {
 
   it("GET lists configs when authorized", async () => {
     const route = await import("@/app/api/scouting/admin/configs/route");
-    const response = await route.GET(new Request("http://test/api/scouting/admin/configs") as any);
+    const response = await route.GET(
+      asNextRequest(new Request("http://test/api/scouting/admin/configs")),
+    );
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -125,11 +130,13 @@ describe("Admin Configs API Route", () => {
     mockAuthSession.value = { user: { id: "user-scout", role: "scout" } };
     const route = await import("@/app/api/scouting/admin/configs/route");
     const response = await route.POST(
-      new Request("http://test/api/scouting/admin/configs", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      }) as any,
+      asNextRequest(
+        new Request("http://test/api/scouting/admin/configs", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        }),
+      ),
     );
 
     expect(response.status).toBe(403);
@@ -139,16 +146,18 @@ describe("Admin Configs API Route", () => {
     mockAuthSession.value = { user: { id: "user-admin", role: "admin" } };
     const route = await import("@/app/api/scouting/admin/configs/route");
     const response = await route.POST(
-      new Request("http://test/api/scouting/admin/configs", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          config: {
-            competitionType: "FRC",
-            // missing gameName, scoring, pitScouting
-          },
+      asNextRequest(
+        new Request("http://test/api/scouting/admin/configs", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            config: {
+              competitionType: "FRC",
+              // missing gameName, scoring, pitScouting
+            },
+          }),
         }),
-      }) as any,
+      ),
     );
 
     expect(response.status).toBe(422);

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -14,6 +16,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -38,9 +42,15 @@ import {
   Swords,
   LayoutDashboard,
   AlertTriangle,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { YearConfig, ScoringDefinition } from "@/lib/types";
+import type {
+  YearConfig,
+  ScoringDefinition,
+  PitScoutingFieldDefinition,
+} from "@/lib/types";
+import { getErrorMessage } from "@/lib/utils";
 import { DEFAULT_NEW_CONFIG, slugifyKey } from "./types";
 import { ComponentPalette, PaletteComponentType } from "./component-palette";
 import { VisualCanvas } from "./visual-canvas";
@@ -79,6 +89,16 @@ export function GameConfigStudio() {
     [currentConfig],
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [createCompetitionType, setCreateCompetitionType] = useState<"FRC" | "FTC">("FRC");
+  const [createYear, setCreateYear] = useState(new Date().getFullYear() + 1);
+  const [createGameName, setCreateGameName] = useState("NEW_GAME");
+  const [renameCompetitionType, setRenameCompetitionType] = useState<"FRC" | "FTC">("FRC");
+  const [renameYear, setRenameYear] = useState(2026);
+  const [renameGameName, setRenameGameName] = useState("");
 
   // Studio Modes & State
   const [studioMode, setStudioMode] = useState<StudioDesignerMode>("match");
@@ -142,18 +162,109 @@ export function GameConfigStudio() {
     }
   };
 
-  // Create new blank config
-  const handleCreateNew = () => {
-    const nextYear = new Date().getFullYear() + 1;
-    const freshConfig: YearConfig = {
-      ...DEFAULT_NEW_CONFIG,
-      gameName: "NEW_GAME",
-    };
-    setCurrentConfig(freshConfig);
-    setCurrentYear(nextYear);
-    setSelectedFile(`FRC-${nextYear}.json`);
-    setSelectedComponent(null);
-    toast.info("Created new blank configuration template");
+  const openCreateDialog = () => {
+    const frcYears = configList
+      .filter((config) => config.competitionType === "FRC")
+      .map((config) => config.year);
+    setCreateCompetitionType("FRC");
+    setCreateYear(Math.max(new Date().getFullYear(), ...frcYears) + 1);
+    setCreateGameName("NEW_GAME");
+    setIsCreateDialogOpen(true);
+  };
+
+  // Create and persist a new year config.
+  const handleCreateNew = async () => {
+    const gameName = createGameName.trim();
+    if (!Number.isInteger(createYear) || createYear < 1990 || createYear > 9999) {
+      toast.error("Enter a valid four-digit year");
+      return;
+    }
+    if (!gameName) {
+      toast.error("Enter a game name");
+      return;
+    }
+
+    const freshConfig = JSON.parse(JSON.stringify(DEFAULT_NEW_CONFIG)) as YearConfig;
+    freshConfig.competitionType = createCompetitionType;
+    freshConfig.gameName = gameName;
+    const filename = `${createCompetitionType}-${createYear}.json`;
+
+    try {
+      setIsCreating(true);
+      const res = await fetch("/api/scouting/admin/configs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitionType: createCompetitionType,
+          year: createYear,
+          filename,
+          config: freshConfig,
+          createOnly: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create configuration");
+
+      setCurrentConfig(data.config);
+      setCurrentYear(createYear);
+      setSelectedFile(data.filename);
+      setSelectedComponent(null);
+      setIsCreateDialogOpen(false);
+      await fetchConfigs();
+      toast.success(`Created ${data.filename}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create configuration");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const openRenameDialog = () => {
+    setRenameCompetitionType(currentConfig.competitionType || "FRC");
+    setRenameYear(currentYear);
+    setRenameGameName(currentConfig.gameName || "");
+    setIsRenameDialogOpen(true);
+  };
+
+  const handleRenameConfig = async () => {
+    const gameName = renameGameName.trim();
+    if (!Number.isInteger(renameYear) || renameYear < 1990 || renameYear > 9999) {
+      toast.error("Enter a valid four-digit year");
+      return;
+    }
+    if (!gameName) {
+      toast.error("Enter a game name");
+      return;
+    }
+
+    try {
+      setIsRenaming(true);
+      const res = await fetch("/api/scouting/admin/configs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: selectedFile,
+          competitionType: renameCompetitionType,
+          year: renameYear,
+          gameName,
+          config: currentConfig,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to rename configuration");
+
+      setCurrentConfig(data.config);
+      setCurrentYear(renameYear);
+      setSelectedFile(data.filename);
+      setSelectedComponent(null);
+      setIsRenameDialogOpen(false);
+      await fetchConfigs();
+      toast.success(`Renamed configuration to ${data.filename}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to rename configuration");
+    } finally {
+      setIsRenaming(false);
+    }
   };
 
   // Duplicate current config
@@ -194,8 +305,8 @@ export function GameConfigStudio() {
       toast.success(`Saved configuration to ${filename}`);
       fetchConfigs();
       setSelectedFile(filename);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save configuration");
+    } catch (err) {
+      toast.error(getErrorMessage(err) || "Failed to save configuration");
     } finally {
       setIsSaving(false);
     }
@@ -287,7 +398,7 @@ export function GameConfigStudio() {
     } else {
       // Pit Scouting
       let newKey = `pit_${timestamp}`;
-      let newField: any;
+      let newField: PitScoutingFieldDefinition;
 
       switch (type) {
         case "pit-text":
@@ -323,7 +434,10 @@ export function GameConfigStudio() {
 
       setCurrentConfig((prev) => {
         const pit = { ...prev.pitScouting };
-        const sec = { ...((pit[targetSec as keyof typeof pit] || {}) as Record<string, any>) };
+        const sec = {
+          ...((pit[targetSec as keyof typeof pit] ||
+            {}) as Record<string, PitScoutingFieldDefinition>),
+        };
         sec[newKey] = newField;
         return {
           ...prev,
@@ -363,8 +477,9 @@ export function GameConfigStudio() {
         };
       } else {
         const pit = { ...prev.pitScouting };
-        const existing = (pit[section as keyof typeof pit] || {}) as Record<string, any>;
-        const reordered: Record<string, any> = {};
+        const existing = (pit[section as keyof typeof pit] ||
+          {}) as Record<string, PitScoutingFieldDefinition>;
+        const reordered: Record<string, PitScoutingFieldDefinition> = {};
         newKeysOrder.forEach((k) => {
           if (existing[k]) reordered[k] = existing[k];
         });
@@ -395,7 +510,10 @@ export function GameConfigStudio() {
         return { ...prev, scoring: { ...scoring, [comp.section]: sec } };
       } else {
         const pit = { ...prev.pitScouting };
-        const sec = { ...((pit[comp.section as keyof typeof pit] || {}) as Record<string, any>) };
+        const sec = {
+          ...((pit[comp.section as keyof typeof pit] ||
+            {}) as Record<string, PitScoutingFieldDefinition>),
+        };
         if (sec[comp.fieldKey]) {
           sec[newKey] = {
             ...sec[comp.fieldKey],
@@ -420,7 +538,10 @@ export function GameConfigStudio() {
         return { ...prev, scoring: { ...scoring, [comp.section]: sec } };
       } else {
         const pit = { ...prev.pitScouting };
-        const sec = { ...((pit[comp.section as keyof typeof pit] || {}) as Record<string, any>) };
+        const sec = {
+          ...((pit[comp.section as keyof typeof pit] ||
+            {}) as Record<string, PitScoutingFieldDefinition>),
+        };
         delete sec[comp.fieldKey];
         return { ...prev, pitScouting: { ...pit, [comp.section]: sec } };
       }
@@ -469,8 +590,17 @@ export function GameConfigStudio() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" size="sm" onClick={handleCreateNew} className="h-9 text-xs">
+            <Button variant="outline" size="sm" onClick={openCreateDialog} className="h-9 text-xs">
               <Plus className="h-3.5 w-3.5 mr-1" /> New
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openRenameDialog}
+              disabled={!configList.some((config) => config.filename === selectedFile)}
+              className="h-9 text-xs"
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Rename
             </Button>
             <Button variant="outline" size="sm" onClick={handleDuplicateCurrent} className="h-9 text-xs">
               <Copy className="h-3.5 w-3.5 mr-1" /> Clone
@@ -666,7 +796,6 @@ export function GameConfigStudio() {
               year={currentYear}
               selectedComponent={selectedComponent}
               onUpdateConfig={setCurrentConfig}
-              onUpdateYear={setCurrentYear}
               onSelectComponent={setSelectedComponent}
               onDuplicateComponent={handleDuplicateComponent}
               onDeleteComponent={handleDeleteComponent}
@@ -689,6 +818,82 @@ export function GameConfigStudio() {
       )}
 
       {/* Raw JSON Code Modal Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a game year</DialogTitle>
+            <DialogDescription>
+              Creates and saves a new blank scouting configuration immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Competition program</Label>
+              <Select value={createCompetitionType} onValueChange={(value: "FRC" | "FTC") => setCreateCompetitionType(value)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FRC">FRC</SelectItem>
+                  <SelectItem value="FTC">FTC</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="create-config-year">Year</Label>
+              <Input id="create-config-year" type="number" min={1990} max={9999} value={createYear}
+                onChange={(event) => setCreateYear(Number(event.target.value))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="create-config-name">Game name</Label>
+              <Input id="create-config-name" value={createGameName}
+                onChange={(event) => setCreateGameName(event.target.value)} placeholder="NEW_GAME" />
+            </div>
+          </div>
+          <DialogFooter showCloseButton>
+            <Button onClick={handleCreateNew} disabled={isCreating}>
+              {isCreating ? "Creating..." : "Create year"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename configuration</DialogTitle>
+            <DialogDescription>
+              Change the game name, season, or competition program. Changing the season or program renames the config file.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Competition program</Label>
+              <Select value={renameCompetitionType} onValueChange={(value: "FRC" | "FTC") => setRenameCompetitionType(value)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FRC">FRC</SelectItem>
+                  <SelectItem value="FTC">FTC</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rename-config-year">Year</Label>
+              <Input id="rename-config-year" type="number" min={1990} max={9999} value={renameYear}
+                onChange={(event) => setRenameYear(Number(event.target.value))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rename-config-name">Game name</Label>
+              <Input id="rename-config-name" value={renameGameName}
+                onChange={(event) => setRenameGameName(event.target.value)} />
+            </div>
+          </div>
+          <DialogFooter showCloseButton>
+            <Button onClick={handleRenameConfig} disabled={isRenaming}>
+              {isRenaming ? "Renaming..." : "Rename configuration"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isJsonDialogOpen} onOpenChange={setIsJsonDialogOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

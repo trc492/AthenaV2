@@ -7,12 +7,13 @@ import { ServiceWorkerManager } from "@/components/sync/service-worker-manager";
 import { SessionProvider } from "@/components/session-provider";
 import { SonnerToaster } from "@/components/sonner-toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { APP_DESCRIPTION, APP_LOGO, APP_NAME } from "@/lib/app-config";
 
 export const metadata: Metadata = {
-  title: "TRC Scouting",
-  description: "Scouting app for TRC",
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
   icons: {
-    apple: "/TRCLogo.webp",
+    apple: APP_LOGO,
   },
 };
 

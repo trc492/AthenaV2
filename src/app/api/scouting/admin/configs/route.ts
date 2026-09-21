@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readdir, readFile, writeFile, unlink, mkdir } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { validateYearConfig } from "@/lib/server/config-validator";
@@ -12,13 +12,24 @@ export const dynamic = "force-dynamic";
 const CONFIG_YEARS_DIR = join(process.cwd(), "config", "years");
 const RUNTIME_CONFIGS_DIR = join(process.cwd(), ".runtime", "configs");
 
+function isSafeConfigFilename(filename: string) {
+  return /^[a-zA-Z0-9_\-.]+\.json$/.test(filename) && !filename.includes("..");
+}
+
+function findConfigPath(filename: string) {
+  const primaryPath = join(CONFIG_YEARS_DIR, filename);
+  const runtimePath = join(RUNTIME_CONFIGS_DIR, filename);
+  if (existsSync(primaryPath)) return primaryPath;
+  if (existsSync(runtimePath)) return runtimePath;
+  return null;
+}
+
 async function requireConfigAdmin() {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role: string = (session.user as any).role ?? "";
+  const role: string = session.user.role ?? "";
   if (
     !hasPermission(role, PERMISSIONS.MANAGE_GAME_CONFIG) &&
     !hasPermission(role, PERMISSIONS.MANAGE_SYSTEM_CONFIG)
@@ -93,19 +104,11 @@ export async function GET(req: NextRequest) {
     const targetFilename = fileParam || `${compParam?.toUpperCase()}-${yearParam}.json`;
 
     // Security: sanitize filename
-    if (!/^[a-zA-Z0-9_\-.]+\.json$/.test(targetFilename) || targetFilename.includes("..")) {
+    if (!isSafeConfigFilename(targetFilename)) {
       return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
     }
 
-    const primaryPath = join(CONFIG_YEARS_DIR, targetFilename);
-    const runtimePath = join(RUNTIME_CONFIGS_DIR, targetFilename);
-
-    let filePath: string | null = null;
-    if (existsSync(primaryPath)) {
-      filePath = primaryPath;
-    } else if (existsSync(runtimePath)) {
-      filePath = runtimePath;
-    }
+    const filePath = findConfigPath(targetFilename);
 
     if (!filePath) {
       return NextResponse.json({ error: `Config file ${targetFilename} not found` }, { status: 404 });
@@ -165,6 +168,7 @@ export async function POST(req: NextRequest) {
     year?: number;
     filename?: string;
     config?: YearConfig;
+    createOnly?: boolean;
   };
 
   try {
@@ -204,6 +208,13 @@ export async function POST(req: NextRequest) {
     await mkdir(CONFIG_YEARS_DIR, { recursive: true });
     const targetPath = join(CONFIG_YEARS_DIR, filename);
 
+    if (body.createOnly && findConfigPath(filename)) {
+      return NextResponse.json(
+        { error: `A configuration named ${filename} already exists` },
+        { status: 409 },
+      );
+    }
+
     // Write formatted JSON
     const content = JSON.stringify(config, null, 2) + "\n";
     await writeFile(targetPath, content, "utf-8");
@@ -217,6 +228,90 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error(`Failed to save config ${filename}:`, err);
     return NextResponse.json({ error: "Failed to write configuration file" }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/scouting/admin/configs
+ * Rename a config's program/year filename and/or its displayed game name.
+ */
+export async function PATCH(req: NextRequest) {
+  const denied = await requireConfigAdmin();
+  if (denied) return denied;
+
+  let body: {
+    filename?: string;
+    competitionType?: string;
+    year?: number;
+    gameName?: string;
+    config?: YearConfig;
+  };
+
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const sourceFilename = body.filename;
+  const competitionType = body.competitionType?.toUpperCase();
+  const year = body.year;
+  const gameName = body.gameName?.trim();
+
+  if (!sourceFilename || !isSafeConfigFilename(sourceFilename)) {
+    return NextResponse.json({ error: "Invalid source filename" }, { status: 400 });
+  }
+  if (competitionType !== "FRC" && competitionType !== "FTC") {
+    return NextResponse.json({ error: "Competition type must be FRC or FTC" }, { status: 400 });
+  }
+  if (!Number.isInteger(year) || year! < 1990 || year! > 9999) {
+    return NextResponse.json({ error: "Year must be a four-digit number" }, { status: 400 });
+  }
+  if (!gameName) {
+    return NextResponse.json({ error: "Game name is required" }, { status: 400 });
+  }
+
+  const sourcePath = findConfigPath(sourceFilename);
+  if (!sourcePath) {
+    return NextResponse.json({ error: `Config file ${sourceFilename} not found` }, { status: 404 });
+  }
+
+  const targetFilename = `${competitionType}-${year}.json`;
+  if (targetFilename !== sourceFilename && findConfigPath(targetFilename)) {
+    return NextResponse.json(
+      { error: `A configuration named ${targetFilename} already exists` },
+      { status: 409 },
+    );
+  }
+
+  try {
+    const existingConfig = body.config ?? JSON.parse(await readFile(sourcePath, "utf-8")) as YearConfig;
+    const config: YearConfig = {
+      ...existingConfig,
+      competitionType,
+      gameName,
+    };
+    const validation = validateYearConfig(config);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: "Configuration validation failed", errors: validation.errors },
+        { status: 422 },
+      );
+    }
+
+    const targetPath = join(dirname(sourcePath), targetFilename);
+    await writeFile(targetPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+    if (targetPath !== sourcePath) await unlink(sourcePath);
+
+    return NextResponse.json({
+      success: true,
+      filename: targetFilename,
+      config,
+      warnings: validation.warnings,
+    });
+  } catch (err) {
+    console.error(`Failed to rename config ${sourceFilename}:`, err);
+    return NextResponse.json({ error: "Failed to rename configuration" }, { status: 500 });
   }
 }
 
@@ -235,7 +330,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing 'file' parameter" }, { status: 400 });
   }
 
-  if (!/^[a-zA-Z0-9_\-.]+\.json$/.test(filename) || filename.includes("..")) {
+  if (!isSafeConfigFilename(filename)) {
     return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
   }
 

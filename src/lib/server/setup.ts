@@ -11,22 +11,19 @@ export interface SetupStatus {
 }
 
 export async function checkSetupStatus(): Promise<SetupStatus> {
-  // Step 0: app URL must be configured before anything else.
   const appConfig = loadAppConfig();
-  if (!appConfig?.appUrl) {
-    return { isComplete: false, needsAppUrl: true, needsDatabase: true, needsAdmin: true };
-  }
+  const needsAppUrl = !appConfig?.appUrl;
 
   try {
     if (!databaseManager.isConfigured()) {
       console.warn("[setup] No database provider configured");
-      return { isComplete: false, needsAppUrl: false, needsDatabase: true, needsAdmin: true };
+      return { isComplete: false, needsAppUrl, needsDatabase: true, needsAdmin: true };
     }
 
     const service = databaseManager.getService();
     if (!service) {
       console.warn("[setup] databaseManager.getService() returned null");
-      return { isComplete: false, needsAppUrl: false, needsDatabase: true, needsAdmin: true };
+      return { isComplete: false, needsAppUrl, needsDatabase: true, needsAdmin: true };
     }
 
     if (service.query) {
@@ -34,7 +31,7 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       if (!adminExists) {
         return {
           isComplete: false,
-          needsAppUrl: false,
+          needsAppUrl,
           needsDatabase: false,
           needsAdmin: true,
           currentProvider: databaseManager.getConfig()?.provider,
@@ -42,8 +39,8 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       }
 
       return {
-        isComplete: true,
-        needsAppUrl: false,
+        isComplete: !needsAppUrl,
+        needsAppUrl,
         needsDatabase: false,
         needsAdmin: false,
         currentProvider: databaseManager.getConfig()?.provider,
@@ -52,8 +49,8 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
 
     // Provider doesn't support raw SQL (Firebase/Cosmos) — assume setup complete
     return {
-      isComplete: true,
-      needsAppUrl: false,
+      isComplete: !needsAppUrl,
+      needsAppUrl,
       needsDatabase: false,
       needsAdmin: false,
       currentProvider: databaseManager.getConfig()?.provider,
@@ -69,8 +66,8 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
         error,
       );
       return {
-        isComplete: true,
-        needsAppUrl: false,
+        isComplete: !needsAppUrl,
+        needsAppUrl,
         needsDatabase: false,
         needsAdmin: false,
         currentProvider: databaseManager.getConfig()?.provider,
@@ -80,6 +77,6 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       "[setup] checkSetupStatus failed and DB is not configured:",
       error,
     );
-    return { isComplete: false, needsAppUrl: false, needsDatabase: true, needsAdmin: true };
+    return { isComplete: false, needsAppUrl, needsDatabase: true, needsAdmin: true };
   }
 }

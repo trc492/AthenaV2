@@ -14,7 +14,26 @@ import {
   ScheduleAssignmentChange,
   ScheduleAssignmentScope,
   ScheduleAssignmentRecord,
+  PicklistRow,
+  PicklistEntryRow,
+  PicklistNoteRow,
 } from "@/lib/types";
+
+import type { config as MssqlConfig } from "mssql";
+
+import {
+  getDriverErrorNumber,
+  getErrorMessage,
+  parseStringArray,
+} from "./row-parsing";
+import {
+  toCustomEvent,
+  toMatchEntry,
+  toPicklist,
+  toPicklistEntry,
+  toPicklistNote,
+  toPitEntry,
+} from "./row-mappers";
 
 export class AzureSqlDatabaseService implements DatabaseService {
   private pool: import("mssql").ConnectionPool | null = null;
@@ -37,13 +56,10 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
 
     const mssql = await import("mssql");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let config: any;
+    let config: MssqlConfig | string;
 
     if (this.config.connectionString) {
-      config = {
-        connectionString: this.config.connectionString,
-      };
+      config = this.config.connectionString;
     } else if (this.config.useManagedIdentity) {
       // Use managed identity authentication
       const { DefaultAzureCredential } = await import("@azure/identity");
@@ -119,7 +135,7 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const request = pool.request();
 
     for (const [name, value] of Object.entries(params)) {
-      request.input(name, value as any);
+      request.input(name, value);
     }
 
     const result = await request.query(sql);
@@ -523,9 +539,12 @@ export class AzureSqlDatabaseService implements DatabaseService {
         `);
 
       return result.recordset[0].id;
-    } catch (error: any) {
+    } catch (error) {
       // Check for unique constraint violation (SQL Server error code 2627)
-      if (error.number === 2627 || error.message?.includes("uq_pit_entry")) {
+      if (
+        getDriverErrorNumber(error) === 2627 ||
+        getErrorMessage(error).includes("uq_pit_entry")
+      ) {
         throw new Error(
           `Duplicate pit entry: Team ${entry.teamNumber} already has a pit scouting entry for this event`,
         );
@@ -557,29 +576,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
       );
     }
 
-    const result = await request.query(query);
+    const result = await request.query<PitEntryRow>(query);
 
     if (result.recordset.length === 0) {
       return undefined;
     }
 
-    const row = result.recordset[0] as PitEntryRow;
-    return {
-      id: row.id,
-      teamNumber: row.teamNumber,
-      year: row.year,
-      competitionType: (row.competitionType || "FRC") as CompetitionType,
-      driveTrain: row.driveTrain as "Swerve" | "Mecanum" | "Tank" | "Other",
-      weight: row.weight !== null ? row.weight : undefined,
-      length: row.length !== null ? row.length : undefined,
-      width: row.width !== null ? row.width : undefined,
-      eventName: row.eventName || undefined,
-      eventCode: row.eventCode || undefined,
-      userId: row.userId || undefined,
-      gameSpecificData: JSON.parse(row.gameSpecificData),
-      autoDrawing: row.autoDrawing || undefined,
-      notes: row.notes || undefined,
-    };
+    return toPitEntry(result.recordset[0]);
   }
 
   async getAllPitEntries(
@@ -616,31 +619,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
       query += " WHERE " + conditions.join(" AND ");
     }
 
-    const result = await request.query(query);
+    const result = await request.query<PitEntryRow>(query);
 
-    return result.recordset.map((row: PitEntryRow) => {
-      const pitRow = row as unknown as PitEntryRow;
-      return {
-        id: pitRow.id,
-        teamNumber: pitRow.teamNumber,
-        year: pitRow.year,
-        competitionType: (pitRow.competitionType || "FRC") as CompetitionType,
-        driveTrain: pitRow.driveTrain as
-          | "Swerve"
-          | "Mecanum"
-          | "Tank"
-          | "Other",
-        weight: pitRow.weight !== null ? pitRow.weight : undefined,
-        length: pitRow.length !== null ? pitRow.length : undefined,
-        width: pitRow.width !== null ? pitRow.width : undefined,
-        eventName: pitRow.eventName || undefined,
-        eventCode: pitRow.eventCode || undefined,
-        userId: pitRow.userId || undefined,
-        gameSpecificData: JSON.parse(pitRow.gameSpecificData),
-        autoDrawing: pitRow.autoDrawing || undefined,
-        notes: pitRow.notes || undefined,
-      };
-    });
+    return result.recordset.map(toPitEntry);
   }
 
   async updatePitEntry(id: number, updates: Partial<PitEntry>): Promise<void> {
@@ -762,9 +743,12 @@ export class AzureSqlDatabaseService implements DatabaseService {
         `);
 
       return result.recordset[0].id;
-    } catch (error: any) {
+    } catch (error) {
       // Check for unique constraint violation (SQL Server error code 2627)
-      if (error.number === 2627 || error.message?.includes("uq_match_entry")) {
+      if (
+        getDriverErrorNumber(error) === 2627 ||
+        getErrorMessage(error).includes("uq_match_entry")
+      ) {
         throw new Error(
           `Duplicate match entry: Team ${entry.teamNumber} already has an entry for match ${entry.matchNumber} at this event`,
         );
@@ -797,26 +781,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
       );
     }
 
-    const result = await request.query(query);
+    const result = await request.query<MatchEntryRow>(query);
 
-    return result.recordset.map((row: MatchEntryRow) => {
-      const matchRow = row as unknown as MatchEntryRow;
-      return {
-        id: matchRow.id,
-        matchNumber: matchRow.matchNumber,
-        teamNumber: matchRow.teamNumber,
-        year: matchRow.year,
-        competitionType: (matchRow.competitionType || "FRC") as CompetitionType,
-        alliance: matchRow.alliance as "red" | "blue",
-        alliancePosition: matchRow.alliancePosition || undefined,
-        eventName: matchRow.eventName || undefined,
-        eventCode: matchRow.eventCode || undefined,
-        userId: matchRow.userId || undefined,
-        gameSpecificData: JSON.parse(matchRow.gameSpecificData),
-        notes: matchRow.notes,
-        timestamp: matchRow.timestamp,
-      };
-    });
+    return result.recordset.map(toMatchEntry);
   }
 
   async getAllMatchEntries(
@@ -853,26 +820,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
       query += " WHERE " + conditions.join(" AND ");
     }
 
-    const result = await request.query(query);
-    
-    return result.recordset.map((row: MatchEntryRow) => {
-      const matchRow = row as unknown as MatchEntryRow;
-      return {
-        id: matchRow.id,
-        matchNumber: matchRow.matchNumber,
-        teamNumber: matchRow.teamNumber,
-        year: matchRow.year,
-        competitionType: (matchRow.competitionType || "FRC") as CompetitionType,
-        alliance: matchRow.alliance as "red" | "blue",
-        alliancePosition: matchRow.alliancePosition || undefined,
-        eventName: matchRow.eventName || undefined,
-        eventCode: matchRow.eventCode || undefined,
-        userId: matchRow.userId || undefined,
-        gameSpecificData: JSON.parse(matchRow.gameSpecificData),
-        notes: matchRow.notes,
-        timestamp: matchRow.timestamp,
-      };
-    });
+    const result = await request.query<MatchEntryRow>(query);
+
+    return result.recordset.map(toMatchEntry);
   }
 
   async updateMatchEntry(
@@ -1012,25 +962,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
       );
     }
 
-    const result = await request.query(query);
+    const result = await request.query<CustomEventRow>(query);
 
     if (result.recordset.length === 0) {
       return undefined;
     }
 
-    const row: CustomEventRow = result.recordset[0];
-    return {
-      id: row.id,
-      eventCode: row.eventCode,
-      name: row.name,
-      date: row.date,
-      endDate: row.endDate || undefined,
-      matchCount: row.matchCount,
-      location: row.location || undefined,
-      region: row.region || undefined,
-      year: row.year,
-      competitionType: (row.competitionType || "FRC") as CompetitionType,
-    };
+    return toCustomEvent(result.recordset[0]);
   }
 
   async getAllCustomEvents(
@@ -1059,20 +997,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
 
     query += " ORDER BY date DESC";
 
-    const result = await request.query(query);
+    const result = await request.query<CustomEventRow>(query);
 
-    return result.recordset.map((row: CustomEventRow) => ({
-      id: row.id,
-      eventCode: row.eventCode,
-      name: row.name,
-      date: row.date,
-      endDate: row.endDate || undefined,
-      matchCount: row.matchCount,
-      location: row.location || undefined,
-      region: row.region || undefined,
-      year: row.year,
-      competitionType: (row.competitionType || "FRC") as CompetitionType,
-    }));
+    return result.recordset.map(toCustomEvent);
   }
 
   async updateCustomEvent(
@@ -1201,15 +1128,14 @@ export class AzureSqlDatabaseService implements DatabaseService {
   ): Promise<number> {
     const pool = await this.getPool();
     const mssql = await import("mssql");
-    const p = picklist as any;
     const result = await pool
       .request()
-      .input("eventCode", mssql.NVarChar, p.eventCode)
-      .input("year", mssql.Int, p.year)
-      .input("competitionType", mssql.NVarChar, p.competitionType)
-      .input("picklistType", mssql.NVarChar, p.picklistType || "main")
-      .input("name", mssql.NVarChar, p.name || null)
-      .input("createdBy", mssql.NVarChar, p.createdBy || null).query(`
+      .input("eventCode", mssql.NVarChar, picklist.eventCode)
+      .input("year", mssql.Int, picklist.year)
+      .input("competitionType", mssql.NVarChar, picklist.competitionType)
+      .input("picklistType", mssql.NVarChar, picklist.picklistType || "main")
+      .input("name", mssql.NVarChar, picklist.name ?? null)
+      .input("createdBy", mssql.NVarChar, picklist.createdBy ?? null).query(`
         INSERT INTO picklists (eventCode, year, competitionType, picklistType, name, createdBy)
         OUTPUT INSERTED.id
         VALUES (@eventCode, @year, @competitionType, @picklistType, @name, @createdBy)
@@ -1224,21 +1150,10 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const result = await pool
       .request()
       .input("id", mssql.Int, id)
-      .query("SELECT * FROM picklists WHERE id = @id");
+      .query<PicklistRow>("SELECT * FROM picklists WHERE id = @id");
 
     if (result.recordset.length === 0) return undefined;
-    const row: any = result.recordset[0];
-    return {
-      id: row.id,
-      eventCode: row.eventCode,
-      year: row.year,
-      competitionType: (row.competitionType || "FRC") as CompetitionType,
-      picklistType: row.picklistType,
-      name: row.name || undefined,
-      createdBy: row.createdBy || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    } as unknown as Picklist;
+    return toPicklist(result.recordset[0]);
   }
 
   async getPicklistByEvent(
@@ -1272,20 +1187,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
 
     query += " ORDER BY id ASC";
 
-    const result = await request.query(query);
+    const result = await request.query<PicklistRow>(query);
     if (result.recordset.length === 0) return undefined;
-    const row: any = result.recordset[0];
-    return {
-      id: row.id,
-      eventCode: row.eventCode,
-      year: row.year,
-      competitionType: (row.competitionType || "FRC") as CompetitionType,
-      picklistType: row.picklistType,
-      name: row.name || undefined,
-      createdBy: row.createdBy || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    } as unknown as Picklist;
+    return toPicklist(result.recordset[0]);
   }
 
   async getPicklistsByEvent(
@@ -1312,21 +1216,8 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
 
     query += " ORDER BY picklistType, id";
-    const result = await request.query(query);
-    return result.recordset.map(
-      (row: any) =>
-        ({
-          id: row.id,
-          eventCode: row.eventCode,
-          year: row.year,
-          competitionType: (row.competitionType || "FRC") as CompetitionType,
-          picklistType: row.picklistType,
-          name: row.name || undefined,
-          createdBy: row.createdBy || undefined,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        }) as unknown as Picklist,
-    );
+    const result = await request.query<PicklistRow>(query);
+    return result.recordset.map(toPicklist);
   }
 
   async updatePicklist(id: number, updates: Partial<Picklist>): Promise<void> {
@@ -1335,14 +1226,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const setParts: string[] = [];
     const request = pool.request().input("id", mssql.Int, id);
 
-    const u = updates as any;
-    if (u.name !== undefined) {
+    if (updates.name !== undefined) {
       setParts.push("name = @name");
-      request.input("name", mssql.NVarChar, u.name);
+      request.input("name", mssql.NVarChar, updates.name);
     }
-    if (u.picklistType !== undefined) {
+    if (updates.picklistType !== undefined) {
       setParts.push("picklistType = @picklistType");
-      request.input("picklistType", mssql.NVarChar, u.picklistType);
+      request.input("picklistType", mssql.NVarChar, updates.picklistType);
     }
 
     if (setParts.length === 0) return;
@@ -1367,14 +1257,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
   ): Promise<number> {
     const pool = await this.getPool();
     const mssql = await import("mssql");
-    const e = entry as any;
     const result = await pool
       .request()
-      .input("picklistId", mssql.Int, e.picklistId)
-      .input("teamNumber", mssql.Int, e.teamNumber)
-      .input("rank", mssql.Int, e.rank)
-      .input("source", mssql.NVarChar, e.source || null)
-      .input("notes", mssql.NVarChar, e.notes || null).query(`
+      .input("picklistId", mssql.Int, entry.picklistId)
+      .input("teamNumber", mssql.Int, entry.teamNumber)
+      .input("rank", mssql.Int, entry.rank)
+      .input("source", mssql.NVarChar, entry.source ?? null)
+      .input("notes", mssql.NVarChar, entry.notes ?? null).query(`
         INSERT INTO picklistEntries (picklistId, teamNumber, rank, source, notes)
         OUTPUT INSERTED.id
         VALUES (@picklistId, @teamNumber, @rank, @source, @notes)
@@ -1389,19 +1278,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const result = await pool
       .request()
       .input("id", mssql.Int, id)
-      .query("SELECT * FROM picklistEntries WHERE id = @id");
+      .query<PicklistEntryRow>("SELECT * FROM picklistEntries WHERE id = @id");
     if (result.recordset.length === 0) return undefined;
-    const row: any = result.recordset[0];
-    return {
-      id: row.id,
-      picklistId: row.picklistId,
-      teamNumber: row.teamNumber,
-      rank: row.rank,
-      source: row.source || undefined,
-      notes: row.notes || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    } as unknown as PicklistEntry;
+    return toPicklistEntry(result.recordset[0]);
   }
 
   async getPicklistEntries(picklistId: number): Promise<PicklistEntry[]> {
@@ -1410,22 +1289,10 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const result = await pool
       .request()
       .input("picklistId", mssql.Int, picklistId)
-      .query(
+      .query<PicklistEntryRow>(
         "SELECT * FROM picklistEntries WHERE picklistId = @picklistId ORDER BY rank",
       );
-    return result.recordset.map(
-      (row: any) =>
-        ({
-          id: row.id,
-          picklistId: row.picklistId,
-          teamNumber: row.teamNumber,
-          rank: row.rank,
-          source: row.source || undefined,
-          notes: row.notes || undefined,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        }) as unknown as PicklistEntry,
-    );
+    return result.recordset.map(toPicklistEntry);
   }
 
   async updatePicklistEntry(
@@ -1437,18 +1304,17 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const setParts: string[] = [];
     const request = pool.request().input("id", mssql.Int, id);
 
-    const u = updates as any;
-    if (u.rank !== undefined) {
+    if (updates.rank !== undefined) {
       setParts.push("rank = @rank");
-      request.input("rank", mssql.Int, u.rank);
+      request.input("rank", mssql.Int, updates.rank);
     }
-    if (u.notes !== undefined) {
+    if (updates.notes !== undefined) {
       setParts.push("notes = @notes");
-      request.input("notes", mssql.NVarChar, u.notes);
+      request.input("notes", mssql.NVarChar, updates.notes);
     }
-    if (u.source !== undefined) {
+    if (updates.source !== undefined) {
       setParts.push("source = @source");
-      request.input("source", mssql.NVarChar, u.source);
+      request.input("source", mssql.NVarChar, updates.source);
     }
 
     if (setParts.length === 0) return;
@@ -1548,12 +1414,11 @@ export class AzureSqlDatabaseService implements DatabaseService {
   ): Promise<number> {
     const pool = await this.getPool();
     const mssql = await import("mssql");
-    const n = note as any;
     const result = await pool
       .request()
-      .input("picklistId", mssql.Int, n.picklistId)
-      .input("teamNumber", mssql.Int, n.teamNumber)
-      .input("note", mssql.NVarChar, n.note || n.content || null).query(`
+      .input("picklistId", mssql.Int, note.picklistId)
+      .input("teamNumber", mssql.Int, note.teamNumber)
+      .input("note", mssql.NVarChar, note.note || null).query(`
         INSERT INTO picklistNotes (picklistId, teamNumber, note)
         OUTPUT INSERTED.id
         VALUES (@picklistId, @teamNumber, @note)
@@ -1568,17 +1433,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const result = await pool
       .request()
       .input("id", mssql.Int, id)
-      .query("SELECT * FROM picklistNotes WHERE id = @id");
+      .query<PicklistNoteRow>("SELECT * FROM picklistNotes WHERE id = @id");
     if (result.recordset.length === 0) return undefined;
-    const row: any = result.recordset[0];
-    return {
-      id: row.id,
-      picklistId: row.picklistId,
-      teamNumber: row.teamNumber,
-      note: row.note || "",
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    } as unknown as PicklistNote;
+    return toPicklistNote(result.recordset[0]);
   }
 
   async getPicklistNotes(
@@ -1595,18 +1452,8 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
     query += " ORDER BY created_at DESC";
 
-    const result = await request.query(query);
-    return result.recordset.map(
-      (row: any) =>
-        ({
-          id: row.id,
-          picklistId: row.picklistId,
-          teamNumber: row.teamNumber,
-          note: row.note || "",
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        }) as unknown as PicklistNote,
-    );
+    const result = await request.query<PicklistNoteRow>(query);
+    return result.recordset.map(toPicklistNote);
   }
 
   async updatePicklistNote(
@@ -1618,10 +1465,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const setParts: string[] = [];
     const request = pool.request().input("id", mssql.Int, id);
 
-    const u = updates as any;
-    if (u.note !== undefined || u.content !== undefined) {
+    if (updates.note !== undefined) {
       setParts.push("note = @note");
-      request.input("note", mssql.NVarChar, u.note ?? u.content);
+      request.input("note", mssql.NVarChar, updates.note);
     }
 
     if (setParts.length === 0) return;
@@ -1668,20 +1514,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const result = await pool
       .request()
       .input("userId", mssql.NVarChar, userId)
-      .query("SELECT preferredPartners FROM users WHERE id = @userId");
+      .query<{ preferredPartners: string | null }>(
+        "SELECT preferredPartners FROM users WHERE id = @userId",
+      );
 
-    if (
-      result.recordset.length === 0 ||
-      !result.recordset[0].preferredPartners
-    ) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(result.recordset[0].preferredPartners);
-    } catch {
-      return [];
-    }
+    return result.recordset.length === 0
+      ? []
+      : parseStringArray(result.recordset[0].preferredPartners);
   }
 
   // Export/Import methods

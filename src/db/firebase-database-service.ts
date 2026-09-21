@@ -1,10 +1,26 @@
 import { DatabaseService } from "@/lib/types";
 import type { PitEntry, MatchEntry, CustomEvent } from "@/lib/types";
 import type { CompetitionType } from "@/lib/types";
+import type { Picklist, PicklistEntry, PicklistNote } from "@/lib/types";
+import type { AppOptions, ServiceAccount } from "firebase-admin";
+import type {
+  CollectionReference,
+  DocumentData,
+  Firestore,
+  Query,
+} from "firebase-admin/firestore";
+
+/**
+ * Firestore documents carry the numeric domain id in `numericId`; the domain
+ * entities expose it as `id`.
+ */
+function withNumericId<T>(data: DocumentData): T {
+  return { ...data, id: data.numericId } as T;
+}
+
 // Minimal Firebase Admin-backed database service. Uses Firestore collections.
 export class FirebaseDatabaseService implements DatabaseService {
-  private admin: any;
-  private db: any;
+  private db: Firestore | null = null;
 
   constructor(
     private config?: {
@@ -16,27 +32,26 @@ export class FirebaseDatabaseService implements DatabaseService {
     try {
       // initialize firebase admin if not already
       // use dynamic import so application doesn't require firebase-admin in all environments
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const admin = require("firebase-admin");
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const admin = require("firebase-admin") as typeof import("firebase-admin");
       if (!admin.apps || admin.apps.length === 0) {
-        const opts: any = {};
+        const opts: AppOptions = {};
         if (this.config?.serviceAccountJson)
           opts.credential = admin.credential.cert(
-            this.config.serviceAccountJson,
+            this.config.serviceAccountJson as ServiceAccount,
           );
         else if (this.config?.serviceAccountPath)
           opts.credential = admin.credential.cert(
-            require(this.config.serviceAccountPath),
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            require(this.config.serviceAccountPath) as ServiceAccount,
           );
         if (this.config?.databaseURL)
           opts.databaseURL = this.config.databaseURL;
         admin.initializeApp(opts);
       }
-      this.admin = admin;
       this.db = admin.firestore();
     } catch (err) {
       // If firebase-admin isn't installed or initialization fails, leave uninitialized and throw on use
-      this.admin = null;
       this.db = null;
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
@@ -46,16 +61,16 @@ export class FirebaseDatabaseService implements DatabaseService {
     }
   }
 
-  private ensure() {
+  private getDb(): Firestore {
     if (!this.db)
       throw new Error(
         "Firebase not initialized. Install and configure firebase-admin or provide service account.",
       );
+    return this.db;
   }
 
-  private collection(name: string) {
-    this.ensure();
-    return this.db.collection(name);
+  private collection(name: string): CollectionReference {
+    return this.getDb().collection(name);
   }
 
   async addPitEntry(entry: Omit<PitEntry, "id">): Promise<number> {
@@ -75,8 +90,7 @@ export class FirebaseDatabaseService implements DatabaseService {
     if (competitionType) q = q.where("competitionType", "==", competitionType);
     const snap = await q.limit(1).get();
     if (snap.empty) return undefined;
-    const data = snap.docs[0].data();
-    return { ...(data as PitEntry), id: data.numericId } as PitEntry;
+    return withNumericId<PitEntry>(snap.docs[0].data());
   }
 
   async getAllPitEntries(
@@ -85,16 +99,13 @@ export class FirebaseDatabaseService implements DatabaseService {
     competitionType?: CompetitionType,
   ): Promise<PitEntry[]> {
     const ref = this.collection("pitEntries");
-    let q: any = ref;
+    let q: Query = ref;
     if (year !== undefined) q = q.where("year", "==", year);
     if (eventCode !== undefined) q = q.where("eventCode", "==", eventCode);
     if (competitionType !== undefined)
       q = q.where("competitionType", "==", competitionType);
     const snap = await q.get();
-    return snap.docs.map((d: any) => {
-      const data = d.data();
-      return { ...data, id: data.numericId } as PitEntry;
-    });
+    return snap.docs.map((d) => withNumericId<PitEntry>(d.data()));
   }
 
   async updatePitEntry(id: number, updates: Partial<PitEntry>): Promise<void> {
@@ -107,8 +118,8 @@ export class FirebaseDatabaseService implements DatabaseService {
   async deletePitEntry(id: number): Promise<void> {
     const ref = this.collection("pitEntries");
     const snap = await ref.where("numericId", "==", id).get();
-    const batch = this.admin.firestore().batch();
-    snap.docs.forEach((d: any) => batch.delete(d.ref));
+    const batch = this.getDb().batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
   }
 
@@ -138,15 +149,12 @@ export class FirebaseDatabaseService implements DatabaseService {
     competitionType?: CompetitionType,
   ): Promise<MatchEntry[]> {
     const ref = this.collection("matchEntries");
-    let q: any = ref.where("teamNumber", "==", teamNumber);
+    let q: Query = ref.where("teamNumber", "==", teamNumber);
     if (year !== undefined) q = q.where("year", "==", year);
     if (competitionType !== undefined)
       q = q.where("competitionType", "==", competitionType);
     const snap = await q.get();
-    return snap.docs.map((d: any) => {
-      const data = d.data();
-      return { ...data, id: data.numericId } as MatchEntry;
-    });
+    return snap.docs.map((d) => withNumericId<MatchEntry>(d.data()));
   }
 
   async getAllMatchEntries(
@@ -155,16 +163,13 @@ export class FirebaseDatabaseService implements DatabaseService {
     competitionType?: CompetitionType,
   ): Promise<MatchEntry[]> {
     const ref = this.collection("matchEntries");
-    let q: any = ref;
+    let q: Query = ref;
     if (year !== undefined) q = q.where("year", "==", year);
     if (eventCode !== undefined) q = q.where("eventCode", "==", eventCode);
     if (competitionType !== undefined)
       q = q.where("competitionType", "==", competitionType);
     const snap = await q.get();
-    return snap.docs.map((d: any) => {
-      const data = d.data();
-      return { ...data, id: data.numericId } as MatchEntry;
-    });
+    return snap.docs.map((d) => withNumericId<MatchEntry>(d.data()));
   }
 
   async updateMatchEntry(
@@ -180,8 +185,8 @@ export class FirebaseDatabaseService implements DatabaseService {
   async deleteMatchEntry(id: number): Promise<void> {
     const ref = this.collection("matchEntries");
     const snap = await ref.where("numericId", "==", id).get();
-    const batch = this.admin.firestore().batch();
-    snap.docs.forEach((d: any) => batch.delete(d.ref));
+    const batch = this.getDb().batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
   }
 
@@ -212,7 +217,7 @@ export class FirebaseDatabaseService implements DatabaseService {
     competitionType?: CompetitionType,
   ): Promise<CustomEvent | undefined> {
     const ref = this.collection("customEvents");
-    let q: any = ref.where("eventCode", "==", eventCode);
+    let q: Query = ref.where("eventCode", "==", eventCode);
     if (competitionType) q = q.where("competitionType", "==", competitionType);
     const snap = await q.limit(1).get();
     if (snap.empty) return undefined;
@@ -224,13 +229,13 @@ export class FirebaseDatabaseService implements DatabaseService {
     competitionType?: CompetitionType,
   ): Promise<CustomEvent[]> {
     const ref = this.collection("customEvents");
-    let q: any = ref;
+    let q: Query = ref;
     if (year !== undefined) q = q.where("year", "==", year);
     if (competitionType !== undefined)
       q = q.where("competitionType", "==", competitionType);
     const snap = await q.get();
     return snap.docs.map(
-      (d: any) => ({ ...d.data(), id: undefined }) as CustomEvent,
+      (d) => ({ ...d.data(), id: undefined }) as CustomEvent,
     );
   }
 
@@ -247,8 +252,8 @@ export class FirebaseDatabaseService implements DatabaseService {
   async deleteCustomEvent(eventCode: string): Promise<void> {
     const ref = this.collection("customEvents");
     const snap = await ref.where("eventCode", "==", eventCode).get();
-    const batch = this.admin.firestore().batch();
-    snap.docs.forEach((d: any) => batch.delete(d.ref));
+    const batch = this.getDb().batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
   }
 
@@ -269,50 +274,52 @@ export class FirebaseDatabaseService implements DatabaseService {
   }
 
   // picklist methods
-  async addPicklist(picklist: any): Promise<number> {
+  async addPicklist(
+    picklist: Omit<Picklist, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
     const ref = this.collection("picklists");
     const numericId = Date.now();
     await ref.add({ ...picklist, numericId, created_at: new Date() });
     return numericId;
   }
 
-  async getPicklist(id: number): Promise<any | undefined> {
+  async getPicklist(id: number): Promise<Picklist | undefined> {
     const ref = this.collection("picklists");
     const snap = await ref.where("numericId", "==", id).limit(1).get();
     if (snap.empty) return undefined;
-    return snap.docs[0].data();
+    return snap.docs[0].data() as Picklist;
   }
 
   async getPicklistByEvent(
     eventCode: string,
     year: number,
-    competitionType: string,
+    competitionType: CompetitionType,
     picklistType?: string,
-  ): Promise<any | undefined> {
-    let q: any = this.collection("picklists")
+  ): Promise<Picklist | undefined> {
+    let q: Query = this.collection("picklists")
       .where("eventCode", "==", eventCode)
       .where("year", "==", year)
       .where("competitionType", "==", competitionType);
     if (picklistType) q = q.where("picklistType", "==", picklistType);
     const snap = await q.limit(1).get();
     if (snap.empty) return undefined;
-    return snap.docs[0].data();
+    return snap.docs[0].data() as Picklist;
   }
 
   async getPicklistsByEvent(
     eventCode: string,
     year: number,
-    competitionType: string,
-  ): Promise<any[]> {
+    competitionType: CompetitionType,
+  ): Promise<Picklist[]> {
     const snap = await this.collection("picklists")
       .where("eventCode", "==", eventCode)
       .where("year", "==", year)
       .where("competitionType", "==", competitionType)
       .get();
-    return snap.docs.map((d: any) => d.data());
+    return snap.docs.map((d) => d.data() as Picklist);
   }
 
-  async updatePicklist(id: number, updates: Partial<any>): Promise<void> {
+  async updatePicklist(id: number, updates: Partial<Picklist>): Promise<void> {
     const ref = this.collection("picklists");
     const snap = await ref.where("numericId", "==", id).limit(1).get();
     if (snap.empty) return;
@@ -322,34 +329,39 @@ export class FirebaseDatabaseService implements DatabaseService {
   async deletePicklist(id: number): Promise<void> {
     const ref = this.collection("picklists");
     const snap = await ref.where("numericId", "==", id).get();
-    const batch = this.admin.firestore().batch();
-    snap.docs.forEach((d: any) => batch.delete(d.ref));
+    const batch = this.getDb().batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
   }
 
-  async addPicklistEntry(entry: any): Promise<number> {
+  async addPicklistEntry(
+    entry: Omit<PicklistEntry, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
     const ref = this.collection("picklistEntries");
     const numericId = Date.now();
     await ref.add({ ...entry, numericId, created_at: new Date() });
     return numericId;
   }
 
-  async getPicklistEntry(id: number): Promise<any | undefined> {
+  async getPicklistEntry(id: number): Promise<PicklistEntry | undefined> {
     const ref = this.collection("picklistEntries");
     const snap = await ref.where("numericId", "==", id).limit(1).get();
     if (snap.empty) return undefined;
-    return snap.docs[0].data();
+    return snap.docs[0].data() as PicklistEntry;
   }
 
-  async getPicklistEntries(picklistId: number): Promise<any[]> {
+  async getPicklistEntries(picklistId: number): Promise<PicklistEntry[]> {
     const snap = await this.collection("picklistEntries")
       .where("picklistId", "==", picklistId)
       .orderBy("rank", "asc")
       .get();
-    return snap.docs.map((d: any) => d.data());
+    return snap.docs.map((d) => d.data() as PicklistEntry);
   }
 
-  async updatePicklistEntry(id: number, updates: Partial<any>): Promise<void> {
+  async updatePicklistEntry(
+    id: number,
+    updates: Partial<PicklistEntry>,
+  ): Promise<void> {
     const ref = this.collection("picklistEntries");
     const snap = await ref.where("numericId", "==", id).limit(1).get();
     if (snap.empty) return;
@@ -359,8 +371,8 @@ export class FirebaseDatabaseService implements DatabaseService {
   async deletePicklistEntry(id: number): Promise<void> {
     const ref = this.collection("picklistEntries");
     const snap = await ref.where("numericId", "==", id).get();
-    const batch = this.admin.firestore().batch();
-    snap.docs.forEach((d: any) => batch.delete(d.ref));
+    const batch = this.getDb().batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
   }
 
@@ -383,7 +395,7 @@ export class FirebaseDatabaseService implements DatabaseService {
     picklistId: number,
     entries: Array<{ teamNumber: number; rank: number }>,
   ): Promise<void> {
-    const batch = this.admin.firestore().batch();
+    const batch = this.getDb().batch();
     const ref = this.collection("picklistEntries");
     for (const e of entries) {
       const snap = await ref
@@ -401,35 +413,40 @@ export class FirebaseDatabaseService implements DatabaseService {
     await batch.commit();
   }
 
-  async addPicklistNote(note: any): Promise<number> {
+  async addPicklistNote(
+    note: Omit<PicklistNote, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
     const ref = this.collection("picklistNotes");
     const numericId = Date.now();
     await ref.add({ ...note, numericId, created_at: new Date() });
     return numericId;
   }
 
-  async getPicklistNote(id: number): Promise<any | undefined> {
+  async getPicklistNote(id: number): Promise<PicklistNote | undefined> {
     const ref = this.collection("picklistNotes");
     const snap = await ref.where("numericId", "==", id).limit(1).get();
     if (snap.empty) return undefined;
-    return snap.docs[0].data();
+    return snap.docs[0].data() as PicklistNote;
   }
 
   async getPicklistNotes(
     picklistId: number,
     teamNumber?: number,
-  ): Promise<any[]> {
-    let q: any = this.collection("picklistNotes").where(
+  ): Promise<PicklistNote[]> {
+    let q: Query = this.collection("picklistNotes").where(
       "picklistId",
       "==",
       picklistId,
     );
     if (teamNumber !== undefined) q = q.where("teamNumber", "==", teamNumber);
     const snap = await q.get();
-    return snap.docs.map((d: any) => d.data());
+    return snap.docs.map((d) => d.data() as PicklistNote);
   }
 
-  async updatePicklistNote(id: number, updates: Partial<any>): Promise<void> {
+  async updatePicklistNote(
+    id: number,
+    updates: Partial<PicklistNote>,
+  ): Promise<void> {
     const ref = this.collection("picklistNotes");
     const snap = await ref.where("numericId", "==", id).limit(1).get();
     if (snap.empty) return;
@@ -439,8 +456,8 @@ export class FirebaseDatabaseService implements DatabaseService {
   async deletePicklistNote(id: number): Promise<void> {
     const ref = this.collection("picklistNotes");
     const snap = await ref.where("numericId", "==", id).get();
-    const batch = this.admin.firestore().batch();
-    snap.docs.forEach((d: any) => batch.delete(d.ref));
+    const batch = this.getDb().batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
   }
 
@@ -450,8 +467,10 @@ export class FirebaseDatabaseService implements DatabaseService {
   }> {
     const pitSnap = await this.collection("pitEntries").get();
     const matchSnap = await this.collection("matchEntries").get();
-    const pitEntries = pitSnap.docs.map((d: any) => d.data() as PitEntry);
-    const matchEntries = matchSnap.docs.map((d: any) => d.data() as MatchEntry);
+    const pitEntries = pitSnap.docs.map((d) => withNumericId<PitEntry>(d.data()));
+    const matchEntries = matchSnap.docs.map((d) =>
+      withNumericId<MatchEntry>(d.data()),
+    );
     return { pitEntries, matchEntries };
   }
 
@@ -459,7 +478,7 @@ export class FirebaseDatabaseService implements DatabaseService {
     pitEntries?: PitEntry[];
     matchEntries?: MatchEntry[];
   }): Promise<void> {
-    const batch = this.admin.firestore().batch();
+    const batch = this.getDb().batch();
     const pitEntries = data.pitEntries || [];
     const matchEntries = data.matchEntries || [];
     if (pitEntries.length > 0) {
@@ -490,8 +509,8 @@ export class FirebaseDatabaseService implements DatabaseService {
     ];
     for (const name of collections) {
       const snap = await this.collection(name).get();
-      const batch = this.admin.firestore().batch();
-      snap.docs.forEach((d: any) => batch.delete(d.ref));
+      const batch = this.getDb().batch();
+      snap.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
     }
   }

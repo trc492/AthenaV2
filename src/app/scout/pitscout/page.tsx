@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModeToggle } from "@/components/ui/light-dark-toggle";
 import { ThemeSelector } from "@/components/settings/theme-selector";
 import { DynamicPitScoutForm } from "@/components/forms/dynamic-pit-scout-form";
@@ -21,10 +22,10 @@ export default function Page() {
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/">
+              <Link href="/dashboard">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Home</span>
+                  <span className="hidden sm:inline">Overview</span>
                 </Button>
               </Link>
               <div className="h-6 w-px bg-border"></div>
@@ -55,15 +56,33 @@ export default function Page() {
         </div>
       </div>
 
-      <Suspense
-        fallback={
-          <div className="max-w-4xl mx-auto px-4 py-6 text-center">
-            Loading...
-          </div>
-        }
-      >
-        <DynamicPitScoutForm />
-      </Suspense>
+      {!selectedEvent ? (
+        <div className="mx-auto max-w-2xl px-4 py-12">
+          <Card className="border-dashed text-center">
+            <CardHeader>
+              <CardTitle>Select an event before scouting</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Pit entries must be attached to an event so the correct team list is available.
+              </p>
+              <Button asChild>
+                <Link href="/dashboard">Choose an event</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <Suspense
+          fallback={
+            <div className="max-w-4xl mx-auto px-4 py-6 text-center">
+              Loading...
+            </div>
+          }
+        >
+          <DynamicPitScoutForm />
+        </Suspense>
+      )}
     </div>
   );
 }

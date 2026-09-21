@@ -1,6 +1,13 @@
 // Utility functions for match scouting form
 
-import type { DynamicMatchData } from "@/lib/types";
+import type {
+  DynamicMatchData,
+  ScoringDefinition,
+  YearConfig,
+} from "@/lib/types";
+
+/** The input kinds the scouting form knows how to render. */
+export type ScoringFieldType = "boolean" | "select" | "number";
 
 // CSS to hide number input spinners
 export const hideSpinnersStyle = `
@@ -51,8 +58,7 @@ export const encodeStartPosition = (label: string): string =>
   label.toLowerCase().replace(/\s+/g, "-");
 
 // Function to initialize form data with all game config fields
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const initializeFormData = (gameConfig: any): DynamicMatchData => {
+export const initializeFormData = (gameConfig: YearConfig): DynamicMatchData => {
   const data: DynamicMatchData = { ...defaultData };
 
   if (!gameConfig?.scoring) return data;
@@ -125,9 +131,10 @@ export const initializeFormData = (gameConfig: any): DynamicMatchData => {
   }
 
   // Initialize fouls fields
-  if (gameConfig.scoring.fouls) {
-    Object.keys(gameConfig.scoring.fouls).forEach((key) => {
-      const fieldConfig = gameConfig.scoring.fouls[key];
+  const fouls = gameConfig.scoring.fouls;
+  if (fouls) {
+    Object.keys(fouls).forEach((key) => {
+      const fieldConfig = fouls[key];
       if (fieldConfig.type === "boolean") {
         data.fouls[key] = false;
       } else if (
@@ -180,7 +187,9 @@ export const setLastSubmittedMatch = (
 };
 
 // Determine field type based on configuration structure
-export const getFieldType = (fieldConfig: any) => {
+export const getFieldType = (
+  fieldConfig: ScoringDefinition,
+): ScoringFieldType => {
   // First check if type is explicitly defined
   if (fieldConfig.type) {
     return fieldConfig.type;

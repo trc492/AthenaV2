@@ -53,9 +53,7 @@ export function AccountSettingsDialog({
     if (session?.user) {
       setName(session.user.name || "");
       setUsername(session.user.username || "");
-      setAvatarPreview(
-        (session.user as any).avatarUrl || (session.user as any).image || null,
-      );
+      setAvatarPreview(session.user.avatarUrl || session.user.image || null);
     }
   }, [session, open]);
 

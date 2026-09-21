@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Bell, Check, X, AlertTriangle, Smartphone } from "lucide-react";
 import { useNotifications } from "@/hooks/use-notifications";
 import { toast } from "sonner";
+import { APP_NAME } from "@/lib/app-config";
 
 export function NotificationSettings() {
   const {
@@ -66,7 +67,7 @@ export function NotificationSettings() {
   const handleTestNotification = async () => {
     const success = await showNotification({
       title: "Test Notification",
-      body: "This is a test notification from TRC Scouting!",
+      body: `This is a test notification from ${APP_NAME}!`,
       data: { url: "/dashboard" },
     });
 
@@ -135,7 +136,7 @@ export function NotificationSettings() {
               <div>
                 <Label className="font-medium">Browser Permissions</Label>
                 <p className="text-sm text-muted-foreground">
-                  Allow TRC Scouting to show notifications
+                  Allow {APP_NAME} to show notifications
                 </p>
               </div>
             </div>

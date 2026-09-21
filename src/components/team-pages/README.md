@@ -33,6 +33,7 @@ Add a `teamPageConfig` object to your year config in `config/years/{COMPETITION_
       "auto": {
         "key": "autonomous.fuel_scored",
         "label": "Avg Fuel (Auto)",
+        "format": "number",
         "subKey": "autonomous.climb",
         "subLabel": "Climb rate",
         "subFormat": "percent",
@@ -41,6 +42,7 @@ Add a `teamPageConfig` object to your year config in `config/years/{COMPETITION_
       "teleop": {
         "key": "teleop.fuel_scored",
         "label": "Avg Fuel Scored",
+        "format": "number",
         "subKey": "teleop.fuel_accuracy",
         "subLabel": "Accuracy",
         "subFormat": "percent",

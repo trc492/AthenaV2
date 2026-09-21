@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
             // Build team data from TBA rankings, merge with local scouting data
             const teamMap: Record<number, TeamPicklistData> = {};
 
-            rankingItems.forEach((item: any) => {
+            rankingItems.forEach((item) => {
               const teamNumber = parseInt(
                 String(item.team_key).replace(/^frc/i, ""),
                 10,
@@ -209,7 +209,7 @@ export async function GET(request: NextRequest) {
             });
 
             const picklistData = rankingItems.map(
-              (item: any, index: number) => {
+              (item, index: number) => {
                 const teamNumber = parseInt(
                   String(item.team_key).replace(/^frc/i, ""),
                   10,

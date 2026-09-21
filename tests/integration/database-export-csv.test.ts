@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { MockAuthSession, ServiceMock, asNextRequest } from "../helpers/test-doubles";
 
-let authSession: any = { user: { id: "user-1", role: "admin" } };
+let authSession: MockAuthSession | null = {
+  user: { id: "user-1", role: "admin" },
+};
 let permissionResult = true;
 
 vi.mock("@/lib/auth/config", () => ({
@@ -15,7 +18,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 describe("export CSV integration", () => {
-  let service: any;
+  let service: ServiceMock;
 
   beforeEach(() => {
     vi.resetModules();
@@ -53,7 +56,7 @@ describe("export CSV integration", () => {
     const req = new Request(
       "http://test/api/scouting/admin/export?format=csv&types=pit",
     );
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     const text = await res.text();
 
     expect(res.status).toBe(200);

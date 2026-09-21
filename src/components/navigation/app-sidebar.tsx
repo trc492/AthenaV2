@@ -4,19 +4,14 @@ import * as React from "react";
 import {
   LayoutDashboard,
   Database,
-  ListOrdered,
   ChartColumnIncreasing,
-  Table,
-  Home,
   Settings,
-  CalendarClock,
-  Swords,
-  UserCheck,
   DatabaseIcon,
   Users,
   KeyRound,
   FileJson,
-  Bell
+  Bell,
+  RadioTower,
 } from "lucide-react";
 
 import { NavMain } from "@/components/navigation/nav-main";
@@ -35,58 +30,49 @@ import { useSession } from "next-auth/react";
 import { useGameConfig } from "@/hooks/use-game-config";
 import { PermissionGuard } from "../auth/PermissionGuard";
 import { ROLES } from "@/lib/auth/roles";
+import { APP_LOGO } from "@/lib/app-config";
 const data = {
-  user: {
-    name: "Noah Fang",
-    username: "writerfrighter",
-    avatar: "/TRCLogo.webp",
-  },
   navMain: [
-    { title: "Home", url: "/", icon: Home },
-    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+    { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
     {
-      title: "Team List",
-      url: "/dashboard/teamlist",
-      icon: Table,
-    },
-    {
-      title: "Matchup",
-      url: "/dashboard/matchup",
-      icon: Swords,
-    },
-    {
-      title: "Scouting",
-      icon: Database,
+      title: "Competition",
+      icon: RadioTower,
       items: [
         {
           title: "Schedule",
           url: "/dashboard/schedule",
-          icon: CalendarClock,
         },
         {
-          title: "Pit Scouting",
-          url: "/dashboard/pitscouting",
+          title: "Start Pit Scouting",
+          url: "/scout/pitscout",
         },
         {
-          title: "Match Scouting",
-          url: "/dashboard/matchscouting",
+          title: "Start Match Scouting",
+          url: "/scout/matchscout",
         },
         {
-          title: "Scouter Performance",
-          url: "/dashboard/spr",
-          icon: UserCheck,
+          title: "Match Preview",
+          url: "/dashboard/matchup",
         },
       ],
     },
     {
-      title: "Analysis",
-      url: "/dashboard/analysis",
-      icon: ChartColumnIncreasing,
+      title: "Data",
+      icon: Database,
+      items: [
+        { title: "Teams", url: "/dashboard/teamlist" },
+        { title: "Pit Entries", url: "/dashboard/pitscouting" },
+        { title: "Match Entries", url: "/dashboard/matchscouting" },
+        { title: "Scouter Performance", url: "/dashboard/spr" },
+      ],
     },
     {
-      title: "Picklist",
-      url: "/dashboard/picklist",
-      icon: ListOrdered,
+      title: "Strategy",
+      icon: ChartColumnIncreasing,
+      items: [
+        { title: "Analysis", url: "/dashboard/analysis" },
+        { title: "Picklist", url: "/dashboard/picklist" },
+      ],
     },
     {
       title: "Settings",
@@ -135,12 +121,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         avatar:
           session.user.image ||
           session.user.avatarUrl ||
-          "/TRCLogo.webp",
+          APP_LOGO,
       }
     : {
         name: "Guest",
         username: "guest",
-        avatar: "/TRCLogo.webp",
+        avatar: APP_LOGO,
       };
 
   const competitionName =

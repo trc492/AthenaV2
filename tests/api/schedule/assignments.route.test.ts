@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { NextRequest } from "next/server";
+import {
+  MockAuthSession,
+  ServiceMock,
+  asNextRequest,
+} from "../../helpers/test-doubles";
 
-let authSession: any = { user: { id: "user-1", role: "admin" } };
+let authSession: MockAuthSession | null = {
+  user: { id: "user-1", role: "admin" },
+};
 let permissionResult = true;
 
 vi.mock("@/lib/auth/config", () => ({
@@ -21,8 +29,8 @@ vi.mock("mssql", () => ({
   Int: "Int",
 }));
 
-let serviceMock: any;
-let pool: any;
+let serviceMock: ServiceMock;
+let pool: { request: ReturnType<typeof vi.fn> };
 
 vi.mock("@/db/database-manager", () => ({
   databaseManager: {
@@ -60,7 +68,7 @@ describe("/api/schedule/assignments", () => {
       body: JSON.stringify({ eventCode: "EVT" }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(400);
   });
 
@@ -82,7 +90,7 @@ describe("/api/schedule/assignments", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(501);
   });
 
@@ -103,7 +111,7 @@ describe("/api/schedule/assignments", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -126,11 +134,12 @@ describe("/api/schedule/assignments", () => {
 
   it("clears assignments on delete", async () => {
     const route = await import("@/app/api/scouting/schedule/assignments/route");
+    // DELETE only reads `nextUrl`, so a minimal stand-in is enough.
     const req = {
       nextUrl: new URL(
         "http://test/api/scouting/schedule/assignments?eventCode=EVT&year=2025&competitionType=FRC",
       ),
-    } as any;
+    } as unknown as NextRequest;
 
     const res = await route.DELETE(req);
     const body = await res.json();
@@ -161,7 +170,7 @@ describe("/api/schedule/assignments", () => {
       }),
     });
 
-    expect((await route.POST(req as any)).status).toBe(400);
+    expect((await route.POST(asNextRequest(req))).status).toBe(400);
   });
 
   it("rejects permissive parseInt-style values", async () => {
@@ -181,7 +190,7 @@ describe("/api/schedule/assignments", () => {
       }),
     });
 
-    expect((await route.POST(req as any)).status).toBe(400);
+    expect((await route.POST(asNextRequest(req))).status).toBe(400);
   });
 
   it("returns 409 instead of overwriting a concurrently changed schedule", async () => {
@@ -202,6 +211,6 @@ describe("/api/schedule/assignments", () => {
       }),
     });
 
-    expect((await route.POST(req as any)).status).toBe(409);
+    expect((await route.POST(asNextRequest(req))).status).toBe(409);
   });
 });

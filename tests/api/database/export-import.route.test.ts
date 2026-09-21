@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { MockAuthSession, ServiceMock, asNextRequest } from "../../helpers/test-doubles";
 
-let authSession: any = { user: { id: "user-1", role: "admin" } };
+let authSession: MockAuthSession | null = {
+  user: { id: "user-1", role: "admin" },
+};
 let permissionResult = true;
 
 vi.mock("@/lib/auth/config", () => ({
@@ -16,7 +19,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 describe("/api/scouting/admin/export and import", () => {
-  let service: any;
+  let service: ServiceMock;
 
   beforeEach(() => {
     vi.resetModules();
@@ -63,7 +66,7 @@ describe("/api/scouting/admin/export and import", () => {
     const req = new Request(
       "http://test/api/scouting/admin/export?format=json&types=pit",
     );
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -76,7 +79,7 @@ describe("/api/scouting/admin/export and import", () => {
     const req = new Request(
       "http://test/api/scouting/admin/export?format=json&types=pit,match",
     );
-    const res = await route.GET(req as any);
+    const res = await route.GET(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -92,7 +95,7 @@ describe("/api/scouting/admin/export and import", () => {
       body: JSON.stringify({ pitEntries: [], matchEntries: [] }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -127,7 +130,7 @@ describe("/api/scouting/admin/export and import", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -190,7 +193,7 @@ describe("/api/scouting/admin/export and import", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -222,7 +225,7 @@ describe("/api/scouting/admin/export and import", () => {
       }),
     });
 
-    const res = await route.POST(req as any);
+    const res = await route.POST(asNextRequest(req));
     const body = await res.json();
 
     expect(res.status).toBe(400);

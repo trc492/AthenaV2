@@ -39,6 +39,29 @@ interface TeamEPAData {
   endgameEPA: number;
 }
 
+/** Shapes of the API responses this component reads. */
+interface RankingItemResponse {
+  team_key: string;
+  rank: number;
+}
+
+interface RankingBlockResponse {
+  rankings?: RankingItemResponse[];
+}
+
+interface PicklistTeamResponse {
+  teamNumber: number;
+  totalEPA?: number;
+  autoEPA?: number;
+  teleopEPA?: number;
+  endgameEPA?: number;
+}
+
+interface PicklistNoteResponse {
+  teamNumber: number;
+  note?: string | null;
+}
+
 interface SortableTeamItem extends ItemInterface {
   id: string;
   teamNumber: number;
@@ -203,12 +226,13 @@ export function DraggablePicklist({
           `/api/events/${encodeURIComponent(eventCode)}/rankings?${params}`,
         );
         if (response.ok) {
-          const data = await response.json();
+          const data: RankingBlockResponse | RankingBlockResponse[] =
+            await response.json();
           const qualMap = new Map<number, number>();
           // TBA returns [{ rankings: [{ team_key, rank, ... }] }]
           const rankingBlock = Array.isArray(data) ? data[0] : data;
           const rankingItems = rankingBlock?.rankings || [];
-          rankingItems.forEach((item: any) => {
+          rankingItems.forEach((item) => {
             const teamNumber = parseInt(
               String(item.team_key).replace(/^frc/i, ""),
               10,
@@ -239,10 +263,11 @@ export function DraggablePicklist({
         });
         const response = await fetch(`/api/scouting/picklist?${params}`);
         if (response.ok) {
-          const data = await response.json();
+          const data: { teams?: PicklistTeamResponse[] } =
+            await response.json();
           const epaMap = new Map<number, TeamEPAData>();
           if (data.teams && Array.isArray(data.teams)) {
-            data.teams.forEach((team: any) => {
+            data.teams.forEach((team) => {
               epaMap.set(team.teamNumber, {
                 totalEPA: team.totalEPA ?? 0,
                 autoEPA: team.autoEPA ?? 0,
@@ -277,10 +302,10 @@ export function DraggablePicklist({
             `/api/scouting/picklist/notes?picklistId=${picklistId}`,
           );
           if (res.ok) {
-            const data = await res.json();
+            const data: { notes?: PicklistNoteResponse[] } = await res.json();
             if (data.notes && Array.isArray(data.notes)) {
-              data.notes.forEach((n: any) => {
-                const content = n.note || n.content || "";
+              data.notes.forEach((n) => {
+                const content = n.note || "";
                 if (content) loaded[n.teamNumber] = content;
               });
             }

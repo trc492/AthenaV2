@@ -1,6 +1,14 @@
 import type { CompetitionType } from "../competition/competition";
 import type { AnalysisInsightsConfig } from "../analysis/analysis";
 
+/** A single pit-scouting question. */
+export interface PitScoutingFieldDefinition {
+  label: string;
+  type: "text" | "number" | "boolean" | "select" | "multiselect";
+  options?: string[];
+  dependsOn?: string;
+}
+
 export interface ScoringDefinition {
   label: string;
   description: string;
@@ -70,6 +78,7 @@ export interface TeamPageConfig {
     auto: {
       key: string;
       label: string;
+      format?: "percent" | "number";
       subKey?: string;
       subLabel?: string;
       subFormat?: "percent" | "number";
@@ -78,6 +87,7 @@ export interface TeamPageConfig {
     teleop: {
       key: string;
       label: string;
+      format?: "percent" | "number";
       subKey?: string;
       subLabel?: string;
       subFormat?: "percent" | "number";
@@ -159,42 +169,10 @@ export interface YearConfig {
     fouls?: Record<string, ScoringDefinition>;
   };
   pitScouting: {
-    autonomous: Record<
-      string,
-      {
-        label: string;
-        type: "text" | "number" | "boolean" | "select" | "multiselect";
-        options?: string[];
-        dependsOn?: string;
-      }
-    >;
-    teleoperated: Record<
-      string,
-      {
-        label: string;
-        type: "text" | "number" | "boolean" | "select" | "multiselect";
-        options?: string[];
-        dependsOn?: string;
-      }
-    >;
-    driveTeam?: Record<
-      string,
-      {
-        label: string;
-        type: "text" | "number" | "boolean" | "select" | "multiselect";
-        options?: string[];
-        dependsOn?: string;
-      }
-    >;
-    endgame: Record<
-      string,
-      {
-        label: string;
-        type: "text" | "number" | "boolean" | "select" | "multiselect";
-        options?: string[];
-        dependsOn?: string;
-      }
-    >;
+    autonomous: Record<string, PitScoutingFieldDefinition>;
+    teleoperated: Record<string, PitScoutingFieldDefinition>;
+    driveTeam?: Record<string, PitScoutingFieldDefinition>;
+    endgame: Record<string, PitScoutingFieldDefinition>;
   };
   derivedMetrics?: DerivedMetricDefinition[];
   analysisInsights?: AnalysisInsightsConfig;

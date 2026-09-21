@@ -16,6 +16,7 @@ import { ThemeSelector } from "@/components/settings/theme-selector";
 import { ArrowLeft, Eye, EyeOff, UserRound } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { APP_NAME } from "@/lib/app-config";
 
 interface LoginFormData {
   username: string;
@@ -53,7 +54,7 @@ export default function Page() {
         });
       } else if (result?.ok) {
         toast.success("Login successful!", {
-          description: "Welcome back to TRC Athena Scouting!",
+          description: `Welcome back to ${APP_NAME}!`,
         });
         // Use hard redirect to ensure session cookie is properly sent
         window.location.href = "/dashboard";
@@ -99,7 +100,7 @@ export default function Page() {
                 Log In
               </h1>
               <CardDescription className="text-muted-foreground">
-                Log in to your TRC Athena account
+                Log in to your {APP_NAME} account
               </CardDescription>
             </CardHeader>
             <CardContent>
