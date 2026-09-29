@@ -49,8 +49,9 @@ export function NavUser({
   const openNotificationSettings =
     notificationSettingsDialog?.openNotificationSettings;
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: window.location.origin });
+  const handleLogout = async () => {
+    await signOut({ redirect: false });
+    window.location.assign("/");
   };
 
   const handleSwitchProgram = () => {

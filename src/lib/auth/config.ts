@@ -93,6 +93,39 @@ export const authConfig: NextAuthConfig = {
         token.role = user.role;
         token.image = user.image || user.avatarUrl || null;
         token.avatarUrl = user.avatarUrl || user.image || null;
+      } else {
+        // A valid JWT is not proof that the account still exists or has the
+        // same permissions. Refresh from the database on every session check.
+        const id = token.id || token.sub;
+        if (!id) return null;
+
+        try {
+          const db = databaseManager.getService();
+          if (!db.query) return null;
+          const result = await db.query<{
+            id: string;
+            name: string;
+            username: string;
+            role: string;
+            avatarUrl: string | null;
+          }>(
+            "SELECT id, name, username, role, avatarUrl FROM users WHERE id = @id",
+            { id },
+          );
+          const currentUser = result.recordset[0];
+          if (!currentUser) return null;
+
+          token.id = String(currentUser.id);
+          token.name = currentUser.name;
+          token.username = currentUser.username;
+          token.role = currentUser.role;
+          token.image = currentUser.avatarUrl || null;
+          token.avatarUrl = currentUser.avatarUrl || null;
+        } catch (error) {
+          // Fail closed rather than authorize using stale privileges.
+          console.error("Session account lookup failed:", error);
+          return null;
+        }
       }
       return token;
     },
@@ -100,6 +133,7 @@ export const authConfig: NextAuthConfig = {
       if (token && session.user) {
         const userId = token.id || token.sub;
         if (userId) session.user.id = userId;
+        session.user.name = token.name;
         session.user.username = token.username;
         session.user.role = token.role;
         session.user.image = token.image;

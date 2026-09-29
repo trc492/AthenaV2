@@ -26,7 +26,11 @@ import {
   ORGANIZATION_URL,
 } from "@/lib/app-config";
 
-export function NotLoggedInLandingPage() {
+export function NotLoggedInLandingPage({
+  signupEnabled,
+}: {
+  signupEnabled: boolean;
+}) {
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
@@ -126,15 +130,17 @@ export function NotLoggedInLandingPage() {
             <span className="font-bold text-lg">{APP_NAME}</span>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/signup">
-              <Button
-                variant="outline"
-                size="lg"
-                className="inline-flex h-11 gap-1"
-              >
-                Sign up
-              </Button>
-            </Link>
+            {signupEnabled && (
+              <Link href="/signup">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="inline-flex h-11 gap-1"
+                >
+                  Sign up
+                </Button>
+              </Link>
+            )}
             <Link href="/login">
               <Button
                 variant="default"
@@ -174,13 +180,22 @@ export function NotLoggedInLandingPage() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-end items-center sm:items-start">
-                <Link href="/signup">
+                <Link href={signupEnabled ? "/signup" : "/login"}>
                   <Button size="lg" className="h-11 gap-2 text-lg">
-                    <UserPlus className="h-10 w-10" />
-                    Get Started
+                    {signupEnabled ? (
+                      <UserPlus className="h-10 w-10" />
+                    ) : (
+                      <ArrowRight className="h-10 w-10" />
+                    )}
+                    {signupEnabled ? "Get Started" : "Log in"}
                   </Button>
                 </Link>
               </div>
+              {!signupEnabled && (
+                <p className="text-sm text-white">
+                  Need an account? Contact your team administrator for access.
+                </p>
+              )}
             </div>
           </div>
 

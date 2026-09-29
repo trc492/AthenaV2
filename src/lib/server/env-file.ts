@@ -83,8 +83,8 @@ export { DATABASE_CONFIG_PATH, AUTH_SECRET_PATH, SYSTEM_SETTINGS_PATH, APP_CONFI
 
 // ---------------------------------------------------------------------------
 // App config — stores the canonical public URL for the deployment.
-// NEXTAUTH_URL is read from this file by next.config.ts at build/start time
-// and injected into all runtimes as process.env.NEXTAUTH_URL.
+// Auth route handlers read this file at request time so setup changes also
+// take effect in standalone Docker builds without rebuilding the image.
 // ---------------------------------------------------------------------------
 
 export interface AppConfig {

@@ -18,50 +18,40 @@ async function InitialTeamList() {
     return <DynamicTeamList initialEvent={selectedEvent} initialTeams={[]} />;
   }
 
-  try {
-    const teams = await getEventTeams(selectedEvent.eventCode);
+  const teams = await loadTeamsWithImages(selectedEvent.eventCode);
 
-    if (teams.length === 0) {
-      return <DynamicTeamList initialEvent={selectedEvent} initialTeams={[]} />;
-    }
+  return <DynamicTeamList initialEvent={selectedEvent} initialTeams={teams} />;
+}
+
+async function loadTeamsWithImages(
+  eventCode: string,
+): Promise<TeamWithImages[]> {
+  try {
+    const teams = await getEventTeams(eventCode);
+    // The event code starts with the year, e.g. "2024miket"
+    const year = Number(eventCode.slice(0, 4));
 
     // Fetch images for all teams in parallel
     const teamsWithImages = await Promise.all(
       teams.map(async (team): Promise<TeamWithImages> => {
         try {
-          const images = await getTeamMedia(
-            team.team_number,
-            Number(selectedEvent.eventCode.slice(0, 4)),
-          ); // This Number stuff gets the year from the event code, which is in the format "2024miket"
-          return {
-            ...team,
-            images,
-          };
+          const images = await getTeamMedia(team.team_number, year);
+          return { ...team, images };
         } catch (error) {
           console.warn(
             `Failed to fetch images for team ${team.team_number}:`,
             error,
           );
-          return {
-            ...team,
-            images: [],
-          };
+          return { ...team, images: [] };
         }
       }),
     );
 
     // Sort teams by number
-    teamsWithImages.sort((a, b) => a.team_number - b.team_number);
-
-    return (
-      <DynamicTeamList
-        initialEvent={selectedEvent}
-        initialTeams={teamsWithImages}
-      />
-    );
+    return teamsWithImages.sort((a, b) => a.team_number - b.team_number);
   } catch (error) {
     console.error("Error fetching teams:", error);
-    return <DynamicTeamList initialEvent={selectedEvent} initialTeams={[]} />;
+    return [];
   }
 }
 

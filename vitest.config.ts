@@ -9,6 +9,9 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     css: false,
+    server: {
+      deps: { inline: ["next-auth"] },
+    },
   },
   resolve: {
     alias: {

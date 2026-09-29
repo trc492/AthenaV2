@@ -34,6 +34,24 @@ interface ScoutSelectorProps {
   currentUserRole: string | null;
 }
 
+/** Fetches the users who can scout and caches them for offline use. */
+async function fetchScoutList(): Promise<ScoutUser[]> {
+  const response = await fetch("/api/users");
+  if (!response.ok) {
+    throw new Error("Failed to fetch scouts");
+  }
+  const data = await response.json();
+
+  // Filter to only show scout, lead_scout, and admin roles (people who can scout)
+  const scoutUsers = (data.users || []).filter((user: ScoutUser) =>
+    ["scout", "lead_scout", "admin"].includes(user.role),
+  );
+
+  // Cache the fresh data for offline use
+  await indexedDBService.cacheScoutList(scoutUsers);
+  return scoutUsers;
+}
+
 export function ScoutSelector({
   selectedScoutId,
   onScoutChange,
@@ -47,73 +65,63 @@ export function ScoutSelector({
   const isTabletAccount = currentUserRole === "tablet";
 
   useEffect(() => {
-    if (isTabletAccount) {
-      fetchScouts();
-    } else {
+    if (!isTabletAccount) {
       // For non-tablet accounts, auto-select their own ID
+      // (the selector renders nothing for them, so loading state is irrelevant)
       onScoutChange(currentUserId);
-      setLoading(false);
+      return;
     }
+
+    let cancelled = false;
+    const applyScouts = (list: ScoutUser[]) => {
+      setScouts(list);
+      // Auto-select first scout if none selected
+      if (!selectedScoutId && list.length > 0) {
+        onScoutChange(list[0].id);
+      }
+    };
+
+    // Offline-first: show the cached scout list, then refresh from the API
+    indexedDBService
+      .getCachedScoutList()
+      .then((cachedData) => {
+        if (cancelled) return;
+        const hasCached = !!cachedData && cachedData.scouts.length > 0;
+        if (hasCached) {
+          applyScouts(cachedData.scouts);
+          setLoading(false);
+        }
+
+        return fetchScoutList().then(
+          (scoutUsers) => {
+            if (!cancelled) applyScouts(scoutUsers);
+          },
+          (fetchError) => {
+            if (!hasCached) {
+              console.error("Error fetching scouts:", fetchError);
+              toast.error(
+                "Failed to load scout list. Please check your connection.",
+              );
+            } else {
+              // Silently use cached data when offline
+              console.log("Using cached scout list (offline)");
+            }
+          },
+        );
+      })
+      .catch((error) => {
+        console.error("Error loading scouts:", error);
+        toast.error("Failed to load scout list");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTabletAccount, currentUserId]);
-
-  const fetchScouts = async () => {
-    try {
-      // Try to get cached scout list first (offline-first approach)
-      const cachedData = await indexedDBService.getCachedScoutList();
-
-      if (cachedData && cachedData.scouts.length > 0) {
-        // Use cached data immediately
-        setScouts(cachedData.scouts);
-        if (!selectedScoutId && cachedData.scouts.length > 0) {
-          onScoutChange(cachedData.scouts[0].id);
-        }
-        setLoading(false);
-      }
-
-      // Try to fetch fresh data from API (update cache if online)
-      try {
-        const response = await fetch("/api/users");
-        if (!response.ok) {
-          throw new Error("Failed to fetch scouts");
-        }
-        const data = await response.json();
-
-        // Filter to only show scout, lead_scout, and admin roles (people who can scout)
-        const scoutUsers = (data.users || []).filter((user: ScoutUser) =>
-          ["scout", "lead_scout", "admin"].includes(user.role),
-        );
-
-        // Cache the fresh data for offline use
-        await indexedDBService.cacheScoutList(scoutUsers);
-
-        // Update UI with fresh data
-        setScouts(scoutUsers);
-
-        // Auto-select first scout if none selected
-        if (!selectedScoutId && scoutUsers.length > 0) {
-          onScoutChange(scoutUsers[0].id);
-        }
-      } catch (fetchError) {
-        // If we have cached data, we already set it above
-        // If we don't have cached data and fetch failed, show error
-        if (!cachedData || cachedData.scouts.length === 0) {
-          console.error("Error fetching scouts:", fetchError);
-          toast.error(
-            "Failed to load scout list. Please check your connection.",
-          );
-        } else {
-          // Silently use cached data when offline
-          console.log("Using cached scout list (offline)");
-        }
-      }
-    } catch (error) {
-      console.error("Error loading scouts:", error);
-      toast.error("Failed to load scout list");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Don't show the component for non-tablet accounts
   if (!isTabletAccount) {

@@ -195,12 +195,18 @@ export function DynamicPitScoutForm() {
     };
   }, [editId, gameConfig]);
 
-  // Reinitialize form data when game config changes (but not in edit mode)
-  useEffect(() => {
+  // Reinitialize form data when game config changes (but not in edit mode).
+  // Done during render so the stale form is never shown.
+  const [formSource, setFormSource] = useState({ gameConfig, isEditMode });
+  if (
+    formSource.gameConfig !== gameConfig ||
+    formSource.isEditMode !== isEditMode
+  ) {
+    setFormSource({ gameConfig, isEditMode });
     if (gameConfig && !isEditMode) {
       setFormData(initializePitFormData(gameConfig));
     }
-  }, [gameConfig, isEditMode]);
+  }
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

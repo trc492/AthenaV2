@@ -319,18 +319,13 @@ async function syncOfflineData() {
         data: { url: "/dashboard" },
       });
     }
+    if (!result.success) {
+      throw new Error(result.errors.join("; ") || "Offline sync failed");
+    }
   } catch (error) {
     console.error("[Service Worker] Sync failed:", error);
-
-    // Show error notification
-    await self.registration.showNotification("Sync Failed", {
-      body: "Failed to sync offline data. Please try again manually.",
-      icon: APP_LOGO,
-      badge: APP_LOGO,
-      tag: "sync-error",
-      requireInteraction: true,
-      data: { url: "/dashboard" },
-    });
+    // Reject waitUntil so the browser can retry when connectivity returns.
+    throw error;
   }
 }
 
@@ -353,34 +348,25 @@ async function retryFailedEntries() {
         result,
       });
     });
+    if (!result.success) {
+      throw new Error(result.errors.join("; ") || "Offline retry failed");
+    }
   } catch (error) {
     console.error("[Service Worker] Retry failed:", error);
+    throw error;
   }
 }
 
 // Handle messages from the main app
-self.addEventListener("message", async function (event: ServiceWorkerMessageEvent) {
+self.addEventListener("message", function (event: ServiceWorkerMessageEvent) {
   console.log("[Service Worker] Received message:", event.data);
 
   if (event.data?.type === "REGISTER_SYNC") {
     // Register background sync
-    try {
-      await self.registration.sync.register(SYNC_TAGS.OFFLINE_DATA);
-      console.log("[Service Worker] Background sync registered");
-    } catch (error) {
-      console.error(
-        "[Service Worker] Failed to register background sync:",
-        error,
-      );
-    }
+    event.waitUntil(self.registration.sync.register(SYNC_TAGS.OFFLINE_DATA));
   } else if (event.data?.type === "REGISTER_RETRY_SYNC") {
     // Register retry sync
-    try {
-      await self.registration.sync.register(SYNC_TAGS.RETRY_FAILED);
-      console.log("[Service Worker] Retry sync registered");
-    } catch (error) {
-      console.error("[Service Worker] Failed to register retry sync:", error);
-    }
+    event.waitUntil(self.registration.sync.register(SYNC_TAGS.RETRY_FAILED));
   }
 });
 

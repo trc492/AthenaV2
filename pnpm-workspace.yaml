@@ -2,7 +2,7 @@ allowBuilds:
   '@firebase/util': true
   '@prisma/client': true
   '@swc/core': true
-  '@tailwindcss/oxide': set this to true or false
+  '@tailwindcss/oxide': true
   esbuild: true
   msw: true
   protobufjs: true
@@ -10,3 +10,6 @@ allowBuilds:
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - pnpm@11.5.2
+overrides:
+  browserslist@<4.28.7: ^4.28.7
+  uuid@<11.1.1: ^11.1.1

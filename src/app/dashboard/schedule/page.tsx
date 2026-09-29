@@ -87,21 +87,24 @@ const MatchAssignmentRow = React.memo(
     return (
       <div className="rounded-md border px-3 py-2">
         <div className="flex flex-col flex-wrap gap-3">
-          <div className="w-16 text-sm font-medium">
+          <div className="text-sm font-semibold">
             Match {match.matchNumber}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-1 gap-y-2 xl:grid-cols-2">
+          <div className="text-xs text-muted-foreground">
+            {[...match.redScouts, ...match.blueScouts].filter(Boolean).length} / {scoutsPerAlliance * 2} positions filled
+          </div>
+          <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
             {(["red", "blue"] as const).map((alliance) => (
               <div
                 key={`${match.matchNumber}-${alliance}`}
-                className="flex flex-col gap-2"
+                className="min-w-0 rounded-md bg-muted/40 p-3 space-y-2"
               >
                 <span
                   className={`text-xs font-medium w-8 ${alliance === "red" ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}
                 >
                   {alliance === "red" ? "Red" : "Blue"}
                 </span>
-                <div className="flex flex-col md:flex-row gap-y-2 md:gap-x-4">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {Array.from({ length: scoutsPerAlliance }, (_, position) => {
                     const slotValue =
                       alliance === "red"
@@ -125,11 +128,15 @@ const MatchAssignmentRow = React.memo(
                           )
                         }
                       >
-                        <SelectTrigger className="h-8 w-40 text-xs">
-                          <SelectValue placeholder={`S${position + 1}`} />
+                        <SelectTrigger
+                          aria-label={`Match ${match.matchNumber}, ${alliance} position ${position + 1}`}
+                          className="w-full min-w-0 text-xs"
+                        >
+                          <span className="shrink-0 text-muted-foreground">{position + 1}</span>
+                          <SelectValue placeholder="Open" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="none">Open</SelectItem>
                           {availableUsers.map((user) => (
                             <SelectItem key={user.id} value={user.id}>
                               {user.name}
@@ -210,6 +217,23 @@ export default function SchedulePage() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showGroupTemplates, setShowGroupTemplates] = useState(false);
+  const [matchQuery, setMatchQuery] = useState("");
+  const [scoutFilter, setScoutFilter] = useState("all");
+  const [onlyOpenSlots, setOnlyOpenSlots] = useState(false);
+
+  const clearFilters = () => {
+    setMatchQuery("");
+    setScoutFilter("all");
+    setOnlyOpenSlots(false);
+  };
+
+  const [filterScope, setFilterScope] = useState(scheduleScopeKey);
+  if (filterScope !== scheduleScopeKey) {
+    setFilterScope(scheduleScopeKey);
+    setMatchQuery("");
+    setScoutFilter("all");
+    setOnlyOpenSlots(false);
+  }
 
   const [manualMatchInput, setManualMatchInput] = useState<string>("");
   const [localMatches, setLocalMatches] = useState<MatchAssignment[]>([]);
@@ -261,21 +285,27 @@ export default function SchedulePage() {
     return initial;
   }, [matchCount, scoutsPerAlliance, matchAssignments]);
 
-  useEffect(() => {
-    if (!hasEvent || matchCount <= 0) {
+  // Rebuild the local editing copy whenever the saved assignments change.
+  // Done during render so stale matches from the previous event never show.
+  const hasSchedule = hasEvent && matchCount > 0;
+  const syncFingerprint = useMemo(
+    () =>
+      hasSchedule
+        ? JSON.stringify({
+            scheduleScopeKey,
+            matchCount,
+            scoutsPerAlliance,
+            rows: matchAssignments,
+          })
+        : "",
+    [hasSchedule, scheduleScopeKey, matchCount, scoutsPerAlliance, matchAssignments],
+  );
+  if (syncFingerprint !== lastSyncedFingerprint) {
+    setLastSyncedFingerprint(syncFingerprint);
+    if (!hasSchedule) {
       setLocalMatches([]);
-      return;
-    }
-
-    const fingerprint = JSON.stringify({
-      scheduleScopeKey,
-      matchCount,
-      scoutsPerAlliance,
-      rows: matchAssignments,
-    });
-    if (fingerprint !== lastSyncedFingerprint) {
+    } else {
       setLocalMatches(buildInitialMatches());
-      setLastSyncedFingerprint(fingerprint);
 
       const assignedScoutIds = new Set<string>();
       matchAssignments.forEach((row) => {
@@ -283,15 +313,7 @@ export default function SchedulePage() {
       });
       setActiveScouts(Array.from(assignedScoutIds));
     }
-  }, [
-    hasEvent,
-    matchCount,
-    scoutsPerAlliance,
-    matchAssignments,
-    scheduleScopeKey,
-    lastSyncedFingerprint,
-    buildInitialMatches,
-  ]);
+  }
 
   const matchesByNumber = useMemo(() => {
     const map = new Map<number, MatchAssignment>();
@@ -330,6 +352,23 @@ export default function SchedulePage() {
 
     return false;
   }, [localMatches, matchAssignments, scoutsPerAlliance, matchCount]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const visibleMatches = useMemo(() => localMatches.filter((match) => {
+    const scouts = [...match.redScouts, ...match.blueScouts];
+    return (!matchQuery.trim() || String(match.matchNumber) === matchQuery.trim())
+      && (scoutFilter === "all" || scouts.includes(scoutFilter))
+      && (!onlyOpenSlots || scouts.some((scout) => !scout));
+  }), [localMatches, matchQuery, scoutFilter, onlyOpenSlots]);
 
   const computeUserWorkload = useCallback(
     (targetMatches: MatchAssignment[]) => {
@@ -848,33 +887,10 @@ export default function SchedulePage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Schedule</h1>
           <p className="text-muted-foreground">
-            Per-match editing with optional group templates for fast changes.
+            Select scouts, fill assignments, then save your schedule.
           </p>
         </div>
-        {hasUnsavedChanges && (
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-chart-5 border-chart-5">
-              Unsaved Changes
-            </Badge>
-            <Button
-              variant="outline"
-              onClick={discardChanges}
-              disabled={isSaving}
-            >
-              Discard
-            </Button>
-            <Button onClick={saveAllChanges} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </div>
-        )}
+
       </div>
 
       {blocks.length === 0 && (
@@ -893,7 +909,7 @@ export default function SchedulePage() {
                   value={blockSize.toString()}
                   onValueChange={(value) => setBlockSize(parseInt(value))}
                 >
-                  <SelectTrigger className="w-24">
+                  <SelectTrigger id="block-size" className="w-24">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1013,10 +1029,74 @@ export default function SchedulePage() {
 
       {blocks.length > 0 && (
         <>
-          <Collapsible defaultOpen={false}>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <Card className="gap-1">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Matches
+                </CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{matchCount}</div>
+              </CardContent>
+            </Card>
+            <Card className="gap-1">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Filled Positions</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {scheduleSummary.totalAssigned}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="gap-1">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Open Positions
+                </CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {scheduleSummary.unassigned}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="gap-1">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Assigned Scouts
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {scheduleSummary.activeAssignedCount}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="gap-1">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Preferred Pairings
+                </CardTitle>
+                <Handshake className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">
+                  {scheduleSummary.preferredPairings}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Collapsible defaultOpen={true}>
             <Card>
               <CardHeader>
-                <CollapsibleTrigger className="w-full">
+                <CollapsibleTrigger className="group w-full text-left">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CardTitle className="flex items-center gap-2">
@@ -1027,15 +1107,20 @@ export default function SchedulePage() {
                         {sortedActiveUsers.length} selected
                       </Badge>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
                   </div>
                 </CollapsibleTrigger>
                 <CardDescription>
-                  Used for auto-assign and group template actions.
+                  Choose who is available. Auto-fill uses these scouts and keeps existing assignments.
                 </CardDescription>
               </CardHeader>
               <CollapsibleContent>
                 <CardContent>
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setActiveScouts(sortedUsers.map((user) => user.id))}>Select all scouts</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setActiveScouts([])}>Deselect all</Button>
+                  </div>
+                  {sortedUsers.length === 0 && <p className="text-sm text-muted-foreground">No scouts are available. Add team members before assigning matches.</p>}
                   <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                     {sortedUsers.map((scout) => (
                       <ActiveScoutCheckbox
@@ -1046,10 +1131,10 @@ export default function SchedulePage() {
                       />
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center gap-3">
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
                     <Button
                       onClick={autoAssignAllMatches}
-                      disabled={isAutoAssigning}
+                      disabled={isAutoAssigning || sortedActiveUsers.length === 0 || isSaving}
                     >
                       {isAutoAssigning ? (
                         <>
@@ -1078,8 +1163,7 @@ export default function SchedulePage() {
                     Match Assignments
                   </CardTitle>
                   <CardDescription>
-                    All matches are visible below. Use virtual group templates
-                    for fast range edits.
+                    Find a match or scout, or focus on positions that still need coverage.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1105,12 +1189,12 @@ export default function SchedulePage() {
                   onOpenChange={setShowGroupTemplates}
                 >
                   <div className="rounded-md border p-4">
-                    <CollapsibleTrigger className="w-full text-left">
+                    <CollapsibleTrigger className="group w-full text-left">
                       <div className="flex items-center justify-between">
                         <div className="font-medium">
-                          Virtual Group Templates
+                          Assign multiple matches
                         </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
@@ -1122,7 +1206,7 @@ export default function SchedulePage() {
                                 {block.name} ({block.matches[0]}-
                                 {block.matches[block.matches.length - 1]})
                               </div>
-                              <div className="grid gap-2 grid-cols-2 md:grid-cols-1 md:grid-rows-2">
+                              <div className="grid grid-cols-1 gap-3">
                                 {(["red", "blue"] as const).map((alliance) => (
                                   <div
                                     key={`${block.id}-${alliance}`}
@@ -1134,7 +1218,7 @@ export default function SchedulePage() {
                                       {alliance === "red" ? "Red" : "Blue"}{" "}
                                       Template
                                     </div>
-                                    <div className="flex flex-col gap-y-2 md:gap-x-6 md:flex-row lg:gap-x-10">
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                       {Array.from(
                                         { length: scoutsPerAlliance },
                                         (_, position) => {
@@ -1147,7 +1231,7 @@ export default function SchedulePage() {
                                           return (
                                             <div
                                               key={`${block.id}-${alliance}-${position}`}
-                                              className="items-center gap-2 flex"
+                                              className="flex min-w-0 items-center gap-2"
                                             >
                                               <Label className="text-xs mr-2">
                                                 S{position + 1}
@@ -1169,7 +1253,7 @@ export default function SchedulePage() {
                                                   )
                                                 }
                                               >
-                                                <SelectTrigger className="h-8 w-44 text-xs">
+                                                <SelectTrigger aria-label={`${block.name}, ${alliance} position ${position + 1}`} className="w-full min-w-0 text-xs">
                                                   <SelectValue placeholder="Apply to group" />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1212,8 +1296,37 @@ export default function SchedulePage() {
                   </div>
                 </Collapsible>
 
+                <div className="flex flex-wrap items-end gap-3 rounded-lg bg-muted/40 p-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="find-match">Match number</Label>
+                    <Input id="find-match" type="number" min={1} max={matchCount} placeholder="All matches" value={matchQuery} onChange={(event) => setMatchQuery(event.target.value)} className="w-36" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="filter-scout">Assigned scout</Label>
+                    <Select value={scoutFilter} onValueChange={setScoutFilter}>
+                      <SelectTrigger id="filter-scout" className="w-48"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All scouts</SelectItem>
+                        {sortedUsers.map((user) => <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex min-h-9 items-center gap-2">
+                    <Checkbox id="only-open-slots" checked={onlyOpenSlots} onCheckedChange={(checked) => setOnlyOpenSlots(checked === true)} />
+                    <Label htmlFor="only-open-slots">Open slots only</Label>
+                  </div>
+                  {(matchQuery || scoutFilter !== "all" || onlyOpenSlots) && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
+                </div>
+                <p className="text-sm text-muted-foreground" role="status">Showing {visibleMatches.length} of {localMatches.length} matches</p>
+                {visibleMatches.length === 0 && (
+                  <div className="rounded-lg border border-dashed p-8 text-center">
+                    <p className="font-medium">No matches fit these filters</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Try another match or scout, or show the full schedule.</p>
+                    <Button variant="outline" className="mt-4" onClick={clearFilters}>Show all matches</Button>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  {localMatches.map((match) => (
+                  {visibleMatches.map((match) => (
                     <MatchAssignmentRow
                       key={match.matchNumber}
                       match={match}
@@ -1265,71 +1378,34 @@ export default function SchedulePage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-5">
-            <Card className="gap-1">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Matches
-                </CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{matchCount}</div>
-              </CardContent>
-            </Card>
-            <Card className="gap-1">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Assigned</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {scheduleSummary.totalAssigned}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="gap-1">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Unassigned
-                </CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {scheduleSummary.unassigned}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="gap-1">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Active Scouts
-                </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {scheduleSummary.activeAssignedCount}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="gap-1">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Preferred Pairings
-                </CardTitle>
-                <Handshake className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-primary">
-                  {scheduleSummary.preferredPairings}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+
         </>
       )}
+
+        {hasUnsavedChanges && (
+          <div className="sticky bottom-4 z-20 flex flex-wrap items-center justify-end gap-2 rounded-xl border bg-background p-3 shadow-lg">
+            <Badge variant="outline" className="text-chart-5 border-chart-5">
+              Unsaved Changes
+            </Badge>
+            <Button
+              variant="outline"
+              onClick={discardChanges}
+              disabled={isSaving}
+            >
+              Discard
+            </Button>
+            <Button onClick={saveAllChanges} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </div>
+        )}
 
       <DeleteConfirmationDialog
         open={showResetDialog}

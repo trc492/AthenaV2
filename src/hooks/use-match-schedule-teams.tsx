@@ -24,6 +24,7 @@ interface MatchScheduleData {
 
 export function useMatchScheduleTeams() {
   const selectedEvent = useSelectedEvent();
+  const selectedEventCode = selectedEvent?.eventCode;
   const { currentYear, competitionType } = useGameConfig();
 
   const [scheduleData, setScheduleData] = useState<MatchScheduleData | null>(
@@ -117,14 +118,14 @@ export function useMatchScheduleTeams() {
 
   // Force refresh schedule
   const refreshSchedule = useCallback(async () => {
-    if (!selectedEvent?.eventCode) return;
+    if (!selectedEventCode) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await fetch(
-        `/api/events/${selectedEvent.eventCode}/schedule?competitionType=${competitionType}&season=${currentYear}`,
+        `/api/events/${selectedEventCode}/schedule?competitionType=${competitionType}&season=${currentYear}`,
       );
 
       if (!response.ok) {
@@ -139,7 +140,7 @@ export function useMatchScheduleTeams() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedEvent?.eventCode, currentYear, competitionType]);
+  }, [selectedEventCode, currentYear, competitionType]);
 
   return {
     scheduleData,

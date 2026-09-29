@@ -1,60 +1,57 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useSelectedEvent } from "./use-event-config";
 import { useGameConfig } from "./use-game-config";
+import { useAsyncData } from "./use-async-data";
 import { teamApi } from "@/lib/api/database-client";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import type { TeamData } from "@/lib/types";
 
+interface TeamDataResult {
+  teamData: TeamData | null;
+  error: string | null;
+  isOfflineData: boolean;
+}
+
 export function useTeamData(teamNumber: string) {
   const selectedEvent = useSelectedEvent();
   const { currentYear, competitionType } = useGameConfig();
-  const [teamData, setTeamData] = useState<TeamData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isOfflineData, setIsOfflineData] = useState(false);
+  const eventCode = selectedEvent?.eventCode;
 
-  useEffect(() => {
-    async function fetchTeamData() {
-      try {
-        setLoading(true);
-        setError(null);
-        setIsOfflineData(false);
+  const { data, loading } = useAsyncData<TeamDataResult>(
+    teamNumber && currentYear
+      ? `${teamNumber}|${currentYear}|${eventCode ?? ""}|${competitionType}`
+      : null,
+    async () => {
+      const isOnline =
+        typeof navigator !== "undefined" ? navigator.onLine : true;
 
-        const isOnline =
-          typeof navigator !== "undefined" ? navigator.onLine : true;
-        const eventCode = selectedEvent?.eventCode;
-
-        // If offline, reconstruct from cached pit/match entries
-        if (!isOnline && eventCode) {
-          const offlineData = await buildTeamDataFromCache(
-            teamNumber,
-            eventCode,
-          );
-          if (offlineData) {
-            setTeamData(offlineData);
-            setIsOfflineData(true);
-            return;
-          }
-          setError("Offline — no cached data available for this team");
-          return;
+      // If offline, reconstruct from cached pit/match entries
+      if (!isOnline && eventCode) {
+        const offlineData = await buildTeamDataFromCache(teamNumber, eventCode);
+        if (offlineData) {
+          return { teamData: offlineData, error: null, isOfflineData: true };
         }
+        return {
+          teamData: null,
+          error: "Offline — no cached data available for this team",
+          isOfflineData: false,
+        };
+      }
 
+      try {
         // Fetch team data from API
-        const data = await teamApi.getTeamData(
+        const teamData = await teamApi.getTeamData(
           parseInt(teamNumber),
           currentYear,
           eventCode,
           competitionType,
         );
-
-        setTeamData(data);
+        return { teamData, error: null, isOfflineData: false };
       } catch (err) {
         console.error("Error fetching team data:", err);
 
         // Fallback to IndexedDB cache on network error
-        const eventCode = selectedEvent?.eventCode;
         if (eventCode) {
           try {
             const offlineData = await buildTeamDataFromCache(
@@ -62,29 +59,32 @@ export function useTeamData(teamNumber: string) {
               eventCode,
             );
             if (offlineData) {
-              setTeamData(offlineData);
-              setIsOfflineData(true);
-              return;
+              return {
+                teamData: offlineData,
+                error: null,
+                isOfflineData: true,
+              };
             }
           } catch (cacheErr) {
             console.warn("Failed to read cached team data:", cacheErr);
           }
         }
 
-        setError("Failed to load team data");
-      } finally {
-        setLoading(false);
+        return {
+          teamData: null,
+          error: "Failed to load team data",
+          isOfflineData: false,
+        };
       }
-    }
+    },
+  );
 
-    if (teamNumber && currentYear) {
-      fetchTeamData();
-    } else {
-      setLoading(false);
-    }
-  }, [teamNumber, currentYear, selectedEvent?.eventCode, competitionType]);
-
-  return { teamData, loading, error, isOfflineData };
+  return {
+    teamData: data?.teamData ?? null,
+    loading,
+    error: data?.error ?? null,
+    isOfflineData: data?.isOfflineData ?? false,
+  };
 }
 
 /** Reconstruct a partial TeamData from cached pit/match entries */

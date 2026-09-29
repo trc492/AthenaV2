@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -32,23 +32,26 @@ import { PitScoutingTable } from "@/components/tables/pit-scouting-table";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { PitEntry } from "@/lib/types/db/entries";
 import { useGameConfig } from "@/hooks/use-game-config";
+import { useScoutingEntries } from "@/hooks/use-scouting-entries";
 import { useEventConfig } from "@/hooks/use-event-config";
-import { indexedDBService } from "@/lib/indexeddb-service";
 
 export default function PitScoutingPage() {
-  const [pitEntries, setPitEntries] = useState<PitEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
   const [entriesToDelete, setEntriesToDelete] = useState<number[]>([]);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [isOfflineData, setIsOfflineData] = useState(false);
 
   const { getCurrentYearConfig, currentYear, competitionType } =
     useGameConfig();
   const gameConfig = getCurrentYearConfig();
   const { selectedEvent } = useEventConfig();
+  const {
+    entries: pitEntries,
+    loading,
+    error,
+    isOfflineData,
+    refetch,
+  } = useScoutingEntries("pit");
 
   const handleExport = async (format: "json" | "csv" | "xlsx" = "csv") => {
     try {
@@ -96,72 +99,6 @@ export default function PitScoutingPage() {
     }
   };
 
-  // Fetch pit entries — try API first, fall back to IndexedDB cache
-  const fetchPitEntries = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setIsOfflineData(false);
-
-      const eventCode = selectedEvent?.eventCode;
-      const isOnline =
-        typeof navigator !== "undefined" ? navigator.onLine : true;
-
-      // If offline, go straight to IndexedDB
-      if (!isOnline && eventCode) {
-        const cached = await indexedDBService.getCachedPitEntries(eventCode);
-        if (cached && cached.entries.length > 0) {
-          setPitEntries(cached.entries);
-          setIsOfflineData(true);
-          return;
-        }
-        setError(
-          "Offline — no cached pit scouting data available. Use the pre-cache feature in Settings while online.",
-        );
-        return;
-      }
-
-      const params = new URLSearchParams();
-      if (eventCode) params.append("eventCode", eventCode);
-      params.append("competitionType", competitionType);
-
-      const url = `/api/scouting/entries/pit?${params.toString()}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch pit entries: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setPitEntries(data);
-    } catch (err) {
-      console.error("Error fetching pit entries:", err);
-
-      // Fallback to IndexedDB cache on network error
-      const eventCode = selectedEvent?.eventCode;
-      if (eventCode) {
-        try {
-          const cached = await indexedDBService.getCachedPitEntries(eventCode);
-          if (cached && cached.entries.length > 0) {
-            setPitEntries(cached.entries);
-            setIsOfflineData(true);
-            toast.info("Showing cached pit scouting data (offline)");
-            return;
-          }
-        } catch (cacheErr) {
-          console.warn("Failed to read cached pit entries:", cacheErr);
-        }
-      }
-
-      setError("Failed to load pit scouting data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPitEntries();
-  }, [selectedEvent, competitionType]);
-
   // Handle edit - navigate to scout form with edit ID
   const handleEdit = (entry: PitEntry) => {
     window.location.href = `/scout/pitscout?editId=${entry.id}`;
@@ -199,7 +136,7 @@ export default function PitScoutingPage() {
       }
 
       // Refresh data
-      await fetchPitEntries();
+      refetch();
 
       if (failedCount > 0) {
         toast.warning(

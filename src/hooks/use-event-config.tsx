@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -35,7 +36,29 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isOfflineData, setIsOfflineData] = useState(false);
 
-  const [selectedEvent, setSelectedEventState] = useState<Event | null>(null);
+  const scopeKey = `${competitionType}:${currentYear}`;
+  const [selection, setSelection] = useState<{
+    scopeKey: string;
+    event: Event | null;
+  } | null>(null);
+  const selectedEvent = selection?.scopeKey === scopeKey ? selection.event : null;
+
+  const selectFromEvents = useCallback((nextEvents: Event[]) => {
+    const savedEvent = localStorage.getItem("selectedEvent");
+    let savedCode: string | undefined;
+    if (savedEvent) {
+      try {
+        savedCode = JSON.parse(savedEvent).eventCode;
+      } catch (error) {
+        console.error("Error parsing saved event:", error);
+      }
+    }
+    setEvents(nextEvents);
+    setSelection({
+      scopeKey,
+      event: nextEvents.find((event) => event.eventCode === savedCode) ?? nextEvents[0] ?? null,
+    });
+  }, [scopeKey]);
 
   // Fetch events from TBA API and custom events
   useEffect(() => {
@@ -46,6 +69,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     // Don't fetch until game config is initialized
     if (!isInitialized) return;
 
+    let cancelled = false;
     const fetchEvents = async () => {
       const isOnline =
         typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -59,17 +83,20 @@ export function EventProvider({ children }: { children: ReactNode }) {
             competitionType,
             currentYear,
           );
+          if (cancelled) return;
           if (cachedData && cachedData.events.length > 0) {
-            setEvents(cachedData.events);
+            selectFromEvents(cachedData.events);
             setIsOfflineData(true);
             setIsLoading(false);
             return;
           }
         } catch (cacheError) {
+          if (cancelled) return;
           console.warn("Failed to get cached events:", cacheError);
         }
 
         // No cached data available while offline
+        selectFromEvents([]);
         setError(
           "Offline - no cached event data available. Connect to internet to download events.",
         );
@@ -140,7 +167,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
         // Combine API and custom events
         const allEvents = [...apiEvents, ...customEvents];
-        setEvents(allEvents);
+        if (cancelled) return;
+        selectFromEvents(allEvents);
 
         // Cache events for offline use
         if (allEvents.length > 0) {
@@ -160,6 +188,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
           setError("No events found for this year");
         }
       } catch (err) {
+        if (cancelled) return;
         console.error("Error fetching events:", err);
 
         // Try to fall back to cached data on fetch error
@@ -169,13 +198,15 @@ export function EventProvider({ children }: { children: ReactNode }) {
             competitionType,
             currentYear,
           );
+          if (cancelled) return;
           if (cachedData && cachedData.events.length > 0) {
-            setEvents(cachedData.events);
+            selectFromEvents(cachedData.events);
             setIsOfflineData(true);
             setIsLoading(false);
             return;
           }
         } catch (cacheError) {
+          if (cancelled) return;
           console.warn(
             "Failed to get cached events on error fallback:",
             cacheError,
@@ -183,41 +214,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
         }
 
         setError("Failed to load events");
-        setEvents([]);
+        selectFromEvents([]);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     fetchEvents();
-  }, [currentYear, competitionType, isInitialized, status]);
-
-  // Load selected event from localStorage on mount
-  useEffect(() => {
-    // Only set selected event after events have been loaded
-    if (isLoading || events.length === 0) return;
-
-    let nextEvent = events[0] || null;
-    const savedEvent = localStorage.getItem("selectedEvent");
-    if (savedEvent) {
-      try {
-        const parsedEvent = JSON.parse(savedEvent);
-        // Verify the saved event still exists in the events list
-        const eventExists = events.find(
-          (e) => e.eventCode === parsedEvent.eventCode,
-        );
-        nextEvent = eventExists || nextEvent;
-      } catch (error) {
-        console.error("Error parsing saved event:", error);
-      }
-    }
-
-    const timeoutId = window.setTimeout(
-      () => setSelectedEventState(nextEvent),
-      0,
-    );
-    return () => window.clearTimeout(timeoutId);
-  }, [events, isLoading]);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentYear, competitionType, isInitialized, status, selectFromEvents]);
 
   // Save selected event to localStorage and cookies whenever it changes
   useEffect(() => {
@@ -229,7 +236,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   }, [selectedEvent]);
 
   const setSelectedEvent = (event: Event) => {
-    setSelectedEventState(event);
+    setSelection({ scopeKey, event });
   };
 
   const contextValue: EventContextType = {
@@ -237,7 +244,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     selectedEvent: status === "authenticated" ? selectedEvent : null,
     setSelectedEvent,
     setEvents,
-    isLoading: status === "authenticated" ? isLoading : false,
+    isLoading:
+      status === "authenticated"
+        ? isLoading || selection?.scopeKey !== scopeKey
+        : false,
     error: status === "authenticated" ? error : null,
     isOfflineData: status === "authenticated" ? isOfflineData : false,
   };

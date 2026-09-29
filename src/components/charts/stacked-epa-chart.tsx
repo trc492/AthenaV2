@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   Card,
@@ -39,6 +39,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSelectedEvent } from "@/hooks/use-event-config";
 import { useGameConfig } from "@/hooks/use-game-config";
+import { useAsyncData } from "@/hooks/use-async-data";
 
 // Define types for better type safety
 interface TooltipPayload {
@@ -329,13 +330,14 @@ function CustomLegend({
   );
 }
 
+const NO_TEAM_COLORS: TeamColorsMap = {};
+
 export function StackedEPAChart({ data }: { data?: TeamEPAChartDatum[] }) {
   const displayData = data || [];
   const isMobile = useIsMobile();
   const selectedEvent = useSelectedEvent();
   const { competitionType } = useGameConfig();
   const [chartView, setChartView] = useState<"stacked" | "box">("stacked");
-  const [teamColors, setTeamColors] = useState<TeamColorsMap>({});
 
   // State for toggling categories (all visible by default)
   const [visibleCategories, setVisibleCategories] = useState<
@@ -354,23 +356,19 @@ export function StackedEPAChart({ data }: { data?: TeamEPAChartDatum[] }) {
     }));
   };
 
-  useEffect(() => {
-    if (!selectedEvent?.eventCode || competitionType !== "FRC") {
-      setTeamColors({});
-      return;
-    }
-
-    let isActive = true;
-
-    const fetchColors = async () => {
+  const eventCode = selectedEvent?.eventCode;
+  const { data: fetchedTeamColors } = useAsyncData<TeamColorsMap>(
+    eventCode && competitionType === "FRC"
+      ? `${eventCode}|${competitionType}`
+      : null,
+    async () => {
       try {
         const response = await fetch(
-          `/api/events/${encodeURIComponent(selectedEvent.eventCode)}/colors?competitionType=${competitionType}`,
+          `/api/events/${encodeURIComponent(eventCode!)}/colors?competitionType=${competitionType}`,
         );
 
         if (!response.ok) {
-          if (isActive) setTeamColors({});
-          return;
+          return NO_TEAM_COLORS;
         }
 
         const data = (await response.json()) as {
@@ -398,19 +396,14 @@ export function StackedEPAChart({ data }: { data?: TeamEPAChartDatum[] }) {
           }
         });
 
-        if (isActive) setTeamColors(colorMap);
+        return colorMap;
       } catch (error) {
         console.warn("Failed to load team colors:", error);
-        if (isActive) setTeamColors({});
+        return NO_TEAM_COLORS;
       }
-    };
-
-    fetchColors();
-
-    return () => {
-      isActive = false;
-    };
-  }, [selectedEvent?.eventCode, competitionType]);
+    },
+  );
+  const teamColors = fetchedTeamColors ?? NO_TEAM_COLORS;
 
   const boxPlotData = useMemo(
     () => buildBoxPlotData(displayData, teamColors),

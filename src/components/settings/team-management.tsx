@@ -56,6 +56,24 @@ interface UpdateUserData {
   role?: string;
 }
 
+/** Returns all users, or null (after notifying the user) on failure. */
+async function loadUsers(): Promise<User[] | null> {
+  try {
+    const response = await fetch("/api/users");
+    if (!response.ok) {
+      throw new Error("Failed to fetch users");
+    }
+    const data = await response.json();
+    return data.users;
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    toast.error(
+      error instanceof Error ? error.message : "Failed to fetch users",
+    );
+    return null;
+  }
+}
+
 export function TeamManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,26 +92,22 @@ export function TeamManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const fetchUsers = useCallback(async () => {
-    try {
-      const response = await fetch("/api/users");
-      if (!response.ok) {
-        throw new Error("Failed to fetch users");
-      }
-      const data = await response.json();
-      setUsers(data.users);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to fetch users",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+    const loaded = await loadUsers();
+    if (loaded) setUsers(loaded);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    let cancelled = false;
+    loadUsers().then((loaded) => {
+      if (cancelled) return;
+      if (loaded) setUsers(loaded);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCreateUser = async () => {
     try {

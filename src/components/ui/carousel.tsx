@@ -93,14 +93,21 @@ function Carousel({
     setApi(api)
   }, [api, setApi])
 
+  // Read the initial scroll state as soon as the API is available
+  const [prevApi, setPrevApi] = React.useState(api)
+  if (api !== prevApi) {
+    setPrevApi(api)
+    onSelect(api)
+  }
+
   React.useEffect(() => {
     if (!api) return
-    onSelect(api)
     api.on("reInit", onSelect)
     api.on("select", onSelect)
 
     return () => {
-      api?.off("select", onSelect)
+      api.off("reInit", onSelect)
+      api.off("select", onSelect)
     }
   }, [api, onSelect])
 

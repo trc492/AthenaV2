@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Picklist,
@@ -32,94 +32,35 @@ interface TeamPicklistData {
 
 export function usePicklist(options: UsePicklistOptions) {
   const [picklist, setPicklist] = useState<Picklist | null>(null);
+  const currentPicklistId = picklist?.id;
   const [entries, setEntries] = useState<PicklistEntry[]>([]);
   const [notes, setNotes] = useState<Map<number, PicklistNote[]>>(new Map());
-  const [isLoading, setIsLoading] = useState(false);
+  // The initial load is complete once the loaded key matches the options.
+  const loadKey = `${options.eventCode}|${options.year}|${options.competitionType}|${options.picklistType ?? "main"}`;
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const isLoading = loadedKey !== loadKey;
+  const { eventCode, year, competitionType, picklistType } = options;
+  const loadOptions = useMemo(
+    () => ({ eventCode, year, competitionType, picklistType }),
+    [eventCode, year, competitionType, picklistType],
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [initialRanking, setInitialRanking] = useState<TeamPicklistData[]>([]);
 
   // Fetch initial rankings from TBA/calculated EPA data
   const fetchInitialRanking = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const params = new URLSearchParams({
-        eventCode: options.eventCode,
-        year: options.year.toString(),
-        competitionType: options.competitionType,
-      });
-
-      const response = await fetch(`/api/scouting/picklist?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch initial ranking");
-
-      const data = await response.json();
-      setInitialRanking(data.teams);
-    } catch (error) {
-      console.error("Error fetching initial ranking:", error);
-      toast.error("Failed to load ranking data");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [options.eventCode, options.year, options.competitionType]);
+    const teams = await loadInitialRanking(loadOptions);
+    if (teams) setInitialRanking(teams);
+  }, [loadOptions]);
 
   // Fetch existing picklist if available
   const fetchExistingPicklist = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const params = new URLSearchParams({
-        eventCode: options.eventCode,
-        year: options.year.toString(),
-        competitionType: options.competitionType,
-        picklistType: options.picklistType || "main",
-        existingOnly: "true",
-      });
-
-      // First get the picklist metadata
-      const picklistResponse = await fetch(`/api/scouting/picklist?${params}`);
-      if (!picklistResponse.ok) {
-        throw new Error(`Failed to fetch picklist: ${picklistResponse.status}`);
-      }
-
-      const picklistData = await picklistResponse.json();
-      if (picklistData.picklist) {
-        setPicklist(picklistData.picklist);
-
-        // Route already returns entries with existing picklist; use them directly
-        // to avoid a second request race/failure that can intermittently clear UI.
-        if (Array.isArray(picklistData.entries)) {
-          setEntries(picklistData.entries);
-          return;
-        }
-
-        // Fallback for older/alternate response shapes.
-        const entriesParams = new URLSearchParams({
-          picklistId: picklistData.picklist.id.toString(),
-        });
-        const entriesResponse = await fetch(
-          `/api/scouting/picklist/entries?${entriesParams}`,
-        );
-        if (entriesResponse.ok) {
-          const entriesData = await entriesResponse.json();
-          setEntries(
-            Array.isArray(entriesData.entries) ? entriesData.entries : [],
-          );
-        } else {
-          setEntries([]);
-        }
-      } else {
-        setPicklist(null);
-        setEntries([]);
-      }
-    } catch (error) {
-      console.error("Error fetching existing picklist:", error);
-    } finally {
-      setIsLoading(false);
+    const existing = await loadExistingPicklist(loadOptions);
+    if (existing) {
+      setPicklist(existing.picklist);
+      setEntries(existing.entries);
     }
-  }, [
-    options.eventCode,
-    options.year,
-    options.competitionType,
-    options.picklistType,
-  ]);
+  }, [loadOptions]);
 
   // Create a new picklist
   const createPicklist = useCallback(
@@ -177,7 +118,7 @@ export function usePicklist(options: UsePicklistOptions) {
         setIsSaving(true);
 
         // If this specific picklist doesn't exist yet (common for blacklist), create it on demand.
-        let picklistId = picklist?.id;
+        let picklistId = currentPicklistId;
         if (!picklistId) {
           picklistId = await createPicklist([]);
         }
@@ -224,17 +165,17 @@ export function usePicklist(options: UsePicklistOptions) {
         setIsSaving(false);
       }
     },
-    [picklist?.id, entries, createPicklist],
+    [currentPicklistId, entries, createPicklist],
   );
 
   // Reset/delete picklist
   const resetPicklist = useCallback(async () => {
-    if (!picklist?.id) return;
+    if (!currentPicklistId) return;
 
     try {
       setIsSaving(true);
       const response = await fetch(
-        `/api/scouting/picklist?picklistId=${picklist.id}`,
+        `/api/scouting/picklist?picklistId=${currentPicklistId}`,
         {
           method: "DELETE",
         },
@@ -252,12 +193,12 @@ export function usePicklist(options: UsePicklistOptions) {
     } finally {
       setIsSaving(false);
     }
-  }, [picklist?.id]);
+  }, [currentPicklistId]);
 
   // Add a note for a team
   const addNote = useCallback(
     async (teamNumber: number, note: string) => {
-      if (!picklist?.id) {
+      if (!currentPicklistId) {
         toast.error("No picklist selected");
         return;
       }
@@ -267,7 +208,7 @@ export function usePicklist(options: UsePicklistOptions) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            picklistId: picklist.id,
+            picklistId: currentPicklistId,
             teamNumber,
             note,
           }),
@@ -286,17 +227,17 @@ export function usePicklist(options: UsePicklistOptions) {
         throw error;
       }
     },
-    [picklist?.id, notes],
+    [currentPicklistId, notes],
   );
 
   // Get notes for a team
   const getTeamNotes = useCallback(
     async (teamNumber: number) => {
-      if (!picklist?.id) return [];
+      if (!currentPicklistId) return [];
 
       try {
         const params = new URLSearchParams({
-          picklistId: picklist.id.toString(),
+          picklistId: currentPicklistId.toString(),
           teamNumber: teamNumber.toString(),
         });
 
@@ -311,7 +252,7 @@ export function usePicklist(options: UsePicklistOptions) {
         return [];
       }
     },
-    [picklist?.id, notes],
+    [currentPicklistId, notes],
   );
 
   // Update a note
@@ -372,7 +313,7 @@ export function usePicklist(options: UsePicklistOptions) {
 
   // Delete picklist
   const deletePicklist = useCallback(async () => {
-    if (!picklist?.id) {
+    if (!currentPicklistId) {
       toast.error("No picklist to delete");
       return;
     }
@@ -380,7 +321,7 @@ export function usePicklist(options: UsePicklistOptions) {
     try {
       setIsSaving(true);
       const response = await fetch(
-        `/api/scouting/picklist?picklistId=${picklist.id}`,
+        `/api/scouting/picklist?picklistId=${currentPicklistId}`,
         {
           method: "DELETE",
         },
@@ -397,13 +338,27 @@ export function usePicklist(options: UsePicklistOptions) {
     } finally {
       setIsSaving(false);
     }
-  }, [picklist?.id]);
+  }, [currentPicklistId]);
 
-  // Initialize on mount
+  // Load rankings and any saved picklist whenever the options change
   useEffect(() => {
-    fetchInitialRanking();
-    fetchExistingPicklist();
-  }, [fetchInitialRanking, fetchExistingPicklist]);
+    let cancelled = false;
+    Promise.all([
+      loadInitialRanking(loadOptions),
+      loadExistingPicklist(loadOptions),
+    ]).then(([teams, existing]) => {
+      if (cancelled) return;
+      if (teams) setInitialRanking(teams);
+      if (existing) {
+        setPicklist(existing.picklist);
+        setEntries(existing.entries);
+      }
+      setLoadedKey(loadKey);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadOptions, loadKey]);
 
   return {
     // State
@@ -425,4 +380,78 @@ export function usePicklist(options: UsePicklistOptions) {
     fetchInitialRanking,
     fetchExistingPicklist,
   };
+}
+
+/** Returns the ranked teams, or null (after notifying the user) on failure. */
+async function loadInitialRanking(
+  options: UsePicklistOptions,
+): Promise<TeamPicklistData[] | null> {
+  try {
+    const params = new URLSearchParams({
+      eventCode: options.eventCode,
+      year: options.year.toString(),
+      competitionType: options.competitionType,
+    });
+
+    const response = await fetch(`/api/scouting/picklist?${params}`);
+    if (!response.ok) throw new Error("Failed to fetch initial ranking");
+
+    const data = await response.json();
+    return data.teams;
+  } catch (error) {
+    console.error("Error fetching initial ranking:", error);
+    toast.error("Failed to load ranking data");
+    return null;
+  }
+}
+
+/** Returns the saved picklist and its entries, or null on failure. */
+async function loadExistingPicklist(
+  options: UsePicklistOptions,
+): Promise<{ picklist: Picklist | null; entries: PicklistEntry[] } | null> {
+  try {
+    const params = new URLSearchParams({
+      eventCode: options.eventCode,
+      year: options.year.toString(),
+      competitionType: options.competitionType,
+      picklistType: options.picklistType || "main",
+      existingOnly: "true",
+    });
+
+    // First get the picklist metadata
+    const picklistResponse = await fetch(`/api/scouting/picklist?${params}`);
+    if (!picklistResponse.ok) {
+      throw new Error(`Failed to fetch picklist: ${picklistResponse.status}`);
+    }
+
+    const picklistData = await picklistResponse.json();
+    if (!picklistData.picklist) {
+      return { picklist: null, entries: [] };
+    }
+
+    // Route already returns entries with existing picklist; use them directly
+    // to avoid a second request race/failure that can intermittently clear UI.
+    if (Array.isArray(picklistData.entries)) {
+      return { picklist: picklistData.picklist, entries: picklistData.entries };
+    }
+
+    // Fallback for older/alternate response shapes.
+    const entriesParams = new URLSearchParams({
+      picklistId: picklistData.picklist.id.toString(),
+    });
+    const entriesResponse = await fetch(
+      `/api/scouting/picklist/entries?${entriesParams}`,
+    );
+    if (!entriesResponse.ok) {
+      return { picklist: picklistData.picklist, entries: [] };
+    }
+    const entriesData = await entriesResponse.json();
+    return {
+      picklist: picklistData.picklist,
+      entries: Array.isArray(entriesData.entries) ? entriesData.entries : [],
+    };
+  } catch (error) {
+    console.error("Error fetching existing picklist:", error);
+    return null;
+  }
 }

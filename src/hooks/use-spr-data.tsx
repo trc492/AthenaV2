@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import { useSelectedEvent } from "./use-event-config";
 import { useGameConfig } from "./use-game-config";
+import { useAsyncData } from "./use-async-data";
 
 export interface ScouterSPR {
   scouterId: string;
@@ -56,20 +56,16 @@ export function useSPRData(options?: { verbose?: boolean }) {
   const verbose = options?.verbose ?? false;
   const selectedEvent = useSelectedEvent();
   const { currentYear, competitionType } = useGameConfig();
-  const [data, setData] = useState<SPRData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const eventCode = selectedEvent?.eventCode;
 
-  const fetchSPR = useCallback(async () => {
-    if (!selectedEvent || !currentYear) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
+  const { data, loading, error, reload } = useAsyncData<SPRData>(
+    eventCode && currentYear
+      ? `${eventCode}|${currentYear}|${competitionType}|${verbose}`
+      : null,
+    async () => {
       const params = new URLSearchParams({
         year: currentYear.toString(),
-        eventCode: selectedEvent.eventCode,
+        eventCode: eventCode!,
         competitionType: competitionType,
         verbose: verbose ? "true" : "false",
       });
@@ -91,18 +87,18 @@ export function useSPRData(options?: { verbose?: boolean }) {
         );
       }
 
-      setData(json.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedEvent, currentYear, competitionType, verbose]);
+      return json.data as SPRData;
+    },
+  );
 
-  useEffect(() => {
-    fetchSPR();
-  }, [fetchSPR]);
-
-  return { data, loading, error, refetch: fetchSPR };
+  return {
+    data: error ? null : (data ?? null),
+    loading,
+    error: error
+      ? error instanceof Error
+        ? error.message
+        : "Unknown error"
+      : null,
+    refetch: reload,
+  };
 }

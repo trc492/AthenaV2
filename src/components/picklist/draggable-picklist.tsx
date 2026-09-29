@@ -95,7 +95,6 @@ export function DraggablePicklist({
   const [isSaving, setIsSaving] = useState(false);
   const noteSaveTimersRef = useRef<Record<number, NodeJS.Timeout>>({});
   const notesLoadedRef = useRef(false);
-  const syncingRef = useRef(false);
   const pick1IdRef = useRef<number | undefined>(undefined);
   const pick2IdRef = useRef<number | undefined>(undefined);
   const blacklistIdRef = useRef<number | undefined>(undefined);
@@ -160,28 +159,61 @@ export function DraggablePicklist({
     [],
   );
 
-  // Sync local state with picklist entries (but not during save)
-  useEffect(() => {
-    if (!isSaving && !syncingRef.current) {
-      if (!pick1.picklist && !pick2.picklist) {
-        return;
-      }
-
+  // Sync local state with picklist entries (but not during save). Done
+  // during render so the saved order shows without an extra paint.
+  const [syncedEntries, setSyncedEntries] = useState({
+    pick1: pick1.entries,
+    pick2: pick2.entries,
+    blacklist: blacklist.entries,
+    isSaving,
+  });
+  if (
+    syncedEntries.pick1 !== pick1.entries ||
+    syncedEntries.pick2 !== pick2.entries ||
+    syncedEntries.blacklist !== blacklist.entries ||
+    syncedEntries.isSaving !== isSaving
+  ) {
+    setSyncedEntries({
+      pick1: pick1.entries,
+      pick2: pick2.entries,
+      blacklist: blacklist.entries,
+      isSaving,
+    });
+    if (!isSaving && (pick1.picklist || pick2.picklist)) {
       setLocalPick1Order(toSortableItems(pick1.entries));
       setLocalPick2Order(toSortableItems(pick2.entries));
       setLocalBlacklistOrder(toSortableItems(blacklist.entries));
       setHasUnsavedChanges(false);
     }
-  }, [
-    pick1.entries,
-    pick2.entries,
-    blacklist.entries,
-    isSaving,
-    toSortableItems,
-  ]);
+  }
 
-  // Compute unlisted teams whenever picks or event teams change
-  useEffect(() => {
+  // Recompute unlisted teams whenever picks or event teams change
+  const [unlistedSource, setUnlistedSource] = useState<{
+    allEventTeams: typeof allEventTeams;
+    localPick1Order: SortableTeamItem[];
+    localPick2Order: SortableTeamItem[];
+    localBlacklistOrder: SortableTeamItem[];
+    ownTeamNumber: typeof ownTeamNumber;
+    qualRankings: typeof qualRankings;
+  } | null>(null);
+  if (
+    unlistedSource === null ||
+    unlistedSource.allEventTeams !== allEventTeams ||
+    unlistedSource.localPick1Order !== localPick1Order ||
+    unlistedSource.localPick2Order !== localPick2Order ||
+    unlistedSource.localBlacklistOrder !== localBlacklistOrder ||
+    unlistedSource.ownTeamNumber !== ownTeamNumber ||
+    unlistedSource.qualRankings !== qualRankings
+  ) {
+    setUnlistedSource({
+      allEventTeams,
+      localPick1Order,
+      localPick2Order,
+      localBlacklistOrder,
+      ownTeamNumber,
+      qualRankings,
+    });
+
     const pick1TeamNumbers = new Set(localPick1Order.map((e) => e.teamNumber));
     const pick2TeamNumbers = new Set(localPick2Order.map((e) => e.teamNumber));
     const blacklistTeamNumbers = new Set(
@@ -204,14 +236,7 @@ export function DraggablePicklist({
       .sort((a, b) => a.qualRanking - b.qualRanking);
 
     setLocalUnlisted(unlisted);
-  }, [
-    allEventTeams,
-    localPick1Order,
-    localPick2Order,
-    localBlacklistOrder,
-    ownTeamNumber,
-    qualRankings,
-  ]);
+  }
 
   // Fetch qualification rankings from dedicated TBA endpoint (always returns real qual rankings)
   useEffect(() => {
@@ -537,30 +562,18 @@ export function DraggablePicklist({
 
   // ── SortableJS handlers ──
   const handlePick1Change = useCallback((newState: SortableTeamItem[]) => {
-    syncingRef.current = true;
     setLocalPick1Order(newState);
     setHasUnsavedChanges(true);
-    setTimeout(() => {
-      syncingRef.current = false;
-    }, 0);
   }, []);
 
   const handlePick2Change = useCallback((newState: SortableTeamItem[]) => {
-    syncingRef.current = true;
     setLocalPick2Order(newState);
     setHasUnsavedChanges(true);
-    setTimeout(() => {
-      syncingRef.current = false;
-    }, 0);
   }, []);
 
   const handleUnlistedChange = useCallback((newState: SortableTeamItem[]) => {
-    syncingRef.current = true;
     setLocalUnlisted(newState);
     setHasUnsavedChanges(true);
-    setTimeout(() => {
-      syncingRef.current = false;
-    }, 0);
   }, []);
 
   type PickListType = "1stPick" | "2ndPick" | "Unlisted";
@@ -982,8 +995,6 @@ export function DraggablePicklist({
               <ReactSortable
                 list={combinedUnlisted}
                 setList={(newState) => {
-                  syncingRef.current = true;
-
                   // Split back out after drag
                   const newUnlisted: SortableTeamItem[] = [];
                   const newBlacklist: SortableTeamItem[] = [];
@@ -1002,9 +1013,6 @@ export function DraggablePicklist({
                   setLocalBlacklistOrder(newBlacklist);
 
                   setHasUnsavedChanges(true);
-                  setTimeout(() => {
-                    syncingRef.current = false;
-                  }, 0);
                 }}
                 group={sortableGroupOptions}
                 animation={200}

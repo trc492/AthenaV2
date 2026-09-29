@@ -89,6 +89,19 @@ AthenaV2 is a modern scouting and analytics platform designed for competitive ro
 
 ## Database Configuration
 
+### Public URL in Docker
+
+Authentication reads the public URL on each request, in this order: `AUTH_URL`,
+`NEXTAUTH_URL`, then the URL saved by setup in `.runtime/app-config.json`.
+Use the browser-facing origin (for example, `https://scouting.example.com`),
+not the container's `0.0.0.0:3000` listening address. Saved setup URL changes
+take effect without rebuilding the image. Environment changes require restarting
+or recreating the container.
+
+If no public URL is configured, authentication uses the request's host and
+forwarded protocol. Reverse proxies must overwrite `X-Forwarded-Host` and
+`X-Forwarded-Proto` with the public host and protocol.
+
 Use `DATABASE_PROVIDER` to select a backend explicitly (`azuresql`, `firebase`, `cosmos`, `local`). If unset, the app auto-detects based on available env vars.
 
 ### Local SQL (generic)

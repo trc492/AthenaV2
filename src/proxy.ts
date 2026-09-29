@@ -1,9 +1,12 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
+import { withAuthOrigin } from "@/lib/server/auth-request";
 export default async function middleware(req: NextRequest) {
+  const publicRequest = withAuthOrigin(req);
   const token = await getToken({
     req,
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    secureCookie: publicRequest.nextUrl.protocol === "https:",
   });
   const isAuth = !!token;
   const isAuthPage =
@@ -23,10 +26,9 @@ export default async function middleware(req: NextRequest) {
     req.nextUrl.pathname === "/sitemap.xml";
   const isAsset = req.nextUrl.pathname.startsWith("/_next/static") || req.nextUrl.pathname.startsWith("/assets");
 
-  // Authenticated users should not be able to return to authentication pages.
-  if (isAuth && isAuthPage) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
+  // Always allow authentication pages: an unexpired JWT can belong to a
+  // deleted account. Only auth() can validate the current database account;
+  // redirecting here based on the cookie alone can trap it in a login loop.
 
   // The home page performs its own setup check before redirecting an active
   // session, so first-run installations still reach the setup wizard.
@@ -45,7 +47,7 @@ export default async function middleware(req: NextRequest) {
 
   // Redirect to login if not authenticated
   if (!isAuth) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.redirect(new URL("/login", publicRequest.url));
   }
 
   return NextResponse.next();

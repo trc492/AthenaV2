@@ -45,48 +45,16 @@ function resolveAuthSecret(): string {
   return newSecret;
 }
 
-// ---------------------------------------------------------------------------
-// Resolve the canonical public URL for this deployment.
-// Priority: NEXTAUTH_URL env var → .runtime/app-config.json → undefined.
-// When resolved from the file, we also back-fill process.env.NEXTAUTH_URL so
-// the rest of this config file (e.g. the redirects() block) can read it.
-// ---------------------------------------------------------------------------
-function resolveAppUrl(): string | undefined {
-  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
-
-  const appConfigPath = join(process.cwd(), ".runtime", "app-config.json");
-  if (existsSync(appConfigPath)) {
-    try {
-      const parsed = JSON.parse(readFileSync(appConfigPath, "utf8")) as {
-        appUrl?: string;
-      };
-      if (parsed?.appUrl) {
-        process.env.NEXTAUTH_URL = parsed.appUrl;
-        console.log(
-          `[next.config] Loaded NEXTAUTH_URL from .runtime/app-config.json → ${parsed.appUrl}`,
-        );
-        return parsed.appUrl;
-      }
-    } catch {
-      // fall through — URL not yet configured (setup wizard hasn't run yet)
-    }
-  }
-
-  return undefined;
-}
-
 const authSecret = resolveAuthSecret();
-const appUrl = resolveAppUrl();
 
 const nextConfig: NextConfig = {
-  // Inject the auth secret, trust host flag, and (if known) the canonical app
-  // URL so every runtime (including Edge middleware) can read them without
-  // needing manual .env configuration.
+  // Inject the auth secret and trust host flag. Public URLs are resolved at
+  // request time so standalone builds can use deployment-specific settings without
+  // baking the public origin into the image.
   env: {
     NEXTAUTH_SECRET: authSecret,
     AUTH_SECRET: authSecret,
     AUTH_TRUST_HOST: "true",
-    ...(appUrl ? { NEXTAUTH_URL: appUrl, AUTH_URL: appUrl } : {}),
   },
   output: "standalone",
   reactStrictMode: true,

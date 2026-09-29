@@ -125,6 +125,61 @@ function pointHitsStroke(
 
 export type { Stroke };
 
+/** Parses saved drawing JSON (raw Stroke[] or the v2 object format). */
+function parseDrawingData(
+  initialData: string,
+): { strokes: Stroke[]; tokens: Token[] } | null {
+  try {
+    const parsed = JSON.parse(initialData) as unknown;
+    if (Array.isArray(parsed)) {
+      // Backward-compatible format: raw Stroke[]
+      return { strokes: parsed as Stroke[], tokens: [] };
+    }
+
+    if (parsed && typeof parsed === "object") {
+      const v2 = parsed as Partial<DrawingDataV2>;
+      const parsedStrokes = Array.isArray(v2.strokes) ? v2.strokes : [];
+      const parsedTokens = Array.isArray(v2.tokens)
+        ? v2.tokens
+            .filter((token): token is Token => {
+              if (!token || typeof token !== "object") return false;
+              const t = token as Partial<Token> & { id?: string };
+              return (
+                typeof t.type === "string" &&
+                isTokenType(t.type) &&
+                typeof t.x === "number" &&
+                typeof t.y === "number"
+              );
+            })
+            .reduce<Token[]>((acc, token, index) => {
+              // enforce single climb token, allow many shooting tokens
+              if (
+                token.type === "climb" &&
+                acc.some((t) => t.type === "climb")
+              ) {
+                return acc;
+              }
+              acc.push({
+                id:
+                  token.id ||
+                  `${token.type}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+                type: token.type,
+                x: token.x,
+                y: token.y,
+              });
+              return acc;
+            }, [])
+        : [];
+
+      return { strokes: parsedStrokes, tokens: parsedTokens };
+    }
+  } catch {
+    // If it's not valid JSON (e.g. legacy base64 data), ignore it
+    console.warn("Failed to parse initial drawing data as stroke JSON");
+  }
+  return null;
+}
+
 export function FieldDrawingCanvas({
   initialData,
   onChange,
@@ -146,7 +201,7 @@ export function FieldDrawingCanvas({
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-  const initialDataLoadedRef = useRef(false);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
   // Load the background image
   useEffect(() => {
@@ -265,67 +320,22 @@ export function FieldDrawingCanvas({
     }
   }, [canvasSize, redrawCanvas]);
 
-  // Load initial data from stroke JSON
-  useEffect(() => {
-    if (!initialData || !imageLoaded || initialDataLoadedRef.current) return;
-    if (canvasSize.width === 0 || canvasSize.height === 0) return;
-
-    try {
-      const parsed = JSON.parse(initialData) as unknown;
-      if (Array.isArray(parsed)) {
-        // Backward-compatible format: raw Stroke[]
-        setStrokes(parsed as Stroke[]);
-        setTokens([]);
-        initialDataLoadedRef.current = true;
-        return;
-      }
-
-      if (parsed && typeof parsed === "object") {
-        const v2 = parsed as Partial<DrawingDataV2>;
-        const parsedStrokes = Array.isArray(v2.strokes) ? v2.strokes : [];
-        const parsedTokens = Array.isArray(v2.tokens)
-          ? v2.tokens
-              .filter((token): token is Token => {
-                if (!token || typeof token !== "object") return false;
-                const t = token as Partial<Token> & { id?: string };
-                return (
-                  typeof t.type === "string" &&
-                  isTokenType(t.type) &&
-                  typeof t.x === "number" &&
-                  typeof t.y === "number"
-                );
-              })
-              .reduce<Token[]>((acc, token, index) => {
-                // enforce single climb token, allow many shooting tokens
-                if (
-                  token.type === "climb" &&
-                  acc.some((t) => t.type === "climb")
-                ) {
-                  return acc;
-                }
-                acc.push({
-                  id:
-                    token.id ||
-                    `${token.type}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-                  type: token.type,
-                  x: token.x,
-                  y: token.y,
-                });
-                return acc;
-              }, [])
-          : [];
-
-        setStrokes(parsedStrokes);
-        setTokens(parsedTokens);
-        initialDataLoadedRef.current = true;
-        return;
-      }
-    } catch {
-      // If it's not valid JSON (e.g. legacy base64 data), ignore it
-      console.warn("Failed to parse initial drawing data as stroke JSON");
-      initialDataLoadedRef.current = true;
+  // Load initial data from stroke JSON once the canvas is ready. Done during
+  // render so the saved drawing appears in the same paint as the canvas.
+  if (
+    initialData &&
+    !initialDataLoaded &&
+    imageLoaded &&
+    canvasSize.width > 0 &&
+    canvasSize.height > 0
+  ) {
+    setInitialDataLoaded(true);
+    const parsed = parseDrawingData(initialData);
+    if (parsed) {
+      setStrokes(parsed.strokes);
+      setTokens(parsed.tokens);
     }
-  }, [initialData, imageLoaded, canvasSize]);
+  }
 
   // ── Coordinate helpers ──
 

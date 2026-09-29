@@ -3,8 +3,7 @@
 import React, {
   createContext,
   useContext,
-  useEffect,
-  useState,
+  useSyncExternalStore,
   ReactNode,
 } from "react";
 import gameConfig from "../../config/game-config-loader";
@@ -20,44 +19,67 @@ interface GameConfigContextType {
   isInitialized: boolean;
 }
 
+const COMPETITION_TYPE_KEY = "selectedCompetitionType";
+const GAME_YEAR_KEY = "selectedGameYear";
+const DEFAULT_COMPETITION_TYPE: CompetitionType = "FRC";
+const DEFAULT_YEAR = 2025;
+
+// Selections live in localStorage; these helpers expose them as an external
+// store so they are read during render without a hydration mismatch.
+const storageListeners = new Set<() => void>();
+
+function subscribeToSelections(listener: () => void) {
+  storageListeners.add(listener);
+  return () => {
+    storageListeners.delete(listener);
+  };
+}
+
+function writeSelection(key: string, value: string) {
+  localStorage.setItem(key, value);
+  storageListeners.forEach((listener) => listener());
+}
+
+function useStoredSelection(key: string): string | null {
+  return useSyncExternalStore(
+    subscribeToSelections,
+    () => localStorage.getItem(key),
+    () => null,
+  );
+}
+
+function subscribeToNothing() {
+  return () => {};
+}
+
 const GameConfigContext = createContext<GameConfigContextType | undefined>(
   undefined,
 );
 
 export function GameConfigProvider({ children }: { children: ReactNode }) {
   const config = gameConfig as unknown as GameConfig;
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [competitionType, setCompetitionTypeState] =
-    useState<CompetitionType>("FRC");
-  const [currentYear, setCurrentYear] = useState<number>(2025); // Default to current season
+  // True once rendering on the client, where the stored selections are readable
+  const isInitialized = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  );
 
-  // Persist competition type to localStorage
-  useEffect(() => {
-    const savedType = localStorage.getItem("selectedCompetitionType");
-    if (savedType && (savedType === "FRC" || savedType === "FTC")) {
-      setCompetitionTypeState(savedType as CompetitionType);
-    }
-    setIsInitialized(true);
-  }, []);
+  const savedType = useStoredSelection(COMPETITION_TYPE_KEY);
+  const competitionType: CompetitionType =
+    savedType === "FRC" || savedType === "FTC"
+      ? savedType
+      : DEFAULT_COMPETITION_TYPE;
 
-  useEffect(() => {
-    localStorage.setItem("selectedCompetitionType", competitionType);
-  }, [competitionType]);
+  const savedYear = parseInt(useStoredSelection(GAME_YEAR_KEY) ?? "");
+  const currentYear = Number.isNaN(savedYear) ? DEFAULT_YEAR : savedYear;
 
-  // Persist year selection to localStorage
-  useEffect(() => {
-    const savedYear = localStorage.getItem("selectedGameYear");
-    if (savedYear) {
-      setCurrentYear(parseInt(savedYear));
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("selectedGameYear", currentYear.toString());
-  }, [currentYear]);
+  const setCurrentYear = (year: number) => {
+    writeSelection(GAME_YEAR_KEY, year.toString());
+  };
 
   const setCompetitionType = (type: CompetitionType) => {
-    setCompetitionTypeState(type);
+    writeSelection(COMPETITION_TYPE_KEY, type);
     // Reset to latest available year when switching competition types
     const availableYears = Object.keys(config[type] || {});
     if (availableYears.length > 0) {

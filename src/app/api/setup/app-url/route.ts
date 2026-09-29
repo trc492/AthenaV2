@@ -6,8 +6,8 @@ import { databaseManager } from "@/db/database-manager";
  * POST /api/setup/app-url
  *
  * Validates and persists the canonical public URL for this deployment
- * to .runtime/app-config.json. next.config.ts reads this file on startup
- * and injects it as NEXTAUTH_URL so NextAuth callback URLs are correct
+ * to .runtime/app-config.json. Auth handlers read this file at request time
+ * so NextAuth callback URLs are correct
  * when running behind a reverse proxy.
  *
  * Only callable during the setup wizard (before the database is configured),

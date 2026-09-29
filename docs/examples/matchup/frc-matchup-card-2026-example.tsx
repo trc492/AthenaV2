@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Flame, ArrowUp, AlertTriangle } from "lucide-react";
 import { useTeamData } from "@/hooks/use-team-data";
 import Link from "next/link";
-import type { MatchupCardProps } from "./matchup-alliance-panel";
+import type { MatchupCardProps } from "@/components/matchup/matchup-alliance-panel";
 
 interface RebuiltMatchupData {
   avg_total: number;

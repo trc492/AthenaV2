@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import { checkSetupStatus } from "@/lib/server/setup";
 import { NotLoggedInLandingPage } from "@/components/landing-page/not-logged-in-landing-page";
+import { loadSystemSettings } from "@/lib/server/env-file";
 
 export const dynamic = "force-dynamic";
 
@@ -17,5 +18,6 @@ export default async function Page() {
     redirect("/dashboard");
   }
 
-  return <NotLoggedInLandingPage />;
+  const { signupEnabled } = loadSystemSettings();
+  return <NotLoggedInLandingPage signupEnabled={signupEnabled} />;
 }

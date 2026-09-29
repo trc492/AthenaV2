@@ -75,6 +75,22 @@ interface ConfigOption {
 
 export type StudioDesignerMode = "match" | "pit" | "matchup" | "teampage";
 
+/** Returns the saved config list, or null if there is none or it failed. */
+async function loadConfigList() {
+  try {
+    const res = await fetch("/api/scouting/admin/configs");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.configs && data.configs.length > 0) {
+        return data.configs;
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load configs from server:", err);
+  }
+  return null;
+}
+
 export function GameConfigStudio() {
   const [configList, setConfigList] = useState<ConfigOption[]>([
     { filename: "FRC-2026.json", competitionType: "FRC", year: 2026, gameName: (FRC2026 as YearConfig).gameName, isBuiltin: true },
@@ -112,21 +128,18 @@ export function GameConfigStudio() {
 
   // Fetch configs list from server
   const fetchConfigs = async () => {
-    try {
-      const res = await fetch("/api/scouting/admin/configs");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.configs && data.configs.length > 0) {
-          setConfigList(data.configs);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load configs from server:", err);
-    }
+    const configs = await loadConfigList();
+    if (configs) setConfigList(configs);
   };
 
   useEffect(() => {
-    fetchConfigs();
+    let cancelled = false;
+    loadConfigList().then((configs) => {
+      if (!cancelled && configs) setConfigList(configs);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Load selected config

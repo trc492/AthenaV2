@@ -51,13 +51,14 @@ export function useDashboardStats() {
   useEffect(() => {
     if (!isInitialized || isEventLoading) {
       // Keep loading placeholders visible while providers hydrate from local storage / APIs.
-      setLoading(true);
       return;
     }
 
+    let cancelled = false;
     async function fetchStats() {
       if (!selectedEvent || !gameConfig) {
         setStats(DEFAULT_DASHBOARD_STATS);
+        setError(null);
         setLoading(false);
         return;
       }
@@ -174,16 +175,20 @@ export function useDashboardStats() {
           })),
         };
 
-        setStats(transformedStats);
+        if (!cancelled) setStats(transformedStats);
       } catch (err) {
+        if (cancelled) return;
         console.error("Error fetching dashboard stats:", err);
         setError("Failed to load dashboard statistics");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchStats();
+    return () => {
+      cancelled = true;
+    };
   }, [
     selectedEvent,
     currentYear,
@@ -193,5 +198,5 @@ export function useDashboardStats() {
     isEventLoading,
   ]);
 
-  return { stats, loading, error };
+  return { stats, loading: loading || !isInitialized || isEventLoading, error };
 }

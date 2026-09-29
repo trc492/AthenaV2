@@ -2,7 +2,7 @@
 // Handles synchronization of cached data when connectivity is restored
 
 import { indexedDBService } from "@/lib/indexeddb-service";
-import { pitApi, matchApi } from "@/lib/api/database-client";
+import type { PitEntry, MatchEntry } from "@/lib/types";
 import type {
   QueuedEntry,
   QueuedPitEntry,
@@ -29,14 +29,14 @@ class OfflineQueueManager {
 
   constructor() {
     // Only initialize in browser environment
-    if (typeof window !== "undefined") {
+    if (typeof indexedDB !== "undefined") {
       this.init();
     }
   }
 
   // Initialize the queue manager
   private async init(): Promise<void> {
-    if (this.initialized || typeof window === "undefined") {
+    if (this.initialized || typeof indexedDB === "undefined") {
       return;
     }
 
@@ -57,9 +57,9 @@ class OfflineQueueManager {
 
   // Add a pit entry to the offline queue
   async queuePitEntry(
-    data: Parameters<typeof pitApi.create>[0],
+    data: Omit<PitEntry, "id">,
   ): Promise<string> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       throw new Error(
         "Queue operations are only available in browser environment",
       );
@@ -76,9 +76,9 @@ class OfflineQueueManager {
 
   // Add a match entry to the offline queue
   async queueMatchEntry(
-    data: Parameters<typeof matchApi.create>[0],
+    data: Omit<MatchEntry, "id">,
   ): Promise<string> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       throw new Error(
         "Queue operations are only available in browser environment",
       );
@@ -95,14 +95,14 @@ class OfflineQueueManager {
 
   // Ensure the manager is initialized before operations
   private async ensureInitialized(): Promise<void> {
-    if (!this.initialized && typeof window !== "undefined") {
+    if (!this.initialized && typeof indexedDB !== "undefined") {
       await this.init();
     }
   }
 
   // Sync all pending entries
   async syncPendingEntries(): Promise<SyncResult> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       throw new Error(
         "Sync operations are only available in browser environment",
       );
@@ -222,16 +222,16 @@ class OfflineQueueManager {
 
       if (entry.type === "pit") {
         const pitEntry = entry as QueuedPitEntry;
-        const result = await pitApi.create(pitEntry.data);
-        if (result.isQueued || !result.id) {
-          throw new Error("Expected immediate sync but got queued result");
+        const result = await this.submitEntry("pit", pitEntry.data);
+        if (!result.id) {
+          throw new Error("Sync response did not include an entry ID");
         }
         remoteId = result.id;
       } else if (entry.type === "match") {
         const matchEntry = entry as QueuedMatchEntry;
-        const result = await matchApi.create(matchEntry.data);
-        if (result.isQueued || !result.id) {
-          throw new Error("Expected immediate sync but got queued result");
+        const result = await this.submitEntry("match", matchEntry.data);
+        if (!result.id) {
+          throw new Error("Sync response did not include an entry ID");
         }
         remoteId = result.id;
       } else {
@@ -259,7 +259,9 @@ class OfflineQueueManager {
           undefined,
           errorMessage,
         );
-        this.scheduleRetry(entry.id, config);
+        // Workers rely on the rejected Background Sync event for retries.
+        // Timers cannot keep a service worker alive after the event settles.
+        if (typeof window !== "undefined") this.scheduleRetry(entry.id, config);
       } else {
         await indexedDBService.updateEntryStatus(
           entry.id,
@@ -270,6 +272,31 @@ class OfflineQueueManager {
       }
 
       throw error;
+    }
+  }
+
+  // Replay directly: the normal create client queues on network failure,
+  // which would reset the entry and its retry count during a sync attempt.
+  private async submitEntry(
+    type: "pit" | "match",
+    data: QueuedEntry["data"],
+  ): Promise<{ id: number }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(`/api/scouting/entries/${type}`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to sync ${type} entry (${response.status})`);
+      }
+      return await response.json();
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -319,7 +346,7 @@ class OfflineQueueManager {
 
   // Get sync configuration
   async getSyncConfig(): Promise<SyncConfig> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return DEFAULT_SYNC_CONFIG;
     }
 
@@ -330,7 +357,7 @@ class OfflineQueueManager {
 
   // Update sync configuration
   async setSyncConfig(config: Partial<SyncConfig>): Promise<void> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return;
     }
 
@@ -343,7 +370,7 @@ class OfflineQueueManager {
 
   // Get count of pending entries
   async getPendingCount(): Promise<number> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return 0;
     }
 
@@ -353,7 +380,7 @@ class OfflineQueueManager {
 
   // Get count of all queued entries
   async getTotalQueuedCount(): Promise<number> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return 0;
     }
 
@@ -363,7 +390,7 @@ class OfflineQueueManager {
 
   // Get count by status
   async getCountByStatus(status: SyncStatus): Promise<number> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return 0;
     }
 
@@ -373,7 +400,7 @@ class OfflineQueueManager {
 
   // Get all queued entries (for UI display)
   async getAllQueuedEntries(): Promise<QueuedEntry[]> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return [];
     }
 
@@ -383,7 +410,7 @@ class OfflineQueueManager {
 
   // Clear all synced entries
   async clearSyncedEntries(): Promise<number> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return 0;
     }
 
@@ -393,7 +420,7 @@ class OfflineQueueManager {
 
   // Get recent sync logs
   async getRecentSyncLogs(limit = 10): Promise<SyncResult[]> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return [];
     }
 
@@ -432,7 +459,7 @@ class OfflineQueueManager {
 
   // Force retry all failed entries
   async retryFailedEntries(): Promise<SyncResult> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       throw new Error(
         "Retry operations are only available in browser environment",
       );
@@ -475,7 +502,7 @@ class OfflineQueueManager {
 
   // Remove duplicate unsynced entries, keeping the best candidate for each key.
   async dedupePendingEntries(): Promise<DedupeQueueResult> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       return {
         removedCount: 0,
         removedEntryIds: [],

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,8 +37,11 @@ export function BuilderJsonEditor({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
-  // Synchronize incoming config with text if valid
-  useEffect(() => {
+  // Synchronize incoming config with the text. Done during render so the
+  // editor never shows the previous config's JSON.
+  const [syncedConfig, setSyncedConfig] = useState<YearConfig | null>(null);
+  if (syncedConfig !== config) {
+    setSyncedConfig(config);
     try {
       const formatted = JSON.stringify(config, null, 2);
       setJsonText(formatted);
@@ -50,7 +53,7 @@ export function BuilderJsonEditor({
     } catch (err) {
       setParseError(getErrorMessage(err));
     }
-  }, [config]);
+  }
 
   const handleTextChange = (val: string) => {
     setJsonText(val);

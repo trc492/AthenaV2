@@ -173,21 +173,27 @@ export function DynamicMatchScoutForm() {
     };
   }, [editId, gameConfig]);
 
-  // Reinitialize form data when game config changes (but not in edit mode)
-  useEffect(() => {
+  // Reinitialize form data when game config changes (but not in edit mode).
+  // Done during render so the stale form is never shown.
+  const [formSource, setFormSource] = useState({ gameConfig, isEditMode });
+  if (
+    formSource.gameConfig !== gameConfig ||
+    formSource.isEditMode !== isEditMode
+  ) {
+    setFormSource({ gameConfig, isEditMode });
     if (gameConfig && !isEditMode) {
       setFormData(initializeFormData(gameConfig));
     }
-  }, [gameConfig, isEditMode]);
+  }
 
-  // Apply initial scouting assignment on first load, using persistent last-submitted match
-  useEffect(() => {
-    // Skip if already applied, in edit mode, or assignment data not yet loaded
-    if (hasAppliedInitialAssignment || isEditMode || assignmentLoading) return;
-
-    // Only apply if we have scouting assignments
-    if (!hasAssignments) return;
-
+  // Apply initial scouting assignment on first load, using persistent
+  // last-submitted match. Runs during render, once the assignments load.
+  if (
+    !hasAppliedInitialAssignment &&
+    !isEditMode &&
+    !assignmentLoading &&
+    hasAssignments
+  ) {
     const eventCode = selectedEvent?.eventCode;
     const lastSubmitted = eventCode ? getLastSubmittedMatch(eventCode) : 0;
 
@@ -223,17 +229,7 @@ export function DynamicMatchScoutForm() {
     }
 
     setHasAppliedInitialAssignment(true);
-  }, [
-    hasAssignments,
-    recommendedStartMatch,
-    recommendedAlliance,
-    recommendedPosition,
-    assignmentLoading,
-    isEditMode,
-    hasAppliedInitialAssignment,
-    selectedEvent?.eventCode,
-    getNextAssignment,
-  ]);
+  }
 
   // Determine if current values match the scouting schedule assignment
   const isMatchFromScoutingSchedule =

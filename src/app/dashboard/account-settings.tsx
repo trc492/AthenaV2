@@ -22,6 +22,32 @@ interface User {
   username: string;
 }
 
+async function loadUsers(): Promise<User[] | null> {
+  try {
+    const response = await fetch("/api/users");
+    const data = await response.json();
+    if (response.ok) {
+      return data.users || [];
+    }
+  } catch (error) {
+    console.error("Error fetching users:", error);
+  }
+  return null;
+}
+
+async function loadPreferredPartners(): Promise<string[] | null> {
+  try {
+    const response = await fetch("/api/users/me/preferred-partners");
+    const data = await response.json();
+    if (response.ok && data.preferredPartners) {
+      return data.preferredPartners;
+    }
+  } catch (error) {
+    console.error("Error fetching preferred partners:", error);
+  }
+  return null;
+}
+
 export function AccountSettingsDialog({
   open,
   onOpenChange,
@@ -48,59 +74,51 @@ export function AccountSettingsDialog({
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  // Initialize form with current user data
-  useEffect(() => {
+  // Initialize form with current user data. Done during render so the
+  // dialog opens with the right values already filled in.
+  const [formSource, setFormSource] = useState<{
+    session: typeof session;
+    open: boolean;
+  } | null>(null);
+  if (formSource?.session !== session || formSource?.open !== open) {
+    setFormSource({ session, open });
     if (session?.user) {
       setName(session.user.name || "");
       setUsername(session.user.username || "");
       setAvatarPreview(session.user.avatarUrl || session.user.image || null);
     }
-  }, [session, open]);
+  }
 
-  // Fetch users and preferred partners when dialog opens
-  useEffect(() => {
+  // Start loading when the dialog opens; reset password fields when it closes
+  const [wasOpen, setWasOpen] = useState(false);
+  if (wasOpen !== open) {
+    setWasOpen(open);
     if (open) {
-      fetchUsers();
-      fetchPreferredPartners();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // Reset password fields when dialog closes
-  useEffect(() => {
-    if (!open) {
+      setLoadingUsers(true);
+    } else {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     }
-  }, [open]);
+  }
 
-  async function fetchUsers() {
-    setLoadingUsers(true);
-    try {
-      const response = await fetch("/api/users");
-      const data = await response.json();
-      if (response.ok) {
-        setAllUsers(data.users || []);
-      }
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
+  // Fetch users and preferred partners when dialog opens
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    loadUsers().then((users) => {
+      if (cancelled) return;
+      if (users) setAllUsers(users);
       setLoadingUsers(false);
-    }
-  }
-
-  async function fetchPreferredPartners() {
-    try {
-      const response = await fetch("/api/users/me/preferred-partners");
-      const data = await response.json();
-      if (response.ok && data.preferredPartners) {
-        setSelectedPartners(data.preferredPartners);
-      }
-    } catch (error) {
-      console.error("Error fetching preferred partners:", error);
-    }
-  }
+    });
+    loadPreferredPartners().then((partners) => {
+      if (!cancelled && partners) setSelectedPartners(partners);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();

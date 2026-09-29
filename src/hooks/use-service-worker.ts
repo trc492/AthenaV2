@@ -1,34 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
-interface ServiceWorkerState {
-  isSupported: boolean;
+interface RegistrationState {
   isRegistered: boolean;
   registration: ServiceWorkerRegistration | null;
   error: string | null;
 }
 
+// Only register the service worker in production and if supported
+function isServiceWorkerSupported() {
+  return process.env.NODE_ENV === "production" && "serviceWorker" in navigator;
+}
+
+function subscribeToNothing() {
+  return () => {};
+}
+
 export function useServiceWorker() {
-  const [state, setState] = useState<ServiceWorkerState>({
-    isSupported: false,
+  const isSupported = useSyncExternalStore(
+    subscribeToNothing,
+    isServiceWorkerSupported,
+    () => false,
+  );
+  const [state, setState] = useState<RegistrationState>({
     isRegistered: false,
     registration: null,
     error: null,
   });
 
   useEffect(() => {
-    // Only register service worker in production and if supported
-    if (
-      process.env.NODE_ENV !== "production" ||
-      typeof window === "undefined" ||
-      !("serviceWorker" in navigator)
-    ) {
-      setState((prev) => ({ ...prev, isSupported: false }));
-      return;
-    }
-
-    setState((prev) => ({ ...prev, isSupported: true }));
+    if (!isServiceWorkerSupported()) return;
 
     const NEW_SW_URL = "/serwist/sw.js";
 
@@ -122,5 +124,5 @@ export function useServiceWorker() {
     };
   }, []);
 
-  return state;
+  return { isSupported, ...state };
 }

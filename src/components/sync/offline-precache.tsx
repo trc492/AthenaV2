@@ -41,36 +41,26 @@ import {
   Shield,
   Layout,
   BarChart3,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 type CacheMode = "scout" | "full";
 
-function stepIcon(id: CacheStepId) {
-  switch (id) {
-    case "session":
-      return Shield;
-    case "pages":
-      return Layout;
-    case "teams":
-      return Users;
-    case "schedule":
-      return Calendar;
-    case "scoutSchedule":
-      return ClipboardList;
-    case "scoutList":
-      return Users;
-    case "pitEntries":
-      return FileText;
-    case "matchEntries":
-      return Database;
-    case "analysisData":
-      return BarChart3;
-  }
-}
+const STEP_ICONS: Record<CacheStepId, LucideIcon> = {
+  session: Shield,
+  pages: Layout,
+  teams: Users,
+  schedule: Calendar,
+  scoutSchedule: ClipboardList,
+  scoutList: Users,
+  pitEntries: FileText,
+  matchEntries: Database,
+  analysisData: BarChart3,
+};
 
 function StepRow({ step }: { step: CacheStep }) {
-  const Icon = stepIcon(step.id);
+  const Icon = STEP_ICONS[step.id];
 
   return (
     <div className="flex items-center gap-3 text-sm py-1.5 px-3 rounded-md bg-muted/40">
@@ -129,17 +119,28 @@ export function OfflinePrecache({ className }: { className?: string }) {
 
   const hasEvent = !!selectedEvent?.eventCode;
 
+  // Clear the previous event's cache status as soon as the event changes
+  const eventCode = selectedEvent?.eventCode;
+  const [statusEventCode, setStatusEventCode] = useState(eventCode);
+  if (statusEventCode !== eventCode) {
+    setStatusEventCode(eventCode);
+    setCacheStatus(null);
+  }
+
   // Load existing cache status for the selected event
   useEffect(() => {
-    if (!selectedEvent?.eventCode) {
-      setCacheStatus(null);
-      return;
-    }
+    if (!eventCode) return;
+    let cancelled = false;
     indexedDBService
-      .getEventCacheStatus(selectedEvent.eventCode)
-      .then(setCacheStatus)
-      .catch(() => setCacheStatus(null));
-  }, [selectedEvent?.eventCode]);
+      .getEventCacheStatus(eventCode)
+      .catch(() => null)
+      .then((status) => {
+        if (!cancelled) setCacheStatus(status);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventCode]);
 
   const currentStepIds = mode === "full" ? FULL_CACHE_STEPS : SCOUT_STEPS;
 

@@ -36,15 +36,10 @@ export function useOffline(): UseOfflineReturn {
 
   // Update queue counts
   const updateCounts = useCallback(async () => {
-    try {
-      const [pending, total] = await Promise.all([
-        offlineQueueManager.getPendingCount(),
-        offlineQueueManager.getTotalQueuedCount(),
-      ]);
-      setPendingCount(pending);
-      setTotalQueuedCount(total);
-    } catch (error) {
-      console.error("Failed to update queue counts:", error);
+    const counts = await readQueueCounts();
+    if (counts) {
+      setPendingCount(counts.pending);
+      setTotalQueuedCount(counts.total);
     }
   }, []);
 
@@ -173,14 +168,25 @@ export function useOffline(): UseOfflineReturn {
   }, [handleSyncResult]);
 
   // Update counts on mount and when online status changes
+  // Poll the queue counts (the store has no change events)
   useEffect(() => {
-    updateCounts();
+    let cancelled = false;
+    const poll = () => {
+      readQueueCounts().then((counts) => {
+        if (cancelled || !counts) return;
+        setPendingCount(counts.pending);
+        setTotalQueuedCount(counts.total);
+      });
+    };
 
-    // Set up periodic count updates
-    const interval = setInterval(updateCounts, 5000); // Update every 5 seconds
+    poll();
+    const interval = setInterval(poll, 5000); // Update every 5 seconds
 
-    return () => clearInterval(interval);
-  }, [updateCounts]);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Load auto-sync setting from queue manager
   useEffect(() => {
@@ -257,4 +263,20 @@ export function useOnlineStatus(): boolean {
   }, []);
 
   return isOnline;
+}
+
+async function readQueueCounts(): Promise<{
+  pending: number;
+  total: number;
+} | null> {
+  try {
+    const [pending, total] = await Promise.all([
+      offlineQueueManager.getPendingCount(),
+      offlineQueueManager.getTotalQueuedCount(),
+    ]);
+    return { pending, total };
+  } catch (error) {
+    console.error("Failed to update queue counts:", error);
+    return null;
+  }
 }

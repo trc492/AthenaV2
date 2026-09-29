@@ -25,7 +25,7 @@ class IndexedDBService {
 
   // Initialize IndexedDB connection
   async init(): Promise<void> {
-    if (typeof window === "undefined") {
+    if (typeof indexedDB === "undefined") {
       throw new Error("IndexedDB is only available in browser environment");
     }
 

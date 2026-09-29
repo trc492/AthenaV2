@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -33,21 +33,24 @@ import { MatchScoutingTable } from "@/components/tables/match-scouting-table";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { MatchEntry } from "@/lib/types";
 import { useGameConfig } from "@/hooks/use-game-config";
+import { useScoutingEntries } from "@/hooks/use-scouting-entries";
 import { useEventConfig } from "@/hooks/use-event-config";
-import { indexedDBService } from "@/lib/indexeddb-service";
 
 export default function MatchScoutingPage() {
-  const [matchEntries, setMatchEntries] = useState<MatchEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
   const [entriesToDelete, setEntriesToDelete] = useState<number[]>([]);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [isOfflineData, setIsOfflineData] = useState(false);
 
   const { currentYear, competitionType } = useGameConfig();
   const { selectedEvent } = useEventConfig();
+  const {
+    entries: matchEntries,
+    loading,
+    error,
+    isOfflineData,
+    refetch,
+  } = useScoutingEntries("match");
 
   // Handle export
   const handleExport = async (format: "json" | "csv" | "xlsx" = "csv") => {
@@ -96,75 +99,6 @@ export default function MatchScoutingPage() {
     }
   };
 
-  // Fetch match entries — try API first, fall back to IndexedDB cache
-  const fetchMatchEntries = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setIsOfflineData(false);
-
-      const eventCode = selectedEvent?.eventCode;
-      const isOnline =
-        typeof navigator !== "undefined" ? navigator.onLine : true;
-
-      // If offline, go straight to IndexedDB
-      if (!isOnline && eventCode) {
-        const cached = await indexedDBService.getCachedMatchEntries(eventCode);
-        if (cached && cached.entries.length > 0) {
-          setMatchEntries(cached.entries);
-          setIsOfflineData(true);
-          return;
-        }
-        setError(
-          "Offline — no cached match scouting data available. Use the pre-cache feature in Settings while online.",
-        );
-        return;
-      }
-
-      const params = new URLSearchParams();
-      if (eventCode) params.append("eventCode", eventCode);
-      params.append("competitionType", competitionType);
-
-      const url = `/api/scouting/entries/match?${params.toString()}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch match entries: ${response.statusText}`,
-        );
-      }
-
-      const data = await response.json();
-      setMatchEntries(data);
-    } catch (err) {
-      console.error("Error fetching match entries:", err);
-
-      // Fallback to IndexedDB cache on network error
-      const eventCode = selectedEvent?.eventCode;
-      if (eventCode) {
-        try {
-          const cached =
-            await indexedDBService.getCachedMatchEntries(eventCode);
-          if (cached && cached.entries.length > 0) {
-            setMatchEntries(cached.entries);
-            setIsOfflineData(true);
-            toast.info("Showing cached match scouting data (offline)");
-            return;
-          }
-        } catch (cacheErr) {
-          console.warn("Failed to read cached match entries:", cacheErr);
-        }
-      }
-
-      setError("Failed to load match scouting data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMatchEntries();
-  }, [selectedEvent, competitionType]);
-
   // Handle edit - navigate to scout form with edit ID
   const handleEdit = (entry: MatchEntry) => {
     window.location.href = `/scout/matchscout?editId=${entry.id}`;
@@ -202,7 +136,7 @@ export default function MatchScoutingPage() {
       }
 
       // Refresh data
-      await fetchMatchEntries();
+      refetch();
 
       if (failedCount > 0) {
         toast.warning(

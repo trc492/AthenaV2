@@ -182,14 +182,18 @@ export function useScheduleData() {
     [],
   );
 
-  // Reset event-specific state when event changes
-  useEffect(() => {
+  // Reset event-specific state when the event changes. Done during render
+  // (not in an effect) so the stale event's schedule is never shown.
+  const [prevScheduleScopeKey, setPrevScheduleScopeKey] =
+    useState(scheduleScopeKey);
+  if (prevScheduleScopeKey !== scheduleScopeKey) {
+    setPrevScheduleScopeKey(scheduleScopeKey);
     setBlocks([]);
     setMatchAssignments([]);
     setMatchCount(0);
     setApiMatchCount(0);
     setIsApiMatchCountAvailable(false);
-  }, [selectedEvent?.eventCode, currentYear, competitionType]);
+  }
 
   // Fetch users
   useEffect(() => {

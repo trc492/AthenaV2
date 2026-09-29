@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -19,27 +19,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   Users,
-  Trophy,
-  TrendingUp,
 } from "lucide-react";
 import { teamApi } from "@/lib/api/database-client";
 import type { TeamData } from "@/lib/types";
 import { useMatchScheduleTeams } from "@/hooks/use-match-schedule-teams";
 import { useGameConfig } from "@/hooks/use-game-config";
+import { useAsyncData } from "@/hooks/use-async-data";
 import { useSelectedEvent } from "@/hooks/use-event-config";
+import { calculateEPA } from "@/lib/statistics";
+import { estimateWinProbability } from "@/lib/matchup-probability";
 import MatchupAlliancePanel from "./matchup-alliance-panel";
 
 type MatchType = "qualification" | "playoff";
 
+type TeamEpaMap = Record<
+      number,
+      {
+        epa: number;
+        auto: number;
+        teleop: number;
+        endgame: number;
+        matchCount: number;
+        scores: number[];
+      } | null
+    >;
+
+const NO_EPA_DATA: TeamEpaMap = {};
+
 export default function MatchupPage() {
-  const { currentYear, competitionType } = useGameConfig();
+  const { currentYear, competitionType, getCurrentYearConfig } = useGameConfig();
+  const yearConfig = getCurrentYearConfig();
   const selectedEvent = useSelectedEvent();
   const {
     scheduleData,
@@ -85,71 +100,55 @@ export default function MatchupPage() {
   // FTC has 2 robots per alliance, FRC has 3
   const allianceSize = competitionType === "FTC" ? 2 : 3;
 
-  // EPA data for all displayed teams
-  const [teamEpaMap, setTeamEpaMap] = useState<
-    Record<
-      number,
-      {
-        epa: number;
-        auto: number;
-        teleop: number;
-        endgame: number;
-        matchCount: number;
-      } | null
-    >
-  >({});
-  const [epaLoading, setEpaLoading] = useState(false);
-
   // Stable key to detect when displayed teams change
   const allTeamsKey = useMemo(
     () => [...displayRedTeams, ...displayBlueTeams].sort().join(","),
     [displayRedTeams, displayBlueTeams],
   );
+  const epaRequestKey = `${competitionType}:${currentYear}:${selectedEvent?.eventCode ?? ""}:${allTeamsKey}`;
 
   // Fetch EPA data for all displayed teams
-  useEffect(() => {
-    const allTeams = [...displayRedTeams, ...displayBlueTeams];
-    if (allTeams.length === 0) {
-      setTeamEpaMap({});
-      return;
-    }
-
-    let cancelled = false;
-    setEpaLoading(true);
-
-    Promise.all(
-      allTeams.map(async (teamNum) => {
-        try {
-          const data: TeamData = await teamApi.getTeamData(
-            teamNum,
-            currentYear,
-            selectedEvent?.eventCode,
-            competitionType,
-          );
-          // API returns autoEPA/teleopEPA/endgameEPA (not auto/teleop/endgame)
-          const epa = data.epa as Record<string, number> | null;
-          return {
-            teamNum,
-            epa: epa?.totalEPA ?? 0,
-            auto: epa?.autoEPA ?? 0,
-            teleop: epa?.teleopEPA ?? 0,
-            endgame: epa?.endgameEPA ?? 0,
-            matchCount: data.matchCount ?? 0,
-          };
-        } catch {
-          return {
-            teamNum,
-            epa: 0,
-            auto: 0,
-            teleop: 0,
-            endgame: 0,
-            matchCount: 0,
-          };
-        }
-      }),
-    ).then((results) => {
-      if (cancelled) return;
-      const map: typeof teamEpaMap = {};
+  const { data: fetchedEpaMap, loading: epaLoading } = useAsyncData<TeamEpaMap>(
+    hasTeams ? epaRequestKey : null,
+    async () => {
+      const allTeams = [...displayRedTeams, ...displayBlueTeams];
+      const results = await Promise.all(
+        allTeams.map(async (teamNum) => {
+          try {
+            const data: TeamData = await teamApi.getTeamData(
+              teamNum,
+              currentYear,
+              selectedEvent?.eventCode,
+              competitionType,
+            );
+            // API returns autoEPA/teleopEPA/endgameEPA (not auto/teleop/endgame)
+            const epa = data.epa as Record<string, number> | null;
+            const scores = yearConfig && epa
+              ? data.matchEntries.map((match) => calculateEPA([match], currentYear, yearConfig).totalEPA)
+              : [];
+            return {
+              teamNum,
+              epa: epa?.totalEPA ?? 0,
+              auto: epa?.autoEPA ?? 0,
+              teleop: epa?.teleopEPA ?? 0,
+              endgame: epa?.endgameEPA ?? 0,
+              matchCount: data.matchCount ?? 0,
+              scores,
+            };
+          } catch {
+            return {
+              teamNum,
+              epa: 0,
+              auto: 0,
+              teleop: 0,
+              endgame: 0,
+              matchCount: 0,
+              scores: [],
+            };
+          }
+        }),
+      );
+      const map: TeamEpaMap = {};
       results.forEach((r) => {
         map[r.teamNum] = {
           epa: r.epa,
@@ -157,17 +156,13 @@ export default function MatchupPage() {
           teleop: r.teleop,
           endgame: r.endgame,
           matchCount: r.matchCount,
+          scores: r.scores,
         };
       });
-      setTeamEpaMap(map);
-      setEpaLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTeamsKey, currentYear, selectedEvent?.eventCode, competitionType]);
+      return map;
+    },
+  );
+  const teamEpaMap = fetchedEpaMap ?? NO_EPA_DATA;
 
   // Calculate alliance totals
   const redTotalEpa = displayRedTeams.reduce(
@@ -205,14 +200,21 @@ export default function MatchupPage() {
 
   const epaReady =
     hasTeams && !epaLoading && Object.keys(teamEpaMap).length > 0;
-  const epaDiff = Math.abs(redTotalEpa - blueTotalEpa);
-  const expectedWinner: "red" | "blue" | "toss-up" = !epaReady
-    ? "toss-up"
-    : epaDiff < 2
-      ? "toss-up"
-      : redTotalEpa > blueTotalEpa
-        ? "red"
-        : "blue";
+  const winProbability = !epaReady ||
+    displayRedTeams.length !== allianceSize ||
+    displayBlueTeams.length !== allianceSize
+    ? null
+    : estimateWinProbability(
+        displayRedTeams.map((team) => ({
+          mean: teamEpaMap[team]?.epa ?? NaN,
+          scores: teamEpaMap[team]?.scores ?? [],
+        })),
+        displayBlueTeams.map((team) => ({
+          mean: teamEpaMap[team]?.epa ?? NaN,
+          scores: teamEpaMap[team]?.scores ?? [],
+        })),
+      );
+  const redWinPercent = Math.round((winProbability?.red ?? 0) * 100);
 
   const handlePrevMatch = useCallback(() => {
     setMatchNumber((prev) => Math.max(1, prev - 1));
@@ -224,9 +226,12 @@ export default function MatchupPage() {
     );
   }, [maxMatchNumber]);
 
-  useEffect(() => {
+  // Keep the text input in sync when the match number changes elsewhere
+  const [inputMatchNumber, setInputMatchNumber] = useState(matchNumber);
+  if (inputMatchNumber !== matchNumber) {
+    setInputMatchNumber(matchNumber);
     setMatchNumberInput(matchNumber.toString());
-  }, [matchNumber]);
+  }
 
   const updateManualTeam = (
     alliance: "red" | "blue",
@@ -382,7 +387,7 @@ export default function MatchupPage() {
                 )}
                 {!hasScheduleData && !scheduleLoading && (
                   <span className="text-sm text-muted-foreground">
-                    No schedule available — select an event or use manual entry
+                    No schedule available â€” select an event or use manual entry
                   </span>
                 )}
               </div>
@@ -462,135 +467,48 @@ export default function MatchupPage() {
                   <Skeleton className="h-8 w-32" />
                 </div>
               ) : epaReady ? (
-                <div className="space-y-3">
-                  {/* Expected Winner Banner */}
-                  <div className="flex items-center justify-center gap-3">
-                    <Trophy
-                      className={`h-5 w-5 ${
-                        expectedWinner === "red"
-                          ? "text-red-500"
-                          : expectedWinner === "blue"
-                            ? "text-blue-500"
-                            : "text-muted-foreground"
-                      }`}
-                    />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Expected Winner:
+                <div className="mx-auto max-w-xl">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-5 gap-y-2 text-sm sm:gap-x-10">
+                    <span />
+                    <span className="text-right font-semibold text-red-600 dark:text-red-400">Red</span>
+                    <span className="text-right font-semibold text-blue-600 dark:text-blue-400">Blue</span>
+
+                    <span className="font-medium">Win chance</span>
+                    <span className="text-right text-xl font-bold tabular-nums text-red-600 dark:text-red-400">
+                      {winProbability ? `${redWinPercent}%` : "N/A"}
                     </span>
-                    <Badge
-                      variant={
-                        expectedWinner === "toss-up" ? "secondary" : "default"
-                      }
-                      className={`text-sm px-3 py-1 ${
-                        expectedWinner === "red"
-                          ? "bg-red-500 hover:bg-red-600 text-white"
-                          : expectedWinner === "blue"
-                            ? "bg-blue-500 hover:bg-blue-600 text-white"
-                            : ""
-                      }`}
-                    >
-                      {expectedWinner === "red"
-                        ? "Red Alliance"
-                        : expectedWinner === "blue"
-                          ? "Blue Alliance"
-                          : "Toss-up"}
-                    </Badge>
-                    {expectedWinner !== "toss-up" && (
-                      <span className="text-xs text-muted-foreground">
-                        by {epaDiff.toFixed(1)} EPA
-                      </span>
-                    )}
+                    <span className="text-right text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                      {winProbability ? `${100 - redWinPercent}%` : "N/A"}
+                    </span>
+
+                    <span className="border-t pt-2 text-muted-foreground">Estimated points</span>
+                    <span className="border-t pt-2 text-right font-medium tabular-nums">{redTotalEpa.toFixed(1)}</span>
+                    <span className="border-t pt-2 text-right font-medium tabular-nums">{blueTotalEpa.toFixed(1)}</span>
+
+                    <span className="text-muted-foreground">Auto</span>
+                    <span className="text-right tabular-nums">{redAutoEpa.toFixed(1)}</span>
+                    <span className="text-right tabular-nums">{blueAutoEpa.toFixed(1)}</span>
+
+                    <span className="text-muted-foreground">Teleop</span>
+                    <span className="text-right tabular-nums">{redTeleopEpa.toFixed(1)}</span>
+                    <span className="text-right tabular-nums">{blueTeleopEpa.toFixed(1)}</span>
+
+                    <span className="text-muted-foreground">Endgame</span>
+                    <span className="text-right tabular-nums">{redEndgameEpa.toFixed(1)}</span>
+                    <span className="text-right tabular-nums">{blueEndgameEpa.toFixed(1)}</span>
                   </div>
-
-                  {/* EPA Comparison Bar */}
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                    {/* Red EPA */}
-                    <div className="text-right space-y-1">
-                      <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        {redTotalEpa.toFixed(1)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Total EPA
-                      </div>
-                    </div>
-
-                    {/* VS divider */}
-                    <div className="flex flex-col items-center">
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        VS
-                      </span>
-                    </div>
-
-                    {/* Blue EPA */}
-                    <div className="text-left space-y-1">
-                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {blueTotalEpa.toFixed(1)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Total EPA
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Phase Breakdown */}
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm">
-                    <div className="text-right space-y-1">
-                      <div className="flex justify-end gap-3">
-                        <span className="text-muted-foreground">Auto</span>
-                        <span
-                          className={`font-medium tabular-nums ${redAutoEpa > blueAutoEpa ? "text-red-600 dark:text-red-400 font-bold" : ""}`}
-                        >
-                          {redAutoEpa.toFixed(1)}
-                        </span>
-                      </div>
-                      <div className="flex justify-end gap-3">
-                        <span className="text-muted-foreground">Teleop</span>
-                        <span
-                          className={`font-medium tabular-nums ${redTeleopEpa > blueTeleopEpa ? "text-red-600 dark:text-red-400 font-bold" : ""}`}
-                        >
-                          {redTeleopEpa.toFixed(1)}
-                        </span>
-                      </div>
-                      <div className="flex justify-end gap-3">
-                        <span className="text-muted-foreground">Endgame</span>
-                        <span
-                          className={`font-medium tabular-nums ${redEndgameEpa > blueEndgameEpa ? "text-red-600 dark:text-red-400 font-bold" : ""}`}
-                        >
-                          {redEndgameEpa.toFixed(1)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Separator orientation="vertical" className="h-16" />
-
-                    <div className="text-left space-y-1">
-                      <div className="flex gap-3">
-                        <span
-                          className={`font-medium tabular-nums ${blueAutoEpa > redAutoEpa ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}
-                        >
-                          {blueAutoEpa.toFixed(1)}
-                        </span>
-                        <span className="text-muted-foreground">Auto</span>
-                      </div>
-                      <div className="flex gap-3">
-                        <span
-                          className={`font-medium tabular-nums ${blueTeleopEpa > redTeleopEpa ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}
-                        >
-                          {blueTeleopEpa.toFixed(1)}
-                        </span>
-                        <span className="text-muted-foreground">Teleop</span>
-                      </div>
-                      <div className="flex gap-3">
-                        <span
-                          className={`font-medium tabular-nums ${blueEndgameEpa > redEndgameEpa ? "text-blue-600 dark:text-blue-400 font-bold" : ""}`}
-                        >
-                          {blueEndgameEpa.toFixed(1)}
-                        </span>
-                        <span className="text-muted-foreground">Endgame</span>
-                      </div>
-                    </div>
-                  </div>
+                  {winProbability ? (
+                    <details className="mt-3 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer">About this estimate</summary>
+                      <p className="mt-1">
+                        Win chance uses a normal model of scouted match scores. Variation is pooled for small samples; ties are not modeled, and estimates are not calibrated against results.
+                      </p>
+                    </details>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Win chance needs complete alliances, scouting data for every team, and at least one team with two matches.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-center text-sm text-muted-foreground py-2">

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handlers } from "@/lib/auth/config";
 import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
+import { withAuthOrigin } from "@/lib/server/auth-request";
 
 const LOGIN_WINDOW_MS = 60 * 1000;
 const LOGIN_MAX_REQUESTS = 20;
 
-export const GET = handlers.GET;
+export async function GET(request: NextRequest) {
+  return handlers.GET(withAuthOrigin(request));
+}
 
 export async function POST(request: NextRequest) {
   // Credentials sign-in requests go through this callback route.
@@ -27,5 +30,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return handlers.POST(request);
+  return handlers.POST(withAuthOrigin(request));
 }
