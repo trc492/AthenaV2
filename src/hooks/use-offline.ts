@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { offlineQueueManager } from "@/lib/offline-queue-manager";
 import type { SyncResult, NetworkStatus } from "@/lib/offline-types";
+import { useSession } from "next-auth/react";
 
 interface UseOfflineReturn {
   isOnline: boolean;
@@ -22,6 +23,8 @@ interface UseOfflineReturn {
 }
 
 export function useOffline(): UseOfflineReturn {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
   const [isOnline, setIsOnline] = useState(
     typeof window !== "undefined" ? navigator.onLine : true,
   );
@@ -36,12 +39,13 @@ export function useOffline(): UseOfflineReturn {
 
   // Update queue counts
   const updateCounts = useCallback(async () => {
+    if (isGuest) return;
     const counts = await readQueueCounts();
     if (counts) {
       setPendingCount(counts.pending);
       setTotalQueuedCount(counts.total);
     }
-  }, []);
+  }, [isGuest]);
 
   // Handle sync completion
   const handleSyncResult = useCallback(
@@ -55,6 +59,7 @@ export function useOffline(): UseOfflineReturn {
 
   // Trigger manual sync
   const triggerSync = useCallback(async (): Promise<SyncResult> => {
+    if (isGuest) throw new Error("Guest access is read-only");
     // Check navigator.onLine directly to avoid stale closure issues
     const currentlyOnline =
       typeof window !== "undefined" ? navigator.onLine : false;
@@ -77,10 +82,11 @@ export function useOffline(): UseOfflineReturn {
       setSyncInProgress(false);
       throw error;
     }
-  }, [syncInProgress, handleSyncResult]);
+  }, [syncInProgress, handleSyncResult, isGuest]);
 
   // Retry failed entries
   const retryFailedEntries = useCallback(async (): Promise<SyncResult> => {
+    if (isGuest) throw new Error("Guest access is read-only");
     // Check navigator.onLine directly to avoid stale closure issues
     const currentlyOnline =
       typeof window !== "undefined" ? navigator.onLine : false;
@@ -103,14 +109,15 @@ export function useOffline(): UseOfflineReturn {
       setSyncInProgress(false);
       throw error;
     }
-  }, [syncInProgress, handleSyncResult]);
+  }, [syncInProgress, handleSyncResult, isGuest]);
 
   // Clear synced entries
   const clearSyncedEntries = useCallback(async (): Promise<number> => {
+    if (isGuest) throw new Error("Guest access is read-only");
     const count = await offlineQueueManager.clearSyncedEntries();
     await updateCounts();
     return count;
-  }, [updateCounts]);
+  }, [updateCounts, isGuest]);
 
   // Handle online/offline events
   useEffect(() => {

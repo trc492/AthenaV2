@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Card,
   CardContent,
@@ -37,6 +38,8 @@ import { useScoutingEntries } from "@/hooks/use-scouting-entries";
 import { useEventConfig } from "@/hooks/use-event-config";
 
 export default function MatchScoutingPage() {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
   const [entriesToDelete, setEntriesToDelete] = useState<number[]>([]);
@@ -191,7 +194,7 @@ export default function MatchScoutingPage() {
           )}
         </div>
         <div className="flex items-center gap-2 md:justify-end">
-          <DropdownMenu>
+          {!isGuest && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Download className="mr-2 h-4 w-4" />
@@ -210,11 +213,11 @@ export default function MatchScoutingPage() {
                 Export as Excel
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={() => window.open("/scout/matchscout", "_blank")}>
+          </DropdownMenu>}
+          {!isGuest && <Button onClick={() => window.open("/scout/matchscout", "_blank")}>
             <Plus className="mr-2 h-4 w-4" />
             Add New Entry
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -283,7 +286,7 @@ export default function MatchScoutingPage() {
               data={matchEntries}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onDeleteSelected={handleDeleteSelected}
+              onDeleteSelected={isGuest ? undefined : handleDeleteSelected}
             />
           )}
         </CardContent>

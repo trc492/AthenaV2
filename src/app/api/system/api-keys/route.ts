@@ -42,11 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const allowed = [
-    "tbaApiKey",
-    "ftcApiKey",
-    "nexusApiKey",
-  ];
+  const allowed = ["tbaApiKey", "ftcApiKey", "nexusApiKey"];
 
   const patch: Record<string, string> = {};
   for (const key of allowed) {

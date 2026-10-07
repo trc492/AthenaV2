@@ -1,4 +1,4 @@
-// API client for Azure SQL database operations with offline support
+// API client for database operations with offline support
 // Handles online/offline scenarios by queuing data when offline
 
 import { PitEntry, MatchEntry } from "@/lib/types";

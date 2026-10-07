@@ -216,11 +216,7 @@ export interface FtcAdvancementSlot {
 
 /** Advancement Status Types */
 export type FtcAdvancementStatus =
-  | "NULL"
-  | "FIRST"
-  | "ALREADY_ADVANCING"
-  | "ADVANCING_ABOVE"
-  | "INELIGIBLE";
+  "NULL" | "FIRST" | "ALREADY_ADVANCING" | "ADVANCING_ABOVE" | "INELIGIBLE";
 
 /** Advancement Source */
 export interface FtcAdvancementSource {
@@ -304,12 +300,7 @@ export interface FtcScoreDetails {
 
 /** Event Level Types */
 export type FtcEventLevel =
-  | "PRACTICE"
-  | "QUALIFICATION"
-  | "SEMIFINAL"
-  | "FINAL"
-  | "PLAYOFF"
-  | "OTHER";
+  "PRACTICE" | "QUALIFICATION" | "SEMIFINAL" | "FINAL" | "PLAYOFF" | "OTHER";
 
 /** Tournament Level Types */
 export type FtcTournamentLevel = "qual" | "playoff";

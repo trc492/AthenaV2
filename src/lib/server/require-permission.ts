@@ -53,7 +53,9 @@ export async function requireAnyPermission(
 }
 
 /** Like requirePermission but also returns the resolved session on success. */
-export async function requirePermissionWithSession(permission: string): Promise<
+export async function requirePermissionWithSession(
+  permission: string,
+): Promise<
   | { denied: NextResponse; session: null }
   | { denied: null; session: Session & { user: { role: string; id: string } } }
 > {

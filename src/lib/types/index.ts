@@ -1,5 +1,6 @@
 export * from "./competition/competition";
 export * from "./events/events";
+export * from "./events/guest-links";
 export * from "./forms/forms";
 export * from "./game/config";
 export * from "./db/entries";

@@ -32,8 +32,7 @@ class DatabaseManager {
 
     // Allow explicit provider override via env var
     const envProvider = (process.env.DATABASE_PROVIDER || "").toLowerCase() as
-      | DatabaseProvider
-      | "";
+      DatabaseProvider | "";
 
     // Azure SQL envs
     const azureSqlConnectionString = process.env.AZURE_SQL_CONNECTION_STRING;
@@ -124,7 +123,9 @@ class DatabaseManager {
                   useManagedIdentity: false,
                 },
         };
-        this.currentService = new AzureSqlDatabaseService(this.config.azuresql!);
+        this.currentService = new AzureSqlDatabaseService(
+          this.config.azuresql!,
+        );
       } else if (selected === "cosmos") {
         this.config = {
           provider: "cosmos",
@@ -165,7 +166,10 @@ class DatabaseManager {
         this.currentService = new MariaDbDatabaseService(this.config.mariadb!);
       }
     } catch (err) {
-      console.warn("Failed to initialize database provider from environment:", err);
+      console.warn(
+        "Failed to initialize database provider from environment:",
+        err,
+      );
       this.config = null;
       this.currentService = null;
     }

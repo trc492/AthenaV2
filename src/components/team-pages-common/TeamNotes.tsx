@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 interface TeamNotesProps {
   notes: string[];
@@ -15,9 +16,11 @@ export function TeamNotes({
   searchNote,
   setSearchNote,
 }: TeamNotesProps) {
+  const { data: session } = useSession();
   const filtered = notes.filter((n) =>
     n.toLowerCase().includes(searchNote.toLowerCase()),
   );
+  if (session?.guestEvent) return null;
 
   return (
     <Card>

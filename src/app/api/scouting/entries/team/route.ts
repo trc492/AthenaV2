@@ -1,3 +1,4 @@
+import { guestDatabase } from "@/lib/server/guest-database";
 import { NextRequest, NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
 import { DatabaseService, MatchEntry, CompetitionType } from "@/lib/types";
@@ -6,14 +7,9 @@ import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { calculateEPA, calculateTeamStats } from "@/lib/statistics";
 import gameConfig from "../../../../../../config/game-config-loader";
 
-// Initialize database service
-let dbService: DatabaseService;
-
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+// Resolve the active provider on each request so configuration changes take effect.
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 // GET /api/scouting/entries/team - Get team data for a specific team
@@ -48,7 +44,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const service = getDbService();
+    const service = guestDatabase(getDbService(), session);
 
     // Get match entries for the team, filtered by competition type
     const matchEntries = await service.getMatchEntries(

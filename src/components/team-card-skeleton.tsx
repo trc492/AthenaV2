@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function TeamCardSkeleton() {
   return (
-    <Card className="max-w-sm w-full mx-auto overflow-hidden border-0 shadow-lg bg-gradient-to-br from-card to-card/80 backdrop-blur-sm">
+    <Card className="max-w-sm w-full mx-auto">
       {/* Header Section */}
       <CardHeader className="space-y-3 pb-4">
         <div className="flex items-start justify-between">

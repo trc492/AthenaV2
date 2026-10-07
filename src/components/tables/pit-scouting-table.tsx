@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSession } from "next-auth/react";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -47,6 +48,8 @@ export function PitScoutingTable({
   onDelete,
   onDeleteSelected,
 }: PitScoutingTableProps) {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
   const [rowSelection, setRowSelection] = React.useState({});
 
   // Expose selected IDs
@@ -191,7 +194,7 @@ export function PitScoutingTable({
 
   const table = useReactTable({
     data,
-    columns,
+    columns: isGuest ? columns.filter((column) => column.id !== "actions" && column.id !== "select" && (!("accessorKey" in column) || column.accessorKey !== "notes")) : columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -221,7 +224,7 @@ export function PitScoutingTable({
           }
           className="max-w-sm"
         />
-        {selectedIds.length > 0 && onDeleteSelected && (
+        {!isGuest && selectedIds.length > 0 && onDeleteSelected && (
           <Button
             variant="destructive"
             size="sm"

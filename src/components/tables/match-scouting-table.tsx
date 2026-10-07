@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSession } from "next-auth/react";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -48,6 +49,8 @@ export const MatchScoutingTable = React.memo(function MatchScoutingTable({
   onDelete,
   onDeleteSelected,
 }: MatchScoutingTableProps) {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
   const [rowSelection, setRowSelection] = React.useState({});
 
   // Expose selected IDs
@@ -231,7 +234,7 @@ export const MatchScoutingTable = React.memo(function MatchScoutingTable({
 
   const table = useReactTable({
     data,
-    columns,
+    columns: isGuest ? columns.filter((column) => column.id !== "actions" && column.id !== "select" && (!("accessorKey" in column) || column.accessorKey !== "notes")) : columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -261,7 +264,7 @@ export const MatchScoutingTable = React.memo(function MatchScoutingTable({
           }
           className="max-w-sm"
         />
-        {selectedIds.length > 0 && onDeleteSelected && (
+        {!isGuest && selectedIds.length > 0 && onDeleteSelected && (
           <Button
             variant="destructive"
             size="sm"

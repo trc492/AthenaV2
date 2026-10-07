@@ -3,7 +3,23 @@
   "appService.deploySubpath": ".",
   "appService.zipIgnorePattern": [
     "node_modules{,/**}",
-    ".vscode{,/**}"
+    ".vscode{,/**}",
+    ".next{,/**}",
+    ".git{,/**}",
+    "test-results{,/**}",
+    "playwright-report{,/**}",
+    "tsconfig.tsbuildinfo",
+    ".runtime{,/**}",
+    ".github{,/**}",
+    "coverage{,/**}",
+    "e2e{,/**}",
+    "docs{,/**}",
+    "tests{,/**}",
+    ".env.example",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "database-schema.sql",
+    "docker-compose.yml"
   ],
   "sqltools.connections": [
     {
@@ -17,9 +33,9 @@
       "port": 3306,
       "driver": "MariaDB",
       "name": "Athena",
-      "database": "frcathenadb",
-      "username": "root",
-      "password": "492"
+      "database": "athenadb",
+      "username": "athenadb_user",
+      "password": "trcAdmin492!"
     }
   ],
 }

@@ -58,7 +58,9 @@ export const encodeStartPosition = (label: string): string =>
   label.toLowerCase().replace(/\s+/g, "-");
 
 // Function to initialize form data with all game config fields
-export const initializeFormData = (gameConfig: YearConfig): DynamicMatchData => {
+export const initializeFormData = (
+  gameConfig: YearConfig,
+): DynamicMatchData => {
   const data: DynamicMatchData = { ...defaultData };
 
   if (!gameConfig?.scoring) return data;

@@ -44,13 +44,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const service = databaseManager.getService();
 
     // Ensure target user exists (where supported)
-    if (service.query) {
-      const existingUser = await service.query<{ id: string }>(
-        "SELECT id FROM users WHERE id = @id",
-        { id: targetUserId },
-      );
-
-      if (existingUser.recordset.length === 0) {
+    if (service.users) {
+      const existingUser = await service.users.getById(targetUserId);
+      if (!existingUser) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
@@ -58,19 +54,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       // If some IDs are invalid, return 400 with a list.
       if (preferredPartners.length > 0) {
         const uniqueIds = Array.from(new Set(preferredPartners));
-        const idList = uniqueIds.map((_, i) => `@pid${i}`).join(", ");
-        const partnerParams: Record<string, unknown> = {};
-        uniqueIds.forEach((pid, i) => {
-          partnerParams[`pid${i}`] = pid;
-        });
-        const partnerRows = await service.query<{ id: string }>(
-          `SELECT id FROM users WHERE id IN (${idList})`,
-          partnerParams,
-        );
-
-        const existingIds = new Set(
-          partnerRows.recordset.map((r: { id: string }) => r.id.toString()),
-        );
+        const partnerRows = await service.users.getByIds(uniqueIds, true);
+        const existingIds = new Set(partnerRows.map((user) => user.id));
         const missingIds = uniqueIds.filter((pid) => !existingIds.has(pid));
 
         if (missingIds.length > 0) {

@@ -2,6 +2,7 @@ import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
   interface Session {
+    guestEvent?: import("@/lib/server/event-guest").GuestEventGrant;
     user: {
       id: string;
       name?: string | null;
@@ -15,6 +16,8 @@ declare module "next-auth" {
   }
 
   interface User {
+    sessionVersion?: number;
+    guestToken?: string;
     id: string;
     name?: string | null;
     username?: string | null;
@@ -29,6 +32,8 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
+    sessionVersion?: number;
+    guestToken?: string;
     id?: string;
     username?: string | null;
     role?: string | null;

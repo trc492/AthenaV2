@@ -1,6 +1,13 @@
 -- Athena Scouting Database Schema
 -- This schema defines all tables for the Athena FRC scouting application
 
+-- Managed guest links. Revocation is kept separately from the signed link data.
+CREATE TABLE guestLinks (
+    id NVARCHAR(32) PRIMARY KEY,
+    data NVARCHAR(MAX) NOT NULL,
+    revokedAt BIGINT NULL
+);
+
 -- User accounts table (username-only authentication)
 CREATE TABLE users (
     id NVARCHAR(255) PRIMARY KEY,

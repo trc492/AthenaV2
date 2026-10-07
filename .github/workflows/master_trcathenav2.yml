@@ -22,36 +22,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - name: Set up Node.js version
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+          cache: pnpm
 
-      # Generate package-lock.json from pnpm-lock.yaml for Azure compatibility
-      - name: Generate package-lock.json
-        run: |
-          if [ ! -f package-lock.json ]; then
-            echo "Generating package-lock.json from pnpm-lock.yaml..."
-            npm install --package-lock-only
-          fi
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-
 
-      - name: Install dependencies with npm
-        run: npm ci
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build Next.js application
-        run: npm run build
+        run: pnpm build
 
-      # Clean up unnecessary files for deployment
-      - name: Clean up for deployment
+      # Deploy only the standalone runtime and files read at request time.
+      # Source, tests, node_modules, and build caches are not needed by Azure.
+      - name: Prepare deployment package
         run: |
-          rm -rf node_modules/.cache
-          rm -rf .next/cache
+          mkdir -p deploy/.next
+          cp -r .next/standalone/. deploy/
+          cp -r .next/static deploy/.next/static
+          cp -r public deploy/public
+          cp -r config deploy/config
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .
+          path: deploy
+          retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
@@ -65,6 +73,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
+          path: deploy
       
       - name: Login to Azure
         uses: azure/login@v2
@@ -79,4 +88,4 @@ jobs:
         with:
           app-name: 'TRCAthenaV2'
           slot-name: 'Production'
-          package: .
+          package: deploy

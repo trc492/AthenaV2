@@ -4,13 +4,9 @@ import { DatabaseService, CompetitionType } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 
-let dbService: DatabaseService;
 
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 // GET /api/scouting/entries/stats/auto - Get autonomous drawing for a team

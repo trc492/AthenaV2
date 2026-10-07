@@ -14,9 +14,7 @@ describe("parseEventRequest", () => {
 
   it("requires and parses the FTC season", () => {
     const missing = parseEventRequest(
-      new NextRequest(
-        "http://test/api/events/test/teams?competitionType=FTC",
-      ),
+      new NextRequest("http://test/api/events/test/teams?competitionType=FTC"),
       { requireFtcYear: true },
     );
     const present = parseEventRequest(

@@ -46,19 +46,16 @@ export async function loadAllSubscriptions(): Promise<
   Map<string, StoredSubscription>
 > {
   const db = databaseManager.getService();
-  if (!db.query) {
-    throw new Error("Database service does not support direct SQL queries");
+  if (!db.users) {
+    throw new Error(
+      "User management is not supported by this database provider",
+    );
   }
-  const result = await db.query<{
-    id: string;
-    push_subscriptions: string | null;
-  }>(
-    "SELECT id, push_subscriptions FROM users WHERE push_subscriptions IS NOT NULL",
-  );
+  const users = await db.users.getSubscriptions();
 
   const subscriptions = new Map<string, StoredSubscription>();
 
-  for (const user of result.recordset) {
+  for (const user of users) {
     if (user.push_subscriptions) {
       try {
         const userSubscriptions: StoredSubscription[] = JSON.parse(
@@ -83,15 +80,10 @@ export async function loadSubscriptionsForUser(
   userId: string,
 ): Promise<StoredSubscription[]> {
   const db = databaseManager.getService();
-  if (!db.query) return [];
+  if (!db.users) return [];
 
-  const result = await db.query<{
-    push_subscriptions: string | null;
-  }>("SELECT push_subscriptions FROM users WHERE id = @userId", {
-    userId,
-  });
-
-  const raw = result.recordset?.[0]?.push_subscriptions;
+  const users = await db.users.getSubscriptions(userId);
+  const raw = users[0]?.push_subscriptions;
   if (!raw) return [];
 
   try {

@@ -67,7 +67,7 @@
     "react-day-picker": "^10.0.1",
     "react-dom": "19.2.0",
     "react-hook-form": "^7.89.0",
-    "react-resizable-panels": "^4.13.3",
+    "react-resizable-panels": "^4.14.1",
     "react-sortablejs": "^6.1.4",
     "recharts": "3.8.0",
     "shadcn": "^4.21.0",
@@ -102,5 +102,5 @@
     "vite": "^8.3.1",
     "vitest": "^4.1.11"
   },
-  "packageManager": "pnpm@12.6.0"
+  "packageManager": "pnpm@12.8.1"
 }

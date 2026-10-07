@@ -62,12 +62,13 @@ export const defaultDatabaseFormState: DatabaseFormState = {
   },
 };
 
-export const DATABASE_PROVIDERS: { value: DatabaseProvider; label: string }[] = [
-  { value: "azuresql", label: "Azure SQL" },
-  { value: "firebase", label: "Firebase" },
-  { value: "cosmos", label: "Cosmos DB" },
-  { value: "mariadb", label: "MariaDB" },
-];
+export const DATABASE_PROVIDERS: { value: DatabaseProvider; label: string }[] =
+  [
+    { value: "azuresql", label: "Azure SQL" },
+    { value: "firebase", label: "Firebase" },
+    { value: "cosmos", label: "Cosmos DB" },
+    { value: "mariadb", label: "MariaDB" },
+  ];
 
 /**
  * Whether the form has enough information to attempt a connection.
@@ -80,7 +81,8 @@ export function isDatabaseFormValid(form: DatabaseFormState): boolean {
     case "azuresql":
       return (
         form.azuresql.connectionString.trim().length > 0 ||
-        (form.azuresql.server.trim().length > 0 && form.azuresql.database.trim().length > 0)
+        (form.azuresql.server.trim().length > 0 &&
+          form.azuresql.database.trim().length > 0)
       );
     case "firebase":
       return (

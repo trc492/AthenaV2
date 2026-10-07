@@ -25,8 +25,23 @@ describe("estimateWinProbability", () => {
   });
 
   it("withholds a percentage without data or observed variation", () => {
-    expect(estimateWinProbability([{ mean: 0, scores: [] }], [{ mean: 20, scores: [10, 30] }])).toBeNull();
-    expect(estimateWinProbability([{ mean: 10, scores: [10] }], [{ mean: 20, scores: [20] }])).toBeNull();
-    expect(estimateWinProbability([{ mean: 10, scores: [10, 10] }], [{ mean: 20, scores: [20, 20] }])).toBeNull();
+    expect(
+      estimateWinProbability(
+        [{ mean: 0, scores: [] }],
+        [{ mean: 20, scores: [10, 30] }],
+      ),
+    ).toBeNull();
+    expect(
+      estimateWinProbability(
+        [{ mean: 10, scores: [10] }],
+        [{ mean: 20, scores: [20] }],
+      ),
+    ).toBeNull();
+    expect(
+      estimateWinProbability(
+        [{ mean: 10, scores: [10, 10] }],
+        [{ mean: 20, scores: [20, 20] }],
+      ),
+    ).toBeNull();
   });
 });

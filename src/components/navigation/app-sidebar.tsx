@@ -12,6 +12,8 @@ import {
   FileJson,
   Bell,
   RadioTower,
+  LogOut,
+  CalendarDays,
 } from "lucide-react";
 
 import { NavMain } from "@/components/navigation/nav-main";
@@ -24,13 +26,17 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { SearchForm } from "@/components/forms/search-form";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useGameConfig } from "@/hooks/use-game-config";
 import { PermissionGuard } from "../auth/PermissionGuard";
 import { ROLES } from "@/lib/auth/roles";
 import { APP_LOGO } from "@/lib/app-config";
+import { isGuestPage } from "@/lib/auth/guest-policy";
 const data = {
   navMain: [
     { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
@@ -82,6 +88,11 @@ const data = {
   ],
   navAdmin: [
     {
+      name: "Guest Links",
+      url: "/dashboard/guest-links",
+      icon: KeyRound,
+    },
+    {
       name: "Database",
       url: "/dashboard/admin/database",
       icon: DatabaseIcon,
@@ -111,6 +122,8 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
+  const guest = session?.guestEvent;
+  const navigation = guest ? data.navMain.filter((item) => !item.url || isGuestPage(item.url)).map((item) => ({ ...item, items: item.items?.filter((child) => isGuestPage(child.url)) })) : data.navMain;
   const { competitionType } = useGameConfig();
 
   // Use session data if available, otherwise fallback to default
@@ -147,17 +160,50 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <div className="mx-2 mt-1">
-          <EventSwitcher />
+          {guest ? (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  size="lg"
+                  tooltip={`${guest.name} · ${guest.competitionType} ${guest.year} · Read-only guest`}
+                  className="h-auto min-h-12 cursor-default group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:justify-center"
+                  asChild
+                >
+                  <div>
+                    <CalendarDays className="shrink-0" aria-hidden="true" />
+                    <div className="min-w-0 space-y-1 group-data-[collapsible=icon]:hidden">
+                      <p className="whitespace-normal break-words text-sm font-semibold">{guest.name}</p>
+                      <p className="whitespace-normal text-xs text-muted-foreground">{guest.competitionType} {guest.year} · Read-only guest</p>
+                    </div>
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          ) : <EventSwitcher />}
         </div>
         <SearchForm className="mt-1 ms-2" />
-        <NavMain items={data.navMain} />
+        <NavMain items={navigation} />
         <PermissionGuard roles={[ROLES.ADMIN, ROLES.LEAD_SCOUT]}>
           <NavAdmin items={data.navAdmin} />
         </PermissionGuard>
         
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={userData} />
+        {guest ? (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                variant="outline"
+                tooltip="Leave guest access"
+                aria-label="Leave guest access"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+              >
+                <LogOut aria-hidden="true" />
+                <span className="group-data-[collapsible=icon]:hidden">Leave guest access</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        ) : <NavUser user={userData} />}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

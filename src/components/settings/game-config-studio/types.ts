@@ -141,8 +141,12 @@ export const DEFAULT_NEW_CONFIG: YearConfig = {
     ],
   },
   matchupCardConfig: {
-    autoMetrics: [{ key: "autonomous.game_piece_scored", label: "Auto Scored" }],
-    teleopMetrics: [{ key: "teleop.game_piece_scored", label: "Teleop Scored" }],
+    autoMetrics: [
+      { key: "autonomous.game_piece_scored", label: "Auto Scored" },
+    ],
+    teleopMetrics: [
+      { key: "teleop.game_piece_scored", label: "Teleop Scored" },
+    ],
     endgame: {
       stateKey: "endgame.climb_state",
       states: [
@@ -181,8 +185,16 @@ export const DEFAULT_NEW_CONFIG: YearConfig = {
       title: "Scoring Breakdown",
       description: "Average scoring actions per match",
       items: [
-        { name: "Auto Scored", key: "autonomous.game_piece_scored", fill: "#3b82f6" },
-        { name: "Teleop Scored", key: "teleop.game_piece_scored", fill: "#10b981" },
+        {
+          name: "Auto Scored",
+          key: "autonomous.game_piece_scored",
+          fill: "#3b82f6",
+        },
+        {
+          name: "Teleop Scored",
+          key: "teleop.game_piece_scored",
+          fill: "#10b981",
+        },
       ],
     },
     endgame: {

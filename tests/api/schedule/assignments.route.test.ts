@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { sqlUsers } from "@/db/sql-users";
 import type { NextRequest } from "next/server";
 import {
   MockAuthSession,
@@ -34,7 +35,12 @@ let pool: { request: ReturnType<typeof vi.fn> };
 
 vi.mock("@/db/database-manager", () => ({
   databaseManager: {
-    getService: () => serviceMock,
+    getService: () => ({
+      ...serviceMock,
+      users: serviceMock.query
+        ? sqlUsers(serviceMock.query, "azuresql")
+        : undefined,
+    }),
   },
 }));
 

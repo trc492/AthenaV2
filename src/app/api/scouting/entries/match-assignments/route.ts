@@ -23,7 +23,11 @@ export async function GET(request: NextRequest) {
     const yearRaw = searchParams.get("year");
     const competitionType = searchParams.get("competitionType");
 
-    if (!eventCode || !yearRaw || !["FRC", "FTC"].includes(competitionType ?? "")) {
+    if (
+      !eventCode ||
+      !yearRaw ||
+      !["FRC", "FTC"].includes(competitionType ?? "")
+    ) {
       return NextResponse.json(
         { error: "eventCode, year, and competitionType are required" },
         { status: 400 },
@@ -39,9 +43,15 @@ export async function GET(request: NextRequest) {
     }
 
     const service = databaseManager.getService();
+    if (service.getScheduleAssignments) {
+      const assignments = await service.getScheduleAssignments({ eventCode, year, competitionType: competitionType as "FRC" | "FTC" });
+      return NextResponse.json(assignments.map((assignment) => ({ eventCode, year, ...assignment })), {
+        headers: { "Cache-Control": "private, max-age=0, must-revalidate" },
+      });
+    }
     if (!service.query) {
       return NextResponse.json(
-        { error: "Schedule assignments require a SQL-backed provider" },
+        { error: "This provider does not support schedule assignments" },
         { status: 501 },
       );
     }
@@ -53,13 +63,16 @@ export async function GET(request: NextRequest) {
       alliance: string;
       position: number;
       userId: string | null;
-    }>(`
+    }>(
+      `
         SELECT eventCode, year, matchNumber, alliance, position, userId
         FROM matchAssignments
         WHERE eventCode = @eventCode AND year = @year
           AND competitionType = @competitionType
         ORDER BY matchNumber, alliance, position
-      `, { eventCode, year, competitionType });
+      `,
+      { eventCode, year, competitionType },
+    );
 
     return NextResponse.json(result.recordset, {
       headers: { "Cache-Control": "private, max-age=0, must-revalidate" },
@@ -91,7 +104,11 @@ export async function DELETE(request: NextRequest) {
     const yearRaw = searchParams.get("year");
     const competitionType = searchParams.get("competitionType");
 
-    if (!eventCode || !yearRaw || !["FRC", "FTC"].includes(competitionType ?? "")) {
+    if (
+      !eventCode ||
+      !yearRaw ||
+      !["FRC", "FTC"].includes(competitionType ?? "")
+    ) {
       return NextResponse.json(
         { error: "eventCode, year, and competitionType are required" },
         { status: 400 },
@@ -109,7 +126,7 @@ export async function DELETE(request: NextRequest) {
     const service = databaseManager.getService();
     if (!service.applyScheduleAssignmentChanges) {
       return NextResponse.json(
-        { error: "Schedule assignments require a SQL-backed provider" },
+        { error: "This provider does not support schedule assignments" },
         { status: 501 },
       );
     }

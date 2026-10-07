@@ -3,9 +3,12 @@
 import { useSelectedEvent } from "@/hooks/use-event-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GuestEventLink } from "./guest-event-link";
+import { useGameConfig } from "@/hooks/use-game-config";
 
 export function EventInfoCard() {
   const selectedEvent = useSelectedEvent();
+  const { currentYear, competitionType } = useGameConfig();
 
   if (!selectedEvent) {
     return (
@@ -36,6 +39,7 @@ export function EventInfoCard() {
             <Badge variant="secondary">{selectedEvent.eventCode}</Badge>
           </div>
         </div>
+        <GuestEventLink key={`${competitionType}:${currentYear}:${selectedEvent.eventCode}`} event={selectedEvent} />
       </CardContent>
     </Card>
   );

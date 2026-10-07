@@ -1,4 +1,5 @@
 "use client";
+import { useSession } from "next-auth/react";
 
 import { useState, useEffect } from "react";
 import { useSelectedEvent } from "./use-event-config";
@@ -81,6 +82,8 @@ function transformToStats(
 }
 
 export function useAnalysisStats() {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
   const selectedEvent = useSelectedEvent();
   const { currentYear, getCurrentYearConfig, competitionType } =
     useGameConfig();
@@ -111,6 +114,7 @@ export function useAnalysisStats() {
 
         const isOnline =
           typeof navigator !== "undefined" ? navigator.onLine : true;
+        if (isGuest && !isOnline) throw new Error("Guest access requires an internet connection");
 
         // If offline, go straight to IndexedDB
         if (!isOnline) {
@@ -140,7 +144,7 @@ export function useAnalysisStats() {
         console.error("Error fetching analysis stats:", err);
 
         // Fallback to IndexedDB cache on network error
-        if (selectedEvent?.eventCode) {
+        if (selectedEvent?.eventCode && !isGuest) {
           try {
             const cached = await indexedDBService.getCachedAnalysisData(
               selectedEvent.eventCode,
@@ -162,7 +166,7 @@ export function useAnalysisStats() {
     }
 
     fetchAnalysisStats();
-  }, [selectedEvent, currentYear, gameConfig, competitionType]);
+  }, [selectedEvent, currentYear, gameConfig, competitionType, isGuest]);
 
   return { stats, loading, error, isOfflineData };
 }

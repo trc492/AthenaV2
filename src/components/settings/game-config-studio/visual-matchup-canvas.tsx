@@ -345,7 +345,7 @@ export function VisualMatchupCanvas({
 
         {/* The Exact Matchup Card Component Layout */}
         <div
-          className={`w-full max-w-lg rounded-xl border-2 bg-card shadow-xl overflow-hidden transition-all ${
+          className={`w-full max-w-lg rounded-xl border-2 bg-card overflow-hidden transition-all ${
             allianceColor === "red" ? "border-l-8 border-l-red-500" : "border-l-8 border-l-blue-500"
           }`}
         >

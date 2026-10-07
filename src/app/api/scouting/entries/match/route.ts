@@ -1,17 +1,13 @@
+import { guestDatabase } from "@/lib/server/guest-database";
 import { NextRequest, NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
 import { DatabaseService, CompetitionType } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 
-// Initialize database service
-let dbService: DatabaseService;
-
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+// Resolve the active provider on each request so configuration changes take effect.
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 // GET /api/scouting/entries/match - Get all match entries or filter by team/year/event/competitionType
@@ -38,7 +34,7 @@ export async function GET(request: NextRequest) {
     const competitionType =
       (searchParams.get("competitionType") as CompetitionType) || undefined;
 
-    const service = getDbService();
+    const service = guestDatabase(getDbService(), session);
 
     // If ID is provided, fetch single entry by ID
     if (id) {
@@ -84,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { scoutingForUserId, ...entry } = body
+    const { scoutingForUserId, ...entry } = body;
 
     // Determine which userId to use
     let actualUserId = session.user.id;

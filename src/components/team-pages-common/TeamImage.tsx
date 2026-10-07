@@ -75,16 +75,15 @@ export function TeamImage({
               src={images[currentImageIndex]}
               alt={`Team ${teamNumber}'s robot image ${currentImageIndex + 1}`}
               fill
-              className="object-cover transition-transform duration-300 group-hover/image:scale-105"
+              className="object-cover"
               loading="lazy"
               sizes="(max-width: 640px) 100vw,
                       (max-width: 1024px) 50vw,
                       33vw"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/image:opacity-100 transition-opacity duration-300" />
 
             {yearLabel && (
-              <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+              <div className="absolute bottom-3 left-3 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
                 {yearLabel}
               </div>
             )}
@@ -95,7 +94,9 @@ export function TeamImage({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 bg-black/50 backdrop-blur-sm border-white/20 text-white hover:bg-black/70 h-8 w-8"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-black/70 border-white/20 text-white hover:bg-black/70 size-11"
+                  type="button"
+                  aria-label="Previous robot image"
                   onClick={prevImage}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -103,28 +104,32 @@ export function TeamImage({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 bg-black/50 backdrop-blur-sm border-white/20 text-white hover:bg-black/70 h-8 w-8"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-black/70 border-white/20 text-white hover:bg-black/70 size-11"
+                  type="button"
+                  aria-label="Next robot image"
                   onClick={nextImage}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
 
                 {/* Image counter */}
-                <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="absolute top-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
                   {currentImageIndex + 1} / {images.length}
                 </div>
 
                 {/* Image indicators */}
-                <div className="absolute bottom-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="absolute bottom-0 right-0 left-0 flex justify-end overflow-x-auto px-2">
                   {images.map((_, index) => (
                     <button
                       key={index}
-                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                        index === currentImageIndex ? "bg-white" : "bg-white/50"
-                      }`}
+                      type="button"
+                      className="flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-white focus-visible:-outline-offset-2"
+                      aria-pressed={index === currentImageIndex}
                       onClick={() => setCurrentImageIndex(index)}
                       aria-label={`View image ${index + 1}`}
-                    />
+                    >
+                      <span className={`size-2 rounded-full ring-1 ring-black/50 ${index === currentImageIndex ? "bg-white" : "bg-white/50"}`} />
+                    </button>
                   ))}
                 </div>
               </>

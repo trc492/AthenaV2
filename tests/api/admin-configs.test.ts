@@ -42,11 +42,26 @@ describe("validateYearConfig", () => {
       startPositions: ["Left", "Center", "Right"],
       scoring: {
         autonomous: {
-          leave: { label: "Leave", points: 2, type: "boolean", description: "Leave zone" },
-          scored: { label: "Scored", points: 3, increments: [1, 5], description: "Balls scored" },
+          leave: {
+            label: "Leave",
+            points: 2,
+            type: "boolean",
+            description: "Leave zone",
+          },
+          scored: {
+            label: "Scored",
+            points: 3,
+            increments: [1, 5],
+            description: "Balls scored",
+          },
         },
         teleop: {
-          scored: { label: "Scored", points: 2, increments: [1, 5], description: "Teleop scored" },
+          scored: {
+            label: "Scored",
+            points: 2,
+            increments: [1, 5],
+            description: "Teleop scored",
+          },
         },
         endgame: {
           climb: {
@@ -62,7 +77,11 @@ describe("validateYearConfig", () => {
           autoRoutine: { label: "Auto Routine", type: "text" },
         },
         teleoperated: {
-          driveTrain: { label: "Drivetrain", type: "select", options: ["Swerve", "Tank"] },
+          driveTrain: {
+            label: "Drivetrain",
+            type: "select",
+            options: ["Swerve", "Tank"],
+          },
         },
         endgame: {},
       },
@@ -91,7 +110,11 @@ describe("validateYearConfig", () => {
       gameName: "INVALID_SCORING",
       scoring: {
         autonomous: {
-          badField: { label: "Bad Field", type: "invalid_type", description: "" },
+          badField: {
+            label: "Bad Field",
+            type: "invalid_type",
+            description: "",
+          },
         },
         teleop: {},
         endgame: {},
@@ -101,7 +124,9 @@ describe("validateYearConfig", () => {
 
     const result = validateYearConfig(invalidConfig);
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes("invalid value 'invalid_type'"))).toBe(true);
+    expect(
+      result.errors.some((e) => e.includes("invalid value 'invalid_type'")),
+    ).toBe(true);
   });
 });
 

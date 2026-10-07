@@ -76,7 +76,7 @@ export function useScoutingAssignment() {
   useEffect(() => {
     const controller = new AbortController();
     const fetchAssignments = async () => {
-      if (!selectedEvent?.eventCode) {
+      if (!selectedEvent?.eventCode || session?.guestEvent) {
         setRows([]);
         return;
       }
@@ -135,7 +135,7 @@ export function useScoutingAssignment() {
 
     fetchAssignments();
     return () => controller.abort();
-  }, [selectedEvent?.eventCode, currentYear, competitionType, refreshNonce]);
+  }, [selectedEvent?.eventCode, currentYear, competitionType, refreshNonce, session?.guestEvent]);
 
   // Find the current user's assignments across all matches
   const userAssignments = useMemo((): ScoutingAssignment[] => {

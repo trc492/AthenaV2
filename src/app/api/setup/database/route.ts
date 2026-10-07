@@ -27,7 +27,10 @@ function validateConfig(config: DatabaseConfig): string | null {
     if (!azureSql) {
       return "Azure SQL configuration is required";
     }
-    if (!azureSql.connectionString && (!azureSql.server || !azureSql.database)) {
+    if (
+      !azureSql.connectionString &&
+      (!azureSql.server || !azureSql.database)
+    ) {
       return "Azure SQL requires either a connection string or server and database";
     }
   }
@@ -153,7 +156,9 @@ export async function POST(request: NextRequest) {
 
     // Verify a candidate before replacing the active database connection.
     const candidate = manager.createServiceForConfig(config);
-    if (candidate.query) {
+    if (candidate.checkConnection) {
+      await candidate.checkConnection();
+    } else if (candidate.query) {
       await candidate.query("SELECT 1 AS healthcheck");
     }
 

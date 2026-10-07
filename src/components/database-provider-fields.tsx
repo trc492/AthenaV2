@@ -144,12 +144,13 @@ export function DatabaseProviderFields({
             />
           </div>
           <div className="space-y-2">
-            <Label>Database URL</Label>
+            <Label>Database URL (optional)</Label>
             <Input
               value={value.firebase.databaseURL}
               onChange={(e) => onChange({ ...value, firebase: { ...value.firebase, databaseURL: e.target.value } })}
               placeholder="https://your-project.firebaseio.com"
             />
+            <p className="text-xs text-muted-foreground">Scouting data uses Cloud Firestore in the service account project.</p>
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Service account JSON</Label>
@@ -196,7 +197,7 @@ export function DatabaseProviderFields({
             <Input
               value={value.cosmos.containerId}
               onChange={(e) => onChange({ ...value, cosmos: { ...value.cosmos, containerId: e.target.value } })}
-              placeholder="users"
+              placeholder="Optional shared scouting container"
             />
           </div>
         </div>

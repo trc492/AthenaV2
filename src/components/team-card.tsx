@@ -19,10 +19,8 @@ interface TeamCardProps {
 
 export function TeamCard({ team }: TeamCardProps) {
   return (
-    <Card className="group max-w-sm w-full mx-auto overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-card to-card/80 backdrop-blur-sm">
-      {/* Header with gradient overlay */}
+    <Card className="max-w-sm w-full mx-auto">
       <div className="relative">
-        <div className="absolute inset-0" />
         <CardHeader className="relative space-y-3 pb-4">
           <div className="flex items-start justify-between">
             <div className="space-y-2 flex-1">
@@ -50,7 +48,7 @@ export function TeamCard({ team }: TeamCardProps) {
       <CardContent className="flex-1 px-6 pb-4">
         {/* Enhanced Image Section */}
         <div className="relative overflow-hidden rounded-xl bg-muted/50">
-          {team.images.length > 1 ? (
+          {team.images.length > 0 ? (
             <TeamCarousel images={team.images} />
           ) : (
             <div className="relative h-48 w-full group/image">
@@ -90,7 +88,7 @@ export function TeamCard({ team }: TeamCardProps) {
             className="w-full"
             target="_blank"
           >
-            <Users className="h-4 w-4 mr-2 transition-transform group-hover/button:scale-110" />
+            <Users className="h-4 w-4 mr-2 transition-transform " />
             View Scouting Data
           </Link>
         </Button>
@@ -98,7 +96,7 @@ export function TeamCard({ team }: TeamCardProps) {
         {team.website ? (
           <Button asChild variant="outline" className="w-full group/website">
             <Link href={team.website} className="w-full" target="_blank">
-              <ExternalLink className="h-4 w-4 mr-2 transition-transform group-hover/website:scale-110" />
+              <ExternalLink className="h-4 w-4 mr-2 transition-transform " />
               Team Website
             </Link>
           </Button>

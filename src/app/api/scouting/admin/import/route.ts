@@ -5,14 +5,9 @@ import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { validateImportAgainstSchema } from "@/lib/server/import-schema-validator";
 
-// Initialize database service
-let dbService: DatabaseService;
-
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+// Resolve the active provider on each request so configuration changes take effect.
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 // POST /api/admin/import - Import data
@@ -60,7 +55,9 @@ export async function POST(request: NextRequest) {
     }
 
     data.pitEntries = Array.isArray(data.pitEntries) ? data.pitEntries : [];
-    data.matchEntries = Array.isArray(data.matchEntries) ? data.matchEntries : [];
+    data.matchEntries = Array.isArray(data.matchEntries)
+      ? data.matchEntries
+      : [];
 
     for (const entry of data.matchEntries) {
       if (!(entry.timestamp instanceof Date)) {
@@ -80,10 +77,7 @@ export async function POST(request: NextRequest) {
     // Validate schema configurations match the imported data
     const validation = validateImportAgainstSchema(data);
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
     const service = getDbService();
@@ -180,15 +174,20 @@ async function parseCSV(
               id: entryData.id ? parseInt(entryData.id as string) : undefined,
               teamNumber: parseInt(entryData.teamNumber as string),
               year: parseInt(entryData.year as string),
-              competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
+              competitionType: (
+                (entryData.competitionType as string) || "FRC"
+              ).toUpperCase() as "FRC" | "FTC",
               driveTrain: entryData.driveTrain as
-                | "Swerve"
-                | "Mecanum"
-                | "Tank"
-                | "Other",
-              weight: entryData.weight ? parseFloat(entryData.weight as string) : undefined,
-              length: entryData.length ? parseFloat(entryData.length as string) : undefined,
-              width: entryData.width ? parseFloat(entryData.width as string) : undefined,
+                "Swerve" | "Mecanum" | "Tank" | "Other",
+              weight: entryData.weight
+                ? parseFloat(entryData.weight as string)
+                : undefined,
+              length: entryData.length
+                ? parseFloat(entryData.length as string)
+                : undefined,
+              width: entryData.width
+                ? parseFloat(entryData.width as string)
+                : undefined,
               eventName: (entryData.eventName as string) || undefined,
               eventCode: (entryData.eventCode as string) || undefined,
               userId: (entryData.userId as string) || undefined,
@@ -202,7 +201,9 @@ async function parseCSV(
               matchNumber: parseInt(entryData.matchNumber as string),
               teamNumber: parseInt(entryData.teamNumber as string),
               year: parseInt(entryData.year as string),
-              competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
+              competitionType: (
+                (entryData.competitionType as string) || "FRC"
+              ).toUpperCase() as "FRC" | "FTC",
               alliance: entryData.alliance as "red" | "blue",
               alliancePosition: entryData.alliancePosition
                 ? parseInt(entryData.alliancePosition as string)
@@ -312,15 +313,20 @@ async function parseXLSX(
         id: entryData.id ? parseInt(entryData.id as string) : undefined,
         teamNumber: parseInt(entryData.teamNumber as string),
         year: parseInt(entryData.year as string),
-        competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
+        competitionType: (
+          (entryData.competitionType as string) || "FRC"
+        ).toUpperCase() as "FRC" | "FTC",
         driveTrain: entryData.driveTrain as
-          | "Swerve"
-          | "Mecanum"
-          | "Tank"
-          | "Other",
-        weight: entryData.weight ? parseFloat(entryData.weight as string) : undefined,
-        length: entryData.length ? parseFloat(entryData.length as string) : undefined,
-        width: entryData.width ? parseFloat(entryData.width as string) : undefined,
+          "Swerve" | "Mecanum" | "Tank" | "Other",
+        weight: entryData.weight
+          ? parseFloat(entryData.weight as string)
+          : undefined,
+        length: entryData.length
+          ? parseFloat(entryData.length as string)
+          : undefined,
+        width: entryData.width
+          ? parseFloat(entryData.width as string)
+          : undefined,
         eventName: (entryData.eventName as string) || undefined,
         eventCode: (entryData.eventCode as string) || undefined,
         userId: (entryData.userId as string) || undefined,
@@ -334,7 +340,9 @@ async function parseXLSX(
         matchNumber: parseInt(entryData.matchNumber as string),
         teamNumber: parseInt(entryData.teamNumber as string),
         year: parseInt(entryData.year as string),
-        competitionType: ((entryData.competitionType as string) || "FRC").toUpperCase() as "FRC" | "FTC",
+        competitionType: (
+          (entryData.competitionType as string) || "FRC"
+        ).toUpperCase() as "FRC" | "FTC",
         alliance: entryData.alliance as "red" | "blue",
         alliancePosition: entryData.alliancePosition
           ? parseInt(entryData.alliancePosition as string)

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { databaseManager } from "@/db/database-manager";
 import { getOrCreateAuthSecret } from "@/lib/server/env-file";
 import "./types";
+import { resolveGuestEventLink } from "@/lib/server/guest-link-service";
 
 export const authConfig: NextAuthConfig = {
   secret: getOrCreateAuthSecret(),
@@ -14,8 +15,20 @@ export const authConfig: NextAuthConfig = {
       credentials: {
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
+        guestToken: { label: "Guest link", type: "text" },
       },
       async authorize(credentials) {
+        if (typeof credentials?.guestToken === "string") {
+          const grant = await resolveGuestEventLink(credentials.guestToken);
+          if (!grant) return null;
+          return {
+            id: `guest:${grant.nonce}`,
+            name: "Event Guest",
+            username: "guest",
+            role: "guest",
+            guestToken: credentials.guestToken,
+          };
+        }
         if (!credentials?.username || !credentials?.password) {
           return null;
         }
@@ -25,32 +38,16 @@ export const authConfig: NextAuthConfig = {
           const password = credentials.password as string;
 
           const db = databaseManager.getService();
-          if (!db.query) {
-            console.error("Database service does not support direct SQL queries");
+          if (!db.users) {
+            console.error(
+              "User management is not supported by this database provider",
+            );
             return null;
           }
 
-          const result = await db.query<{
-            id: string;
-            name: string;
-            username: string;
-            role: string;
-            password_hash: string;
-            avatarUrl: string | null;
-          }>(
-            `
-            SELECT id, name, username, role, password_hash, avatarUrl
-            FROM users
-            WHERE username = @username
-          `,
-            { username },
-          );
-
-          if (result.recordset.length === 0) {
-            return null;
-          }
-
-          const user = result.recordset[0];
+          const user = await db.users.getByUsername(username);
+          if (!user) return null;
+          if (user.deactivatedAt) return null;
           const passwordHash = String(user.password_hash || "");
 
           if (!passwordHash) {
@@ -64,6 +61,7 @@ export const authConfig: NextAuthConfig = {
           }
 
           return {
+            sessionVersion: user.sessionVersion ?? 0,
             id: user.id.toString(),
             name: user.name,
             username: user.username,
@@ -87,7 +85,22 @@ export const authConfig: NextAuthConfig = {
   },
   callbacks: {
     async jwt({ token, user }) {
+      const guestToken = user ? user.guestToken : token.guestToken;
+      if (guestToken) {
+        const grant = await resolveGuestEventLink(guestToken);
+        if (!grant) return null;
+        return {
+          ...token,
+          id: `guest:${grant.nonce}`,
+          name: "Event Guest",
+          username: "guest",
+          role: "guest",
+          guestToken,
+          exp: Math.floor(grant.expiresAt / 1000),
+        };
+      }
       if (user) {
+        token.sessionVersion = user.sessionVersion ?? 0;
         token.id = user.id;
         token.username = user.username;
         token.role = user.role;
@@ -101,19 +114,14 @@ export const authConfig: NextAuthConfig = {
 
         try {
           const db = databaseManager.getService();
-          if (!db.query) return null;
-          const result = await db.query<{
-            id: string;
-            name: string;
-            username: string;
-            role: string;
-            avatarUrl: string | null;
-          }>(
-            "SELECT id, name, username, role, avatarUrl FROM users WHERE id = @id",
-            { id },
-          );
-          const currentUser = result.recordset[0];
-          if (!currentUser) return null;
+          if (!db.users) return null;
+          const currentUser = await db.users.getById(String(id));
+          if (
+            !currentUser ||
+            currentUser.deactivatedAt ||
+            (token.sessionVersion ?? 0) !== (currentUser.sessionVersion ?? 0)
+          )
+            return null;
 
           token.id = String(currentUser.id);
           token.name = currentUser.name;
@@ -130,6 +138,12 @@ export const authConfig: NextAuthConfig = {
       return token;
     },
     async session({ session, token }) {
+      if (token.guestToken) {
+        const grant = await resolveGuestEventLink(token.guestToken);
+        if (grant) {
+          session.guestEvent = grant;
+        }
+      }
       if (token && session.user) {
         const userId = token.id || token.sub;
         if (userId) session.user.id = userId;

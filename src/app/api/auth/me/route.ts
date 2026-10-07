@@ -11,29 +11,15 @@ export async function GET() {
     }
 
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users) {
       return NextResponse.json(
-        { error: "Database service does not support direct SQL queries" },
+        { error: "User management is not supported by this database provider" },
         { status: 500 },
       );
     }
-    const result = await db.query<{
-      id: string;
-      name: string;
-      username: string;
-      role: string;
-      avatarUrl: string | null;
-    }>(`
-        SELECT id, name, username, role, avatarUrl
-        FROM users
-        WHERE id = @userId
-      `, { userId: session.user.id });
-
-    if (result.recordset.length === 0) {
+    const user = await db.users.getById(session.user.id);
+    if (!user)
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const user = result.recordset[0];
     return NextResponse.json({
       id: user.id.toString(),
       name: user.name,
@@ -79,19 +65,16 @@ export async function PUT(request: NextRequest) {
     }
 
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users) {
       return NextResponse.json(
-        { error: "Database service does not support direct SQL queries" },
+        { error: "User management is not supported by this database provider" },
         { status: 500 },
       );
     }
     // Check if username is already taken by another user
-    const existingUser = await db.query<{ id: string }>(`
-        SELECT id FROM users
-        WHERE username = @username AND id != @userId
-      `, { username, userId: session.user.id });
+    const existingUser = await db.users.getByUsername(username.trim());
 
-    if (existingUser.recordset.length > 0) {
+    if (existingUser && existingUser.id !== session.user.id) {
       return NextResponse.json(
         { error: "Username is already taken" },
         { status: 409 },

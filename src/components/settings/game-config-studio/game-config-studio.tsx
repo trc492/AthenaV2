@@ -569,7 +569,7 @@ export function GameConfigStudio() {
   return (
     <div className="space-y-4">
       {/* Studio Master Header */}
-      <div className="rounded-xl border border-border bg-card/80 backdrop-blur-xs p-3 sm:px-5 shadow-xs">
+      <div className="rounded-xl border border-border bg-card p-3 sm:px-5">
         <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
           {/* Title & Config Switcher */}
           <div className="flex flex-wrap items-center gap-3">

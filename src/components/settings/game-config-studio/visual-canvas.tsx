@@ -262,7 +262,7 @@ export function VisualCanvas({
       className={`relative mx-auto transition-all duration-300 ${viewportStyles}`}
     >
       {/* Visual Canvas Card */}
-      <div className="rounded-2xl border-2 border-border bg-card shadow-xl overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Canvas Header / Device App Bar */}
         <div className="bg-muted/60 border-b border-border p-3.5 sm:px-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
@@ -359,8 +359,8 @@ export function VisualCanvas({
         <div className="p-4 sm:p-6 min-h-[460px] relative bg-dot-pattern">
           {/* Palette Drop Overlay (Only appears when dragging a component from the left palette) */}
           {isPaletteDragOver && (
-            <div className="absolute inset-2 z-30 rounded-xl border-2 border-dashed border-primary bg-primary/15 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-none transition-all duration-200">
-              <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg mb-2 animate-bounce">
+            <div className="absolute inset-2 z-30 rounded-xl border-2 border-dashed border-primary bg-primary/15 flex flex-col items-center justify-center pointer-events-none transition-all duration-200">
+              <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center mb-2">
                 <Plus className="h-6 w-6" />
               </div>
               <span className="font-bold text-base text-primary">Drop to Add Component</span>

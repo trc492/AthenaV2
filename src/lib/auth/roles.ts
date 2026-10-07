@@ -5,6 +5,7 @@ export const ROLES = {
   TABLET: "tablet",
   VIEWER: "viewer",
   EXTERNAL: "external",
+  GUEST: "guest",
 } as const;
 
 export const PERMISSIONS = {
@@ -73,6 +74,11 @@ export const PERMISSIONS = {
 } as const;
 
 export const ROLE_PERMISSIONS = {
+  [ROLES.GUEST]: [
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.VIEW_MATCH_SCOUTING,
+    PERMISSIONS.VIEW_PIT_SCOUTING,
+  ],
   [ROLES.ADMIN]: [
     // Full access to everything
     ...Object.values(PERMISSIONS),

@@ -29,13 +29,18 @@ export function loadApiKeys(): ApiKeys {
   let persisted: Partial<ApiKeys> = {};
   if (existsSync(API_KEYS_PATH)) {
     try {
-      persisted = JSON.parse(readFileSync(API_KEYS_PATH, "utf8")) as Partial<ApiKeys>;
+      persisted = JSON.parse(
+        readFileSync(API_KEYS_PATH, "utf8"),
+      ) as Partial<ApiKeys>;
     } catch {
       // ignore parse errors
     }
   }
 
-  const resolveKey = (persistedVal: string | undefined, envVal: string | undefined): string => {
+  const resolveKey = (
+    persistedVal: string | undefined,
+    envVal: string | undefined,
+  ): string => {
     if (persistedVal !== undefined && persistedVal.trim() !== "") {
       return persistedVal.trim();
     }
@@ -63,7 +68,9 @@ export function getApiKeyStatus(): Record<
   let persisted: Partial<ApiKeys> = {};
   if (existsSync(API_KEYS_PATH)) {
     try {
-      persisted = JSON.parse(readFileSync(API_KEYS_PATH, "utf8")) as Partial<ApiKeys>;
+      persisted = JSON.parse(
+        readFileSync(API_KEYS_PATH, "utf8"),
+      ) as Partial<ApiKeys>;
     } catch {
       // ignore
     }
@@ -96,7 +103,9 @@ export async function saveApiKeys(keys: Partial<ApiKeys>): Promise<void> {
   let existing: Partial<ApiKeys> = {};
   if (existsSync(API_KEYS_PATH)) {
     try {
-      existing = JSON.parse(readFileSync(API_KEYS_PATH, "utf8")) as Partial<ApiKeys>;
+      existing = JSON.parse(
+        readFileSync(API_KEYS_PATH, "utf8"),
+      ) as Partial<ApiKeys>;
     } catch {
       // ignore
     }
@@ -110,7 +119,11 @@ export async function saveApiKeys(keys: Partial<ApiKeys>): Promise<void> {
   });
 
   await mkdir(RUNTIME_DIR, { recursive: true });
-  await writeFile(API_KEYS_PATH, JSON.stringify(merged, null, 2) + "\n", "utf8");
+  await writeFile(
+    API_KEYS_PATH,
+    JSON.stringify(merged, null, 2) + "\n",
+    "utf8",
+  );
 
   // Mirror to process.env for convenience in Node scripts/libraries
   if (merged.tbaApiKey !== undefined) {

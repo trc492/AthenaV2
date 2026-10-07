@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { MockAuthSession, ServiceMock, asNextRequest } from "../helpers/test-doubles";
+import {
+  MockAuthSession,
+  ServiceMock,
+  asNextRequest,
+} from "../helpers/test-doubles";
 
 let authSession: MockAuthSession | null = {
   user: { id: "user-1", role: "admin" },

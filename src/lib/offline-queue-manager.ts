@@ -56,9 +56,7 @@ class OfflineQueueManager {
   }
 
   // Add a pit entry to the offline queue
-  async queuePitEntry(
-    data: Omit<PitEntry, "id">,
-  ): Promise<string> {
+  async queuePitEntry(data: Omit<PitEntry, "id">): Promise<string> {
     if (typeof indexedDB === "undefined") {
       throw new Error(
         "Queue operations are only available in browser environment",
@@ -75,9 +73,7 @@ class OfflineQueueManager {
   }
 
   // Add a match entry to the offline queue
-  async queueMatchEntry(
-    data: Omit<MatchEntry, "id">,
-  ): Promise<string> {
+  async queueMatchEntry(data: Omit<MatchEntry, "id">): Promise<string> {
     if (typeof indexedDB === "undefined") {
       throw new Error(
         "Queue operations are only available in browser environment",

@@ -8,6 +8,7 @@ import { SessionProvider } from "@/components/session-provider";
 import { SonnerToaster } from "@/components/sonner-toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_DESCRIPTION, APP_LOGO, APP_NAME } from "@/lib/app-config";
+import { GuestAccessBoundary } from "@/components/auth/guest-access-boundary";
 
 export const metadata: Metadata = {
   title: APP_NAME,
@@ -27,6 +28,7 @@ export default function RootLayout({
       <body className="font-sans">
         <TooltipProvider>
           <SessionProvider>
+            <GuestAccessBoundary>
             <ThemeProvider
               attribute="class"
               defaultTheme="system"
@@ -39,6 +41,7 @@ export default function RootLayout({
               <SonnerToaster />
               <ServiceWorkerManager />
             </ThemeProvider>
+            </GuestAccessBoundary>
           </SessionProvider>
         </TooltipProvider>
       </body>

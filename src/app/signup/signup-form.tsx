@@ -30,6 +30,7 @@ export function SignupForm() {
     confirmPassword: "",
   });
 
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -54,6 +55,7 @@ export function SignupForm() {
       return;
     }
 
+    setDuplicateError(null);
     setIsSubmitting(true);
 
     try {
@@ -78,6 +80,7 @@ export function SignupForm() {
         // Redirect to login page
         window.location.href = "/login";
       } else {
+        if (data.code === "DUPLICATE_ACCOUNT") setDuplicateError(data.error);
         toast.error("Registration failed", {
           description: data.error || "An error occurred during registration",
         });
@@ -92,7 +95,7 @@ export function SignupForm() {
   };
 
   return (
-    <Card className="shadow-lg rounded-2xl backdrop-blur-sm">
+    <Card>
       <CardHeader className="text-center mt-2">
         <h1 className="text-2xl font-semibold text-primary">
           Create Account
@@ -102,6 +105,16 @@ export function SignupForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Use your full name. If you have scouted here before, log in to your existing account.
+          An administrator can help if you forgot your username or password.
+        </p>
+        {duplicateError && (
+          <div role="alert" className="mb-4 rounded-md border border-destructive p-3 text-sm">
+            <p>{duplicateError}</p>
+            <Link href="/login" className="mt-2 inline-block underline underline-offset-4">Go to login</Link>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Personal Information */}
           <div className="grid gap-4">

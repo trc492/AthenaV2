@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
-import {
-  loadSystemSettings,
-  saveSystemSettings,
-} from "@/lib/server/env-file";
+import { loadSystemSettings, saveSystemSettings } from "@/lib/server/env-file";
 
 export const dynamic = "force-dynamic";
 

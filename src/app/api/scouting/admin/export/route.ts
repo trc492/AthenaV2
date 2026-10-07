@@ -4,14 +4,9 @@ import { PitEntry, MatchEntry, DatabaseService } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 
-// Initialize database service
-let dbService: DatabaseService;
-
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+// Resolve the active provider on each request so configuration changes take effect.
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 // GET /api/admin/export - Export all data

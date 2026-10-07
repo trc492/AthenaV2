@@ -13,28 +13,17 @@ export async function GET() {
     }
 
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users) {
       return NextResponse.json(
         { error: "Database service not available" },
         { status: 500 },
       );
     }
-    const result = await db.query<{
-      avatarData: Buffer | null;
-      avatarMimeType: string | null;
-    }>(`
-      SELECT avatarData, avatarMimeType
-      FROM users
-      WHERE id = @userId
-    `, { userId: session.user.id });
-
-    if (result.recordset.length === 0) {
+    const avatar = await db.users.getAvatar(session.user.id);
+    if (!avatar)
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const avatarData = result.recordset[0]?.avatarData as Buffer | null;
-    const avatarMimeType =
-      (result.recordset[0]?.avatarMimeType as string | null) || "image/jpeg";
+    const avatarData = avatar.avatarData;
+    const avatarMimeType = avatar.avatarMimeType || "image/jpeg";
 
     if (!avatarData) {
       return NextResponse.json({ error: "Avatar not found" }, { status: 404 });

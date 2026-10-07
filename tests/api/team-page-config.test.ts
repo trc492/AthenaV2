@@ -15,15 +15,28 @@ describe("team page studio configuration", () => {
       expect(validateYearConfig(config).warnings).toEqual([]);
     });
     it(`builds game-specific defaults and preview stats for ${config.gameName}`, () => {
-      const draft = { ...config, teamPageConfig: buildTeamPageDefaults(config) };
+      const draft = {
+        ...config,
+        teamPageConfig: buildTeamPageDefaults(config),
+      };
       expect(validateYearConfig(draft).warnings).toEqual([]);
       const team = buildPreviewTeamData(draft);
       const stats = calculateDetailedGameStats(team.matchEntries, draft, team);
       expect(stats).not.toBeNull();
-      expect(stats?.getMetricValue(draft.teamPageConfig.kpis.auto.key)).toBeGreaterThan(0);
-      draft.teamPageConfig.autoPerformance.pointsFormula = [{ key: draft.teamPageConfig.kpis.auto.key, points: 7 }];
-      const updated = calculateDetailedGameStats(team.matchEntries, draft, team);
-      expect(updated?.points.autoEstimatedPoints).not.toEqual(stats?.points.autoEstimatedPoints);
+      expect(
+        stats?.getMetricValue(draft.teamPageConfig.kpis.auto.key),
+      ).toBeGreaterThan(0);
+      draft.teamPageConfig.autoPerformance.pointsFormula = [
+        { key: draft.teamPageConfig.kpis.auto.key, points: 7 },
+      ];
+      const updated = calculateDetailedGameStats(
+        team.matchEntries,
+        draft,
+        team,
+      );
+      expect(updated?.points.autoEstimatedPoints).not.toEqual(
+        stats?.points.autoEstimatedPoints,
+      );
     });
   }
 });

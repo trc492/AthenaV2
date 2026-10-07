@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { MockAuthSession, asNextRequest } from "../helpers/test-doubles";
 
-const { mockAuthSession, mockWriteFile, mockMkdir, mockExistsSync, mockReadFileSync } = vi.hoisted(() => {
+const {
+  mockAuthSession,
+  mockWriteFile,
+  mockMkdir,
+  mockExistsSync,
+  mockReadFileSync,
+} = vi.hoisted(() => {
   return {
     mockAuthSession: {
       value: { user: { id: "user-admin", role: "admin" } } as MockAuthSession,
@@ -58,7 +64,8 @@ describe("API Keys Server Functions", () => {
   });
 
   it("returns none when no keys are configured via env or json", async () => {
-    const { getApiKeyStatus, loadApiKeys } = await import("@/lib/server/api-keys");
+    const { getApiKeyStatus, loadApiKeys } =
+      await import("@/lib/server/api-keys");
     const status = getApiKeyStatus();
     expect(status.tbaApiKey).toEqual({ configured: false, source: "none" });
     expect(status.ftcApiKey).toEqual({ configured: false, source: "none" });
@@ -70,7 +77,8 @@ describe("API Keys Server Functions", () => {
 
   it("identifies external environment variables as source: env", async () => {
     process.env.TBA_API_KEY = "env-tba-key";
-    const { getApiKeyStatus, loadApiKeys } = await import("@/lib/server/api-keys");
+    const { getApiKeyStatus, loadApiKeys } =
+      await import("@/lib/server/api-keys");
     const status = getApiKeyStatus();
 
     expect(status.tbaApiKey).toEqual({ configured: true, source: "env" });
@@ -83,13 +91,17 @@ describe("API Keys Server Functions", () => {
   it("identifies persisted keys as source: persisted even when process.env is populated", async () => {
     mockExistsSync.mockReturnValue(true);
     mockReadFileSync.mockReturnValue(
-      JSON.stringify({ tbaApiKey: "persisted-tba-key", ftcApiKey: "persisted-ftc-key" }),
+      JSON.stringify({
+        tbaApiKey: "persisted-tba-key",
+        ftcApiKey: "persisted-ftc-key",
+      }),
     );
     // Simulating saveApiKeys having mirrored to process.env
     process.env.TBA_API_KEY = "persisted-tba-key";
     process.env.FTC_API_KEY = "persisted-ftc-key";
 
-    const { getApiKeyStatus, loadApiKeys } = await import("@/lib/server/api-keys");
+    const { getApiKeyStatus, loadApiKeys } =
+      await import("@/lib/server/api-keys");
     const status = getApiKeyStatus();
 
     expect(status.tbaApiKey).toEqual({ configured: true, source: "persisted" });
@@ -118,7 +130,9 @@ describe("API Keys Server Functions", () => {
 
   it("clearing a key removes it from process.env", async () => {
     mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({ tbaApiKey: "existing-key" }));
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({ tbaApiKey: "existing-key" }),
+    );
     process.env.TBA_API_KEY = "existing-key";
 
     const { saveApiKeys } = await import("@/lib/server/api-keys");

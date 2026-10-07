@@ -51,7 +51,10 @@ export async function POST(request: NextRequest) {
       parsed = new URL(appUrl);
     } catch {
       return NextResponse.json(
-        { error: "appUrl must be a valid URL (e.g. https://scouting.myteam.com)." },
+        {
+          error:
+            "appUrl must be a valid URL (e.g. https://scouting.myteam.com).",
+        },
         { status: 400 },
       );
     }
@@ -74,9 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to save app URL.",
+          error instanceof Error ? error.message : "Failed to save app URL.",
       },
       { status: 500 },
     );

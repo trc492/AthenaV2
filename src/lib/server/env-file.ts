@@ -79,7 +79,12 @@ export function getOrCreateAuthSecret(): string {
   );
 }
 
-export { DATABASE_CONFIG_PATH, AUTH_SECRET_PATH, SYSTEM_SETTINGS_PATH, APP_CONFIG_PATH };
+export {
+  DATABASE_CONFIG_PATH,
+  AUTH_SECRET_PATH,
+  SYSTEM_SETTINGS_PATH,
+  APP_CONFIG_PATH,
+};
 
 // ---------------------------------------------------------------------------
 // App config — stores the canonical public URL for the deployment.

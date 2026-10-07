@@ -30,14 +30,21 @@ export function validateYearConfig(data: unknown): ValidationResult {
   // 1. Competition Type
   if (!config.competitionType) {
     errors.push("Missing 'competitionType'. Must be 'FRC' or 'FTC'.");
-  } else if (config.competitionType !== "FRC" && config.competitionType !== "FTC") {
+  } else if (
+    config.competitionType !== "FRC" &&
+    config.competitionType !== "FTC"
+  ) {
     errors.push(
       `Invalid 'competitionType': '${config.competitionType}'. Must be 'FRC' or 'FTC'.`,
     );
   }
 
   // 2. Game Name
-  if (!config.gameName || typeof config.gameName !== "string" || !config.gameName.trim()) {
+  if (
+    !config.gameName ||
+    typeof config.gameName !== "string" ||
+    !config.gameName.trim()
+  ) {
     errors.push("Missing or invalid 'gameName'. Must be a non-empty string.");
   }
 
@@ -65,17 +72,30 @@ export function validateYearConfig(data: unknown): ValidationResult {
         errors.push(`'scoring.${section}' must be an object.`);
       } else {
         Object.entries(secData).forEach(([key, def]) => {
-          validateScoringDefinition(`scoring.${section}.${key}`, def, errors, warnings);
+          validateScoringDefinition(
+            `scoring.${section}.${key}`,
+            def,
+            errors,
+            warnings,
+          );
         });
       }
     });
 
     if (config.scoring.fouls !== undefined) {
-      if (typeof config.scoring.fouls !== "object" || Array.isArray(config.scoring.fouls)) {
+      if (
+        typeof config.scoring.fouls !== "object" ||
+        Array.isArray(config.scoring.fouls)
+      ) {
         errors.push("'scoring.fouls' must be an object if provided.");
       } else {
         Object.entries(config.scoring.fouls).forEach(([key, def]) => {
-          validateScoringDefinition(`scoring.fouls.${key}`, def, errors, warnings);
+          validateScoringDefinition(
+            `scoring.fouls.${key}`,
+            def,
+            errors,
+            warnings,
+          );
         });
       }
     }
@@ -85,7 +105,12 @@ export function validateYearConfig(data: unknown): ValidationResult {
   if (!config.pitScouting || typeof config.pitScouting !== "object") {
     errors.push("Missing 'pitScouting' object.");
   } else {
-    const pitSections = ["autonomous", "teleoperated", "driveTeam", "endgame"] as const;
+    const pitSections = [
+      "autonomous",
+      "teleoperated",
+      "driveTeam",
+      "endgame",
+    ] as const;
     pitSections.forEach((section) => {
       const secData = config.pitScouting?.[section];
       if (secData !== undefined) {
@@ -93,7 +118,12 @@ export function validateYearConfig(data: unknown): ValidationResult {
           errors.push(`'pitScouting.${section}' must be an object.`);
         } else {
           Object.entries(secData).forEach(([key, field]) => {
-            validatePitScoutField(`pitScouting.${section}.${key}`, field, errors, warnings);
+            validatePitScoutField(
+              `pitScouting.${section}.${key}`,
+              field,
+              errors,
+              warnings,
+            );
           });
         }
       }
@@ -106,7 +136,9 @@ export function validateYearConfig(data: unknown): ValidationResult {
       typeof config.analysisInsights !== "object" ||
       !Array.isArray(config.analysisInsights.insights)
     ) {
-      warnings.push("'analysisInsights.insights' should be an array of insight definitions.");
+      warnings.push(
+        "'analysisInsights.insights' should be an array of insight definitions.",
+      );
     }
   }
 
@@ -213,13 +245,15 @@ function validateReferences(config: YearConfig, warnings: string[]) {
   );
 
   config.derivedMetrics?.forEach((metric, i) => {
-    [...(metric.inputs || []), ...(metric.denominator || [])].forEach((input) => {
-      if (!findDatapoint(rawRegistry, input)) {
-        warnings.push(
-          `derivedMetrics[${i}] ('${metric.key}') references '${input}', which is not a scouted field. It will contribute 0.`,
-        );
-      }
-    });
+    [...(metric.inputs || []), ...(metric.denominator || [])].forEach(
+      (input) => {
+        if (!findDatapoint(rawRegistry, input)) {
+          warnings.push(
+            `derivedMetrics[${i}] ('${metric.key}') references '${input}', which is not a scouted field. It will contribute 0.`,
+          );
+        }
+      },
+    );
   });
 
   // Endgame state values must exist among the state field's configured options
@@ -272,14 +306,22 @@ function validateScoringDefinition(
   }
 
   if (item.increments !== undefined) {
-    if (!Array.isArray(item.increments) || !item.increments.every((n) => typeof n === "number")) {
+    if (
+      !Array.isArray(item.increments) ||
+      !item.increments.every((n) => typeof n === "number")
+    ) {
       errors.push(`${path}.increments must be an array of numbers.`);
     }
   }
 
   if (item.pointValues !== undefined) {
-    if (typeof item.pointValues !== "object" || Array.isArray(item.pointValues)) {
-      errors.push(`${path}.pointValues must be a key-value object of string to number.`);
+    if (
+      typeof item.pointValues !== "object" ||
+      Array.isArray(item.pointValues)
+    ) {
+      errors.push(
+        `${path}.pointValues must be a key-value object of string to number.`,
+      );
     }
   }
 }
@@ -315,7 +357,9 @@ function validatePitScoutField(
 
   if (item.type === "select" || item.type === "multiselect") {
     if (!Array.isArray(item.options) || item.options.length === 0) {
-      warnings.push(`${path} is type '${item.type}' but has no options configured.`);
+      warnings.push(
+        `${path} is type '${item.type}' but has no options configured.`,
+      );
     }
   }
 }

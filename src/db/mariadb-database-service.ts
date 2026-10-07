@@ -1,3 +1,6 @@
+import { sqlUsers } from "./sql-users";
+import { sqlGuestLinks } from "./sql-guest-links";
+import type { GuestLinkRecord } from "@/lib/types";
 import {
   DatabaseService,
   PitEntry,
@@ -48,7 +51,6 @@ type SqlParam = string | number | boolean | Date | Buffer | null;
 /** A `SELECT` result row shaped by one of the schema row interfaces. */
 type Row<T> = T & RowDataPacket;
 
-
 /**
  * JSON requests and imports carry dates as ISO strings, while mysql2 expects a
  * Date (or a MariaDB-formatted DATETIME string). Normalize at the provider
@@ -63,10 +65,25 @@ export function normalizeMariaDbTimestamp(value: unknown): Date {
 }
 
 export class MariaDbDatabaseService implements DatabaseService {
+  readonly users = sqlUsers(this.query.bind(this), "mariadb");
   private pool: Pool | null = null;
-  private config: { connectionString?: string; host?: string; port?: number; database?: string; user?: string; password?: string };
+  private config: {
+    connectionString?: string;
+    host?: string;
+    port?: number;
+    database?: string;
+    user?: string;
+    password?: string;
+  };
 
-  constructor(config: { connectionString?: string; host?: string; port?: number; database?: string; user?: string; password?: string }) {
+  constructor(config: {
+    connectionString?: string;
+    host?: string;
+    port?: number;
+    database?: string;
+    user?: string;
+    password?: string;
+  }) {
     this.config = config;
   }
 
@@ -127,10 +144,11 @@ export class MariaDbDatabaseService implements DatabaseService {
         const normalize = (rows: ScheduleAssignmentRecord[]) =>
           JSON.stringify(
             [...rows]
-              .sort((a, b) =>
-                a.matchNumber - b.matchNumber ||
-                a.alliance.localeCompare(b.alliance) ||
-                a.position - b.position,
+              .sort(
+                (a, b) =>
+                  a.matchNumber - b.matchNumber ||
+                  a.alliance.localeCompare(b.alliance) ||
+                  a.position - b.position,
               )
               .map(({ matchNumber, alliance, position, userId }) => ({
                 matchNumber,
@@ -188,7 +206,9 @@ export class MariaDbDatabaseService implements DatabaseService {
               change.userId,
             ],
           );
-          const placeholders = rows.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
+          const placeholders = rows
+            .map(() => "(?, ?, ?, ?, ?, ?, ?)")
+            .join(", ");
           await connection.execute(
             `INSERT INTO matchAssignments
               (eventCode, year, competitionType, matchNumber, alliance, position, userId)
@@ -211,21 +231,43 @@ export class MariaDbDatabaseService implements DatabaseService {
     params: Record<string, unknown>,
   ): { sql: string; values: ExecuteValues[] } {
     const values: ExecuteValues[] = [];
-    const normalizedSql = sql.replace(/@([A-Za-z_][A-Za-z0-9_]*)/g, (_match, name: string) => {
-      if (!Object.prototype.hasOwnProperty.call(params, name)) {
-        throw new Error(`Missing SQL parameter: ${name}`);
-      }
+    const normalizedSql = sql.replace(
+      /@([A-Za-z_][A-Za-z0-9_]*)/g,
+      (_match, name: string) => {
+        if (!Object.prototype.hasOwnProperty.call(params, name)) {
+          throw new Error(`Missing SQL parameter: ${name}`);
+        }
 
-      values.push(params[name] as ExecuteValues);
-      return "?";
-    });
+        values.push(params[name] as ExecuteValues);
+        return "?";
+      },
+    );
 
     return { sql: normalizedSql, values };
   }
 
+  async addGuestLink(link: GuestLinkRecord): Promise<void> {
+    await sqlGuestLinks(this.query.bind(this)).addGuestLink(link);
+  }
+  async getGuestLinks(): Promise<GuestLinkRecord[]> {
+    return sqlGuestLinks(this.query.bind(this)).getGuestLinks();
+  }
+  async getGuestLink(id: string): Promise<GuestLinkRecord | undefined> {
+    return sqlGuestLinks(this.query.bind(this)).getGuestLink(id);
+  }
+  async revokeGuestLink(id: string, revokedAt: number): Promise<void> {
+    await sqlGuestLinks(this.query.bind(this)).revokeGuestLink(id, revokedAt);
+  }
   private async initializeTables(): Promise<void> {
     const pool = await this.getPool();
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS guestLinks (
+        id VARCHAR(32) PRIMARY KEY,
+        data LONGTEXT NOT NULL,
+        revokedAt BIGINT NULL
+      )
+    `);
     // users
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -242,6 +284,14 @@ export class MariaDbDatabaseService implements DatabaseService {
         avatarMimeType VARCHAR(100)
       ) ENGINE=InnoDB;
     `);
+
+    // Preserve existing users; inactive accounts retain all historical references.
+    await pool.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS deactivatedAt DATETIME NULL`,
+    );
+    await pool.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS sessionVersion INT NOT NULL DEFAULT 0`,
+    );
 
     // pitEntries
     await pool.query(`
@@ -430,14 +480,23 @@ export class MariaDbDatabaseService implements DatabaseService {
       });
       return result.insertId;
     } catch (error) {
-      if (getDriverErrorCode(error) === "ER_DUP_ENTRY" || getErrorMessage(error).includes("uq_pit_entry")) {
-        throw new Error(`Duplicate pit entry: Team ${entry.teamNumber} already has a pit scouting entry for this event`);
+      if (
+        getDriverErrorCode(error) === "ER_DUP_ENTRY" ||
+        getErrorMessage(error).includes("uq_pit_entry")
+      ) {
+        throw new Error(
+          `Duplicate pit entry: Team ${entry.teamNumber} already has a pit scouting entry for this event`,
+        );
       }
       throw error;
     }
   }
 
-  async getPitEntry(teamNumber: number, year: number, competitionType?: CompetitionType): Promise<PitEntry | undefined> {
+  async getPitEntry(
+    teamNumber: number,
+    year: number,
+    competitionType?: CompetitionType,
+  ): Promise<PitEntry | undefined> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM pitEntries WHERE teamNumber = ? AND year = ?`;
     const params: SqlParam[] = [teamNumber, year];
@@ -450,7 +509,11 @@ export class MariaDbDatabaseService implements DatabaseService {
     return toPitEntry(rows[0]);
   }
 
-  async getAllPitEntries(year?: number, eventCode?: string, competitionType?: CompetitionType): Promise<PitEntry[]> {
+  async getAllPitEntries(
+    year?: number,
+    eventCode?: string,
+    competitionType?: CompetitionType,
+  ): Promise<PitEntry[]> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM pitEntries`;
     const conditions: string[] = [];
@@ -528,9 +591,15 @@ export class MariaDbDatabaseService implements DatabaseService {
     await pool.execute(`DELETE FROM pitEntries WHERE id = ?`, [id]);
   }
 
-  async checkPitScoutExists(teamNumber: number, eventCode: string): Promise<boolean> {
+  async checkPitScoutExists(
+    teamNumber: number,
+    eventCode: string,
+  ): Promise<boolean> {
     const pool = await this.getPool();
-    const [rows] = await pool.execute<Row<{ count: number }>[]>(`SELECT COUNT(*) as count FROM pitEntries WHERE teamNumber = ? AND eventCode = ?`, [teamNumber, eventCode]);
+    const [rows] = await pool.execute<Row<{ count: number }>[]>(
+      `SELECT COUNT(*) as count FROM pitEntries WHERE teamNumber = ? AND eventCode = ?`,
+      [teamNumber, eventCode],
+    );
     return rows[0].count > 0;
   }
 
@@ -555,14 +624,23 @@ export class MariaDbDatabaseService implements DatabaseService {
       ]);
       return result.insertId;
     } catch (error) {
-      if (getDriverErrorCode(error) === "ER_DUP_ENTRY" || getErrorMessage(error).includes("uq_match_entry")) {
-        throw new Error(`Duplicate match entry: Team ${entry.teamNumber} already has an entry for match ${entry.matchNumber} at this event`);
+      if (
+        getDriverErrorCode(error) === "ER_DUP_ENTRY" ||
+        getErrorMessage(error).includes("uq_match_entry")
+      ) {
+        throw new Error(
+          `Duplicate match entry: Team ${entry.teamNumber} already has an entry for match ${entry.matchNumber} at this event`,
+        );
       }
       throw error;
     }
   }
 
-  async getMatchEntries(teamNumber: number, year?: number, competitionType?: CompetitionType): Promise<MatchEntry[]> {
+  async getMatchEntries(
+    teamNumber: number,
+    year?: number,
+    competitionType?: CompetitionType,
+  ): Promise<MatchEntry[]> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM matchEntries WHERE teamNumber = ?`;
     const params: SqlParam[] = [teamNumber];
@@ -578,7 +656,11 @@ export class MariaDbDatabaseService implements DatabaseService {
     return rows.map(toMatchEntry);
   }
 
-  async getAllMatchEntries(year?: number, eventCode?: string, competitionType?: CompetitionType): Promise<MatchEntry[]> {
+  async getAllMatchEntries(
+    year?: number,
+    eventCode?: string,
+    competitionType?: CompetitionType,
+  ): Promise<MatchEntry[]> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM matchEntries`;
     const conditions: string[] = [];
@@ -600,7 +682,10 @@ export class MariaDbDatabaseService implements DatabaseService {
     return rows.map(toMatchEntry);
   }
 
-  async updateMatchEntry(id: number, updates: Partial<MatchEntry>): Promise<void> {
+  async updateMatchEntry(
+    id: number,
+    updates: Partial<MatchEntry>,
+  ): Promise<void> {
     const pool = await this.getPool();
     const setParts: string[] = [];
     const params: SqlParam[] = [];
@@ -656,9 +741,16 @@ export class MariaDbDatabaseService implements DatabaseService {
     await pool.execute(`DELETE FROM matchEntries WHERE id = ?`, [id]);
   }
 
-  async checkMatchScoutExists(teamNumber: number, matchNumber: number, eventCode: string): Promise<boolean> {
+  async checkMatchScoutExists(
+    teamNumber: number,
+    matchNumber: number,
+    eventCode: string,
+  ): Promise<boolean> {
     const pool = await this.getPool();
-    const [rows] = await pool.execute<Row<{ count: number }>[]>(`SELECT COUNT(*) as count FROM matchEntries WHERE teamNumber = ? AND matchNumber = ? AND eventCode = ?`, [teamNumber, matchNumber, eventCode]);
+    const [rows] = await pool.execute<Row<{ count: number }>[]>(
+      `SELECT COUNT(*) as count FROM matchEntries WHERE teamNumber = ? AND matchNumber = ? AND eventCode = ?`,
+      [teamNumber, matchNumber, eventCode],
+    );
     return rows[0].count > 0;
   }
 
@@ -666,11 +758,24 @@ export class MariaDbDatabaseService implements DatabaseService {
   async addCustomEvent(event: Omit<CustomEvent, "id">): Promise<number> {
     const pool = await this.getPool();
     const q = `INSERT INTO customEvents (eventCode, name, date, endDate, matchCount, location, region, year, competitionType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    const [result] = await pool.execute<ResultSetHeader>(q, [event.eventCode, event.name, event.date, event.endDate ?? null, event.matchCount, event.location ?? null, event.region ?? null, event.year, event.competitionType]);
+    const [result] = await pool.execute<ResultSetHeader>(q, [
+      event.eventCode,
+      event.name,
+      event.date,
+      event.endDate ?? null,
+      event.matchCount,
+      event.location ?? null,
+      event.region ?? null,
+      event.year,
+      event.competitionType,
+    ]);
     return result.insertId;
   }
 
-  async getCustomEvent(eventCode: string, competitionType?: CompetitionType): Promise<CustomEvent | undefined> {
+  async getCustomEvent(
+    eventCode: string,
+    competitionType?: CompetitionType,
+  ): Promise<CustomEvent | undefined> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM customEvents WHERE eventCode = ?`;
     const params: SqlParam[] = [eventCode];
@@ -683,7 +788,10 @@ export class MariaDbDatabaseService implements DatabaseService {
     return toCustomEvent(rows[0]);
   }
 
-  async getAllCustomEvents(year?: number, competitionType?: CompetitionType): Promise<CustomEvent[]> {
+  async getAllCustomEvents(
+    year?: number,
+    competitionType?: CompetitionType,
+  ): Promise<CustomEvent[]> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM customEvents`;
     const conditions: string[] = [];
@@ -702,11 +810,22 @@ export class MariaDbDatabaseService implements DatabaseService {
     return rows.map(toCustomEvent);
   }
 
-  async updateCustomEvent(eventCode: string, updates: Partial<CustomEvent>): Promise<void> {
+  async updateCustomEvent(
+    eventCode: string,
+    updates: Partial<CustomEvent>,
+  ): Promise<void> {
     const pool = await this.getPool();
     const setParts: string[] = [];
     const params: SqlParam[] = [];
-    const validFields = ["name", "date", "endDate", "matchCount", "location", "region", "year"];
+    const validFields = [
+      "name",
+      "date",
+      "endDate",
+      "matchCount",
+      "location",
+      "region",
+      "year",
+    ];
     for (const [key, value] of Object.entries(updates)) {
       if (validFields.includes(key)) {
         setParts.push(`${key} = ?`);
@@ -722,35 +841,72 @@ export class MariaDbDatabaseService implements DatabaseService {
   async deleteCustomEvent(eventCode: string): Promise<void> {
     const pool = await this.getPool();
     // Fetch event metadata first
-    const [metaRows] = await pool.execute<Row<{ year: number; competitionType: string | null }>[]>(`SELECT year, competitionType FROM customEvents WHERE eventCode = ? LIMIT 1`, [eventCode]);
+    const [metaRows] = await pool.execute<
+      Row<{ year: number; competitionType: string | null }>[]
+    >(
+      `SELECT year, competitionType FROM customEvents WHERE eventCode = ? LIMIT 1`,
+      [eventCode],
+    );
     if (metaRows.length === 0) return;
     const year = metaRows[0].year;
-    const competitionType = (metaRows[0].competitionType || "FRC") as CompetitionType;
+    const competitionType = (metaRows[0].competitionType ||
+      "FRC") as CompetitionType;
 
     // Delete related data
-    await pool.execute(`DELETE FROM matchAssignments WHERE eventCode = ? AND year = ?`, [eventCode, year]);
-    await pool.execute(`DELETE FROM picklists WHERE eventCode = ? AND year = ? AND competitionType = ?`, [eventCode, year, competitionType]);
-    await pool.execute(`DELETE FROM matchEntries WHERE eventCode = ? AND year = ? AND competitionType = ?`, [eventCode, year, competitionType]);
-    await pool.execute(`DELETE FROM pitEntries WHERE eventCode = ? AND year = ? AND competitionType = ?`, [eventCode, year, competitionType]);
-    await pool.execute(`DELETE FROM customEvents WHERE eventCode = ?`, [eventCode]);
+    await pool.execute(
+      `DELETE FROM matchAssignments WHERE eventCode = ? AND year = ?`,
+      [eventCode, year],
+    );
+    await pool.execute(
+      `DELETE FROM picklists WHERE eventCode = ? AND year = ? AND competitionType = ?`,
+      [eventCode, year, competitionType],
+    );
+    await pool.execute(
+      `DELETE FROM matchEntries WHERE eventCode = ? AND year = ? AND competitionType = ?`,
+      [eventCode, year, competitionType],
+    );
+    await pool.execute(
+      `DELETE FROM pitEntries WHERE eventCode = ? AND year = ? AND competitionType = ?`,
+      [eventCode, year, competitionType],
+    );
+    await pool.execute(`DELETE FROM customEvents WHERE eventCode = ?`, [
+      eventCode,
+    ]);
   }
 
   // Picklist methods
-  async addPicklist(picklist: Omit<Picklist, "id" | "created_at" | "updated_at">): Promise<number> {
+  async addPicklist(
+    picklist: Omit<Picklist, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
     const pool = await this.getPool();
     const q = `INSERT INTO picklists (eventCode, year, competitionType, picklistType, name, createdBy) VALUES (?, ?, ?, ?, ?, ?)`;
-    const [result] = await pool.execute<ResultSetHeader>(q, [picklist.eventCode, picklist.year, picklist.competitionType, picklist.picklistType || "main", picklist.name ?? null, picklist.createdBy ?? null]);
+    const [result] = await pool.execute<ResultSetHeader>(q, [
+      picklist.eventCode,
+      picklist.year,
+      picklist.competitionType,
+      picklist.picklistType || "main",
+      picklist.name ?? null,
+      picklist.createdBy ?? null,
+    ]);
     return result.insertId;
   }
 
   async getPicklist(id: number): Promise<Picklist | undefined> {
     const pool = await this.getPool();
-    const [rows] = await pool.execute<Row<PicklistRow>[]>(`SELECT * FROM picklists WHERE id = ?`, [id]);
+    const [rows] = await pool.execute<Row<PicklistRow>[]>(
+      `SELECT * FROM picklists WHERE id = ?`,
+      [id],
+    );
     if (rows.length === 0) return undefined;
     return toPicklist(rows[0]);
   }
 
-  async getPicklistByEvent(eventCode: string, year: number, competitionType?: CompetitionType, picklistType?: string): Promise<Picklist | undefined> {
+  async getPicklistByEvent(
+    eventCode: string,
+    year: number,
+    competitionType?: CompetitionType,
+    picklistType?: string,
+  ): Promise<Picklist | undefined> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM picklists WHERE eventCode = ? AND year = ?`;
     const params: SqlParam[] = [eventCode, year];
@@ -768,7 +924,11 @@ export class MariaDbDatabaseService implements DatabaseService {
     return toPicklist(rows[0]);
   }
 
-  async getPicklistsByEvent(eventCode: string, year: number, competitionType?: CompetitionType): Promise<Picklist[]> {
+  async getPicklistsByEvent(
+    eventCode: string,
+    year: number,
+    competitionType?: CompetitionType,
+  ): Promise<Picklist[]> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM picklists WHERE eventCode = ? AND year = ?`;
     const params: SqlParam[] = [eventCode, year];
@@ -805,7 +965,9 @@ export class MariaDbDatabaseService implements DatabaseService {
     await pool.execute(`DELETE FROM picklists WHERE id = ?`, [id]);
   }
 
-  async addPicklistEntry(entry: Omit<PicklistEntry, "id" | "created_at" | "updated_at">): Promise<number> {
+  async addPicklistEntry(
+    entry: Omit<PicklistEntry, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
     const pool = await this.getPool();
     const q = `INSERT INTO picklistEntries (picklistId, teamNumber, rank, source, notes) VALUES (?, ?, ?, ?, ?)`;
     const [result] = await pool.execute<ResultSetHeader>({
@@ -817,18 +979,27 @@ export class MariaDbDatabaseService implements DatabaseService {
 
   async getPicklistEntry(id: number): Promise<PicklistEntry | undefined> {
     const pool = await this.getPool();
-    const [rows] = await pool.execute<Row<PicklistEntryRow>[]>(`SELECT * FROM picklistEntries WHERE id = ?`, [id]);
+    const [rows] = await pool.execute<Row<PicklistEntryRow>[]>(
+      `SELECT * FROM picklistEntries WHERE id = ?`,
+      [id],
+    );
     if (rows.length === 0) return undefined;
     return toPicklistEntry(rows[0]);
   }
 
   async getPicklistEntries(picklistId: number): Promise<PicklistEntry[]> {
     const pool = await this.getPool();
-    const [rows] = await pool.execute<Row<PicklistEntryRow>[]>(`SELECT * FROM picklistEntries WHERE picklistId = ? ORDER BY rank ASC`, [picklistId]);
+    const [rows] = await pool.execute<Row<PicklistEntryRow>[]>(
+      `SELECT * FROM picklistEntries WHERE picklistId = ? ORDER BY rank ASC`,
+      [picklistId],
+    );
     return rows.map(toPicklistEntry);
   }
 
-  async updatePicklistEntry(id: number, updates: Partial<PicklistEntry>): Promise<void> {
+  async updatePicklistEntry(
+    id: number,
+    updates: Partial<PicklistEntry>,
+  ): Promise<void> {
     const pool = await this.getPool();
     const setParts: string[] = [];
     const params: SqlParam[] = [];
@@ -855,18 +1026,31 @@ export class MariaDbDatabaseService implements DatabaseService {
     await pool.execute(`DELETE FROM picklistEntries WHERE id = ?`, [id]);
   }
 
-  async updatePicklistEntryRank(picklistId: number, teamNumber: number, rank: number): Promise<void> {
+  async updatePicklistEntryRank(
+    picklistId: number,
+    teamNumber: number,
+    rank: number,
+  ): Promise<void> {
     const pool = await this.getPool();
-    await pool.execute(`UPDATE picklistEntries SET rank = ? WHERE picklistId = ? AND teamNumber = ?`, [rank, picklistId, teamNumber]);
+    await pool.execute(
+      `UPDATE picklistEntries SET rank = ? WHERE picklistId = ? AND teamNumber = ?`,
+      [rank, picklistId, teamNumber],
+    );
   }
 
-  async reorderPicklistEntries(picklistId: number, entries: Array<{ teamNumber: number; rank: number }>): Promise<void> {
+  async reorderPicklistEntries(
+    picklistId: number,
+    entries: Array<{ teamNumber: number; rank: number }>,
+  ): Promise<void> {
     const pool = await this.getPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
       for (const e of entries) {
-        await conn.execute(`UPDATE picklistEntries SET rank = ? WHERE picklistId = ? AND teamNumber = ?`, [e.rank, picklistId, e.teamNumber]);
+        await conn.execute(
+          `UPDATE picklistEntries SET rank = ? WHERE picklistId = ? AND teamNumber = ?`,
+          [e.rank, picklistId, e.teamNumber],
+        );
       }
       await conn.commit();
     } catch (err) {
@@ -877,21 +1061,33 @@ export class MariaDbDatabaseService implements DatabaseService {
     }
   }
 
-  async addPicklistNote(note: Omit<PicklistNote, "id" | "created_at" | "updated_at">): Promise<number> {
+  async addPicklistNote(
+    note: Omit<PicklistNote, "id" | "created_at" | "updated_at">,
+  ): Promise<number> {
     const pool = await this.getPool();
     const q = `INSERT INTO picklistNotes (picklistId, teamNumber, note) VALUES (?, ?, ?)`;
-    const [result] = await pool.execute<ResultSetHeader>(q, [note.picklistId, note.teamNumber, note.note]);
+    const [result] = await pool.execute<ResultSetHeader>(q, [
+      note.picklistId,
+      note.teamNumber,
+      note.note,
+    ]);
     return result.insertId;
   }
 
   async getPicklistNote(id: number): Promise<PicklistNote | undefined> {
     const pool = await this.getPool();
-    const [rows] = await pool.execute<Row<PicklistNoteRow>[]>(`SELECT * FROM picklistNotes WHERE id = ?`, [id]);
+    const [rows] = await pool.execute<Row<PicklistNoteRow>[]>(
+      `SELECT * FROM picklistNotes WHERE id = ?`,
+      [id],
+    );
     if (rows.length === 0) return undefined;
     return toPicklistNote(rows[0]);
   }
 
-  async getPicklistNotes(picklistId: number, teamNumber?: number): Promise<PicklistNote[]> {
+  async getPicklistNotes(
+    picklistId: number,
+    teamNumber?: number,
+  ): Promise<PicklistNote[]> {
     const pool = await this.getPool();
     let sql = `SELECT * FROM picklistNotes WHERE picklistId = ?`;
     const params: SqlParam[] = [picklistId];
@@ -903,7 +1099,10 @@ export class MariaDbDatabaseService implements DatabaseService {
     return rows.map(toPicklistNote);
   }
 
-  async updatePicklistNote(id: number, updates: Partial<PicklistNote>): Promise<void> {
+  async updatePicklistNote(
+    id: number,
+    updates: Partial<PicklistNote>,
+  ): Promise<void> {
     const pool = await this.getPool();
     const setParts: string[] = [];
     const params: SqlParam[] = [];
@@ -913,7 +1112,10 @@ export class MariaDbDatabaseService implements DatabaseService {
     }
     if (setParts.length === 0) return;
     params.push(id);
-    await pool.execute(`UPDATE picklistNotes SET ${setParts.join(", ")} WHERE id = ?`, params);
+    await pool.execute(
+      `UPDATE picklistNotes SET ${setParts.join(", ")} WHERE id = ?`,
+      params,
+    );
   }
 
   async deletePicklistNote(id: number): Promise<void> {
@@ -934,32 +1136,63 @@ export class MariaDbDatabaseService implements DatabaseService {
 
   async getUserPreferredPartners(userId: string): Promise<string[]> {
     const pool = await this.getPool();
-    const [rows] = await pool.execute<Row<{ preferredPartners: string | null }>[]>(
-      `SELECT preferredPartners FROM users WHERE id = ?`,
-      [userId],
-    );
+    const [rows] = await pool.execute<
+      Row<{ preferredPartners: string | null }>[]
+    >(`SELECT preferredPartners FROM users WHERE id = ?`, [userId]);
 
     return rows.length === 0 ? [] : parseStringArray(rows[0].preferredPartners);
   }
 
-  async exportData(year?: number): Promise<{ pitEntries: PitEntry[]; matchEntries: MatchEntry[] }> {
+  async exportData(
+    year?: number,
+  ): Promise<{ pitEntries: PitEntry[]; matchEntries: MatchEntry[] }> {
     const pit = await this.getAllPitEntries(year);
     const matches = await this.getAllMatchEntries(year);
     return { pitEntries: pit, matchEntries: matches };
   }
 
-  async importData(data: { pitEntries?: PitEntry[]; matchEntries?: MatchEntry[] }): Promise<void> {
+  async importData(data: {
+    pitEntries?: PitEntry[];
+    matchEntries?: MatchEntry[];
+  }): Promise<void> {
     const pool = await this.getPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
       for (const p of data.pitEntries || []) {
         const q = `INSERT INTO pitEntries (teamNumber, year, competitionType, driveTrain, weight, length, width, eventName, eventCode, userId, gameSpecificData, autoDrawing, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-        await conn.execute(q, [p.teamNumber, p.year, p.competitionType, p.driveTrain, p.weight ?? null, p.length ?? null, p.width ?? null, p.eventName ?? null, p.eventCode ?? null, p.userId ?? null, JSON.stringify(p.gameSpecificData), p.autoDrawing ?? null, p.notes ?? null]);
+        await conn.execute(q, [
+          p.teamNumber,
+          p.year,
+          p.competitionType,
+          p.driveTrain,
+          p.weight ?? null,
+          p.length ?? null,
+          p.width ?? null,
+          p.eventName ?? null,
+          p.eventCode ?? null,
+          p.userId ?? null,
+          JSON.stringify(p.gameSpecificData),
+          p.autoDrawing ?? null,
+          p.notes ?? null,
+        ]);
       }
       for (const m of data.matchEntries || []) {
         const q = `INSERT INTO matchEntries (matchNumber, teamNumber, year, competitionType, alliance, alliancePosition, eventName, eventCode, userId, gameSpecificData, notes, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-        await conn.execute(q, [m.matchNumber, m.teamNumber, m.year, m.competitionType, m.alliance, m.alliancePosition ?? null, m.eventName ?? null, m.eventCode ?? null, m.userId ?? null, JSON.stringify(m.gameSpecificData), m.notes ?? null, normalizeMariaDbTimestamp(m.timestamp)]);
+        await conn.execute(q, [
+          m.matchNumber,
+          m.teamNumber,
+          m.year,
+          m.competitionType,
+          m.alliance,
+          m.alliancePosition ?? null,
+          m.eventName ?? null,
+          m.eventCode ?? null,
+          m.userId ?? null,
+          JSON.stringify(m.gameSpecificData),
+          m.notes ?? null,
+          normalizeMariaDbTimestamp(m.timestamp),
+        ]);
       }
       await conn.commit();
     } catch (err) {
@@ -989,7 +1222,10 @@ export class MariaDbDatabaseService implements DatabaseService {
    * Uses parameterized MariaDB/MySQL syntax (`?` positional placeholders).
    * `updated_at` is always refreshed automatically via `CURRENT_TIMESTAMP`.
    */
-  async updateUser(id: string, updates: import("@/lib/types").UserUpdates): Promise<void> {
+  async updateUser(
+    id: string,
+    updates: import("@/lib/types").UserUpdates,
+  ): Promise<void> {
     const pool = await this.getPool();
     const setParts: string[] = [];
     const values: SqlParam[] = [];

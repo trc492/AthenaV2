@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth/config";
 import { hasPermission, hasAnyPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { createUser } from "@/lib/server/user-service";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Check if user has permission to view users
     // VIEW_USERS: full user management access
@@ -23,27 +23,18 @@ export async function GET() {
     }
 
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users) {
       return NextResponse.json(
-        { error: "Database service does not support direct SQL queries" },
+        { error: "User management is not supported by this database provider" },
         { status: 500 },
       );
     }
-    const result = await db.query<{
-      id: string;
-      name: string;
-      username: string;
-      role: string;
-      preferredPartners: string | null;
-      created_at: string;
-      updated_at: string;
-    }>(`
-        SELECT id, name, username, role, preferredPartners, created_at, updated_at
-        FROM users
-        ORDER BY name ASC
-      `);
+    const records = await db.users.list(
+      request.nextUrl.searchParams.get("includeInactive") === "true" &&
+        hasPermission(session.user.role, PERMISSIONS.DELETE_USERS),
+    );
 
-    const users = result.recordset.map((user) => {
+    const users = records.map((user) => {
       let preferredPartners: string[] = [];
       if (user.preferredPartners) {
         try {
@@ -59,6 +50,7 @@ export async function GET() {
         username: user.username,
         role: user.role,
         preferredPartners,
+        deactivatedAt: user.deactivatedAt,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
       };

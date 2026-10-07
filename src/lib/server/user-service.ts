@@ -14,6 +14,10 @@ export const VALID_ROLES = [
 
 export type UserRole = (typeof VALID_ROLES)[number];
 
+function normalizeAccountName(value: string): string {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export interface ValidationResult {
   valid: boolean;
   error?: string;
@@ -71,30 +75,23 @@ export function validateUserCredentials(data: {
 
 export async function hasAnyAdmin(): Promise<boolean> {
   const db = databaseManager.getService();
-  if (!db || !db.query) return false;
-
-  const result = await db.query<{ count?: number }>(
-    "SELECT COUNT(*) as count FROM users WHERE role = 'admin'",
-  );
-  const row = result?.recordset?.[0];
-  if (!row) return false;
-  const countVal = row.count;
-  if (typeof countVal !== "undefined" && countVal !== null) {
-    return Number(countVal) > 0;
-  }
-  return true;
+  return db?.users ? db.users.hasAdmin() : false;
 }
 
-export async function createUser(data: {
-  name: string;
-  username: string;
-  password: string;
-  role?: string;
-}): Promise<{
+export async function createUser(
+  data: {
+    name: string;
+    username: string;
+    password: string;
+    role?: string;
+  },
+  options: { preventDuplicateName?: boolean } = {},
+): Promise<{
   success: boolean;
   error?: string;
   status: number;
   userId?: string;
+  code?: string;
 }> {
   const validation = validateUserCredentials(data);
   if (!validation.valid || !validation.cleanData) {
@@ -104,26 +101,44 @@ export async function createUser(data: {
   const { name, username, password, role } = validation.cleanData;
 
   const db = databaseManager.getService();
-  if (!db || !db.query) {
+  if (!db || !db.users) {
     return {
       success: false,
-      error: "Database service does not support direct SQL queries",
+      error: "User management is not supported by this database provider",
       status: 500,
     };
   }
 
   // Check if username already exists
-  const existingUserResult = await db.query<{ id: string }>(
-    "SELECT id FROM users WHERE username = @username",
-    { username },
-  );
+  const existingUser = await db.users.getByUsername(username);
 
-  if (existingUserResult.recordset.length > 0) {
+  if (existingUser) {
     return {
       success: false,
-      error: "User with this username already exists",
+      error:
+        "This username is already in use. Log in to your existing account or contact an administrator for help.",
+      code: "DUPLICATE_ACCOUNT",
       status: 409,
     };
+  }
+
+  // Names are a hint, not proof of identity. Admins can create namesakes.
+  if (options.preventDuplicateName) {
+    const existingNames = await db.users.list(true);
+    if (
+      existingNames.some(
+        (user) =>
+          normalizeAccountName(user.name) === normalizeAccountName(name),
+      )
+    ) {
+      return {
+        success: false,
+        error:
+          "An account with this name already exists. Log in, or contact an administrator if you forgot your login or share a name with another person.",
+        status: 409,
+        code: "DUPLICATE_ACCOUNT",
+      };
+    }
   }
 
   // Hash password and generate a collision-resistant user ID
@@ -131,19 +146,22 @@ export async function createUser(data: {
   const userId = `user_${crypto.randomUUID().replace(/-/g, "")}`;
 
   // Insert user
-  await db.query(
-    `
-      INSERT INTO users (id, name, username, password_hash, role, created_at, updated_at)
-      VALUES (@id, @name, @username, @passwordHash, @role, GETDATE(), GETDATE())
-    `,
-    {
+  try {
+    await db.users.create({
       id: userId,
       name,
       username,
       passwordHash: hashedPassword,
       role,
-    },
-  );
+    });
+  } catch (error) {
+    // The document providers reserve usernames atomically; another signup can
+    // win after the initial availability check.
+    if (error instanceof Error && error.name === "DuplicateUsernameError") {
+      return { success: false, status: 409, code: "DUPLICATE_ACCOUNT", error: error.message };
+    }
+    throw error;
+  }
 
   return { success: true, userId, status: 201 };
 }

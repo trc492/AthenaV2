@@ -1,5 +1,3 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
 # AthenaV2
 
 AthenaV2 is a modern scouting and analytics platform designed for competitive robotics teams. Built with Next.js and TypeScript, it provides a robust, extensible, and user-friendly interface for collecting, managing, and analyzing match and pit scouting data. The platform supports real-time collaboration, offline-first capabilities, and seamless integration with various data sources.
@@ -148,7 +146,7 @@ Contributions are welcome! Please open issues or pull requests for bug fixes, ne
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the GNU General Public License v3.0
 
 ---
 

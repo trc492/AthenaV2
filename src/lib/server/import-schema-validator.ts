@@ -89,7 +89,10 @@ export function validateImportAgainstSchema(data: {
     ).toUpperCase() as CompetitionType;
     const year = Number(p.year);
     if (!year || isNaN(year)) {
-      return { valid: false, error: "Invalid or missing year in pit scouting data." };
+      return {
+        valid: false,
+        error: "Invalid or missing year in pit scouting data.",
+      };
     }
     const key = `${compType}-${year}`;
     if (!groups.has(key)) {
@@ -109,10 +112,15 @@ export function validateImportAgainstSchema(data: {
   }
 
   for (const m of matchEntries) {
-    const compType = ((m.competitionType as string) || "FRC").toUpperCase() as CompetitionType;
+    const compType = (
+      (m.competitionType as string) || "FRC"
+    ).toUpperCase() as CompetitionType;
     const year = Number(m.year);
     if (!year || isNaN(year)) {
-      return { valid: false, error: "Invalid or missing year in match scouting data." };
+      return {
+        valid: false,
+        error: "Invalid or missing year in match scouting data.",
+      };
     }
     const key = `${compType}-${year}`;
     if (!groups.has(key)) {
@@ -156,7 +164,9 @@ export function validateImportAgainstSchema(data: {
       }
 
       // Check field compatibility if entries have gameSpecificData
-      const pitCategories = new Set(Object.keys(pitScouting).map((k) => k.toLowerCase()));
+      const pitCategories = new Set(
+        Object.keys(pitScouting).map((k) => k.toLowerCase()),
+      );
       pitCategories.add("auto"); // common alias for autonomous
       const pitFieldNames = new Set<string>();
       for (const cat of Object.values(pitScouting)) {
@@ -174,14 +184,23 @@ export function validateImportAgainstSchema(data: {
 
       for (const entry of group.pitEntries) {
         const gameData = entry.gameSpecificData;
-        if (gameData && typeof gameData === "object" && Object.keys(gameData).length > 0) {
+        if (
+          gameData &&
+          typeof gameData === "object" &&
+          Object.keys(gameData).length > 0
+        ) {
           const keys = Object.keys(gameData);
           const hasAnyMatchingKey = keys.some((key) => {
             const lowerKey = key.toLowerCase();
-            if (pitCategories.has(lowerKey) || pitFieldNames.has(lowerKey)) return true;
+            if (pitCategories.has(lowerKey) || pitFieldNames.has(lowerKey))
+              return true;
             // Also check prefix category_field
             const parts = lowerKey.split("_");
-            if (parts.length >= 2 && (pitCategories.has(parts[0]) || pitFieldNames.has(parts.slice(1).join("_")))) {
+            if (
+              parts.length >= 2 &&
+              (pitCategories.has(parts[0]) ||
+                pitFieldNames.has(parts.slice(1).join("_")))
+            ) {
               return true;
             }
             return false;
@@ -213,7 +232,9 @@ export function validateImportAgainstSchema(data: {
       }
 
       // Check field compatibility if entries have gameSpecificData
-      const scoringSections = new Set(Object.keys(scoring).map((k) => k.toLowerCase()));
+      const scoringSections = new Set(
+        Object.keys(scoring).map((k) => k.toLowerCase()),
+      );
       scoringSections.add("auto"); // common alias for autonomous
       const scoringFieldNames = new Set<string>();
       for (const sec of Object.values(scoring)) {
@@ -227,14 +248,26 @@ export function validateImportAgainstSchema(data: {
 
       for (const entry of group.matchEntries) {
         const gameData = entry.gameSpecificData;
-        if (gameData && typeof gameData === "object" && Object.keys(gameData).length > 0) {
+        if (
+          gameData &&
+          typeof gameData === "object" &&
+          Object.keys(gameData).length > 0
+        ) {
           const keys = Object.keys(gameData);
           const hasAnyMatchingKey = keys.some((key) => {
             const lowerKey = key.toLowerCase();
-            if (scoringSections.has(lowerKey) || scoringFieldNames.has(lowerKey)) return true;
+            if (
+              scoringSections.has(lowerKey) ||
+              scoringFieldNames.has(lowerKey)
+            )
+              return true;
             // Also check prefix section_field
             const parts = lowerKey.split("_");
-            if (parts.length >= 2 && (scoringSections.has(parts[0]) || scoringFieldNames.has(parts.slice(1).join("_")))) {
+            if (
+              parts.length >= 2 &&
+              (scoringSections.has(parts[0]) ||
+                scoringFieldNames.has(parts.slice(1).join("_")))
+            ) {
               return true;
             }
             return false;

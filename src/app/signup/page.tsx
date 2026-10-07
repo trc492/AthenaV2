@@ -41,7 +41,7 @@ export default function Page() {
           {signupEnabled ? (
             <SignupForm />
           ) : (
-            <Card className="shadow-lg rounded-2xl backdrop-blur-sm">
+            <Card>
               <CardHeader className="text-center mt-2">
                 <div className="flex justify-center mb-3">
                   <Lock className="h-10 w-10 text-muted-foreground" />

@@ -31,13 +31,14 @@ import {
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { PERMISSIONS, ROLES } from "@/lib/auth/roles";
-import { Plus, Edit, Trash2, Users } from "lucide-react";
+import { Plus, Edit, UserRoundX, RotateCcw, Users } from "lucide-react";
 import { toast } from "sonner";
 interface User {
   id: string;
   name: string;
   username: string;
   role: string;
+  deactivatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,7 +60,7 @@ interface UpdateUserData {
 /** Returns all users, or null (after notifying the user) on failure. */
 async function loadUsers(): Promise<User[] | null> {
   try {
-    const response = await fetch("/api/users");
+    const response = await fetch("/api/users?includeInactive=true");
     if (!response.ok) {
       throw new Error("Failed to fetch users");
     }
@@ -89,8 +90,10 @@ export function TeamManagement() {
   const [editForm, setEditForm] = useState<UpdateUserData>({
     role: "scout",
   });
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [userToChange, setUserToChange] = useState<User | null>(null);
   const fetchUsers = useCallback(async () => {
     const loaded = await loadUsers();
     if (loaded) setUsers(loaded);
@@ -173,28 +176,33 @@ export function TeamManagement() {
     }
   };
 
-  const handleDeleteUser = async () => {
-    if (!userToDelete) return;
+  const handleChangeUserStatus = async () => {
+    if (!userToChange || statusSaving) return;
+    setStatusSaving(true);
 
     try {
-      const response = await fetch(`/api/users/${userToDelete.id}`, {
-        method: "DELETE",
+      const response = await fetch(`/api/users/${userToChange.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !!userToChange.deactivatedAt }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to delete user");
+        throw new Error(error.error || "Failed to change user status");
       }
 
-      toast.success("User deleted successfully");
-      setDeleteDialogOpen(false);
-      setUserToDelete(null);
+      toast.success(userToChange.deactivatedAt ? "User restored successfully" : "User deactivated successfully");
+      setStatusDialogOpen(false);
+      setUserToChange(null);
       fetchUsers();
     } catch (error) {
-      console.error("Error deleting user:", error);
+      console.error("Error changing user status:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to delete user",
+        error instanceof Error ? error.message : "Failed to change user status",
       );
+    } finally {
+      setStatusSaving(false);
     }
   };
 
@@ -366,18 +374,24 @@ export function TeamManagement() {
           </div>
         </CardHeader>
         <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">Deactivate members to remove access while preserving their scouting history. You can restore them later.</p>
+          <label className="mb-4 flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} />
+            Show deactivated users
+          </label>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Username</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead className="w-[180px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {users.filter((user) => showInactive || !user.deactivatedAt).map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.username}</TableCell>
@@ -386,6 +400,7 @@ export function TeamManagement() {
                       {formatRoleName(user.role)}
                     </Badge>
                   </TableCell>
+                  <TableCell><Badge variant={user.deactivatedAt ? "outline" : "secondary"}>{user.deactivatedAt ? "Deactivated" : "Active"}</Badge></TableCell>
                   <TableCell>
                     {new Date(user.createdAt).toLocaleDateString()}
                   </TableCell>
@@ -405,11 +420,12 @@ export function TeamManagement() {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            setUserToDelete(user);
-                            setDeleteDialogOpen(true);
+                            setUserToChange(user);
+                            setStatusDialogOpen(true);
                           }}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {user.deactivatedAt ? <RotateCcw className="h-4 w-4" /> : <UserRoundX className="h-4 w-4" />}
+                          {user.deactivatedAt ? "Restore" : "Deactivate"}
                         </Button>
                       </PermissionGuard>
                     </div>
@@ -418,31 +434,35 @@ export function TeamManagement() {
               ))}
             </TableBody>
           </Table>
-          {users.length === 0 && (
+          {users.filter((user) => showInactive || !user.deactivatedAt).length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              No users found. Create your first user to get started.
+              No users to display. Add a user or show deactivated users.
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Account status confirmation */}
       <DeleteConfirmationDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleDeleteUser}
-        title="Delete User"
+        open={statusDialogOpen}
+        onOpenChange={setStatusDialogOpen}
+        onConfirm={handleChangeUserStatus}
+        loading={statusSaving}
+        variant={userToChange?.deactivatedAt ? "default" : "destructive"}
+        title={userToChange?.deactivatedAt ? "Restore User" : "Deactivate User"}
         description={
-          userToDelete ? (
+          userToChange ? (
             <span>
-              Are you sure you want to delete{" "}
-              <strong>{userToDelete.name}</strong>? This action cannot be
-              undone.
+              {userToChange.deactivatedAt ? "Restore" : "Deactivate"}{" "}
+              <strong>{userToChange.name}</strong>?
+              {userToChange.deactivatedAt
+                ? " They will be able to log in again with their existing account."
+                : " They will lose access and be hidden from scout and assignment lists. Their scouting history will be preserved, and you can restore them later."}
             </span>
           ) : null
         }
-        confirmButtonText="Delete"
-        loadingText="Deleting..."
+        confirmButtonText={userToChange?.deactivatedAt ? "Restore" : "Deactivate"}
+        loadingText="Saving..."
       />
 
       {/* Edit User Dialog */}

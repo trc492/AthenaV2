@@ -4,7 +4,10 @@ import type { PitEntry, MatchEntry } from "@/lib/types";
 
 describe("validateImportAgainstSchema", () => {
   it("allows empty import payload", () => {
-    const result = validateImportAgainstSchema({ pitEntries: [], matchEntries: [] });
+    const result = validateImportAgainstSchema({
+      pitEntries: [],
+      matchEntries: [],
+    });
     expect(result.valid).toBe(true);
   });
 
@@ -118,6 +121,8 @@ describe("validateImportAgainstSchema", () => {
 
     const result = validateImportAgainstSchema({ matchEntries });
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("fields that do not match the schema configuration");
+    expect(result.error).toContain(
+      "fields that do not match the schema configuration",
+    );
   });
 });

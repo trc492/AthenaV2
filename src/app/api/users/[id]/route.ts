@@ -37,35 +37,27 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users) {
       return NextResponse.json(
-        { error: "Database service does not support direct SQL queries" },
+        { error: "User management is not supported by this database provider" },
         { status: 500 },
       );
     }
-    const result = await db.query<{
-      id: string;
-      name: string;
-      username: string;
-      role: string;
-      created_at: string;
-      updated_at: string;
-    }>(`
-        SELECT id, name, username, role, created_at, updated_at
-        FROM users
-        WHERE id = @id
-      `, { id });
-
-    if (result.recordset.length === 0) {
+    const user = await db.users.getById(id);
+    if (!user)
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (
+      user.deactivatedAt &&
+      !hasPermission(session.user.role, PERMISSIONS.DELETE_USERS)
+    ) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-
-    const user = result.recordset[0];
     const userData = {
       id: user.id.toString(),
       name: user.name,
       username: user.username,
       role: user.role,
+      deactivatedAt: user.deactivatedAt,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
     };
@@ -135,32 +127,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users) {
       return NextResponse.json(
-        { error: "Database service does not support direct SQL queries" },
+        { error: "User management is not supported by this database provider" },
         { status: 500 },
       );
     }
     // Check if user exists
-    const existingUserResult = await db.query<{ id: string; username: string }>(
-      "SELECT id, username FROM users WHERE id = @id",
-      { id },
-    );
-
-    if (existingUserResult.recordset.length === 0) {
+    const existingUser = await db.users.getById(id);
+    if (!existingUser)
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const existingUser = existingUserResult.recordset[0];
-
-    // Check if username is already taken by another user
     if (username && username !== existingUser.username) {
-      const usernameCheckResult = await db.query<{ id: string }>(
-        "SELECT id FROM users WHERE username = @username AND id != @userId",
-        { username, userId: id },
-      );
-
-      if (usernameCheckResult.recordset.length > 0) {
+      const match = await db.users.getByUsername(username);
+      if (match && match.id !== id) {
         return NextResponse.json(
           { error: "Username already taken" },
           { status: 409 },
@@ -187,9 +166,31 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+// DELETE now deactivates instead of destroying the account and its attribution.
+export async function DELETE(request: NextRequest, context: RouteParams) {
+  return setAccountActive(context, false);
+}
+
+export async function PATCH(request: NextRequest, context: RouteParams) {
   try {
-    // Check if user has permission to delete users
+    const body = await request.json();
+    if (typeof body.active !== "boolean") {
+      return NextResponse.json(
+        { error: "active must be a boolean" },
+        { status: 400 },
+      );
+    }
+    return setAccountActive(context, body.active);
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
+  }
+}
+
+async function setAccountActive({ params }: RouteParams, active: boolean) {
+  try {
     const session = await auth();
     if (
       !session?.user?.role ||
@@ -197,40 +198,30 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
-
     const { id } = await params;
-
-    // Prevent users from deleting themselves
-    if (session.user.id === id) {
+    if (!active && session.user.id === id) {
       return NextResponse.json(
-        { error: "Cannot delete your own account" },
+        { error: "Cannot deactivate your own account" },
         { status: 400 },
       );
     }
-
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users)
       return NextResponse.json(
-        { error: "Database service does not support direct SQL queries" },
+        { error: "User management is not supported by this database provider" },
         { status: 500 },
       );
-    }
-    // Check if user exists
-    const existingUserResult = await db.query<{ id: string }>(
-      "SELECT id FROM users WHERE id = @id",
-      { id },
-    );
-
-    if (existingUserResult.recordset.length === 0) {
+    if (!(await db.users.getById(id)))
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Delete user (this will cascade to team_permissions due to foreign key constraint)
-    await db.query("DELETE FROM users WHERE id = @id", { id });
-
-    return NextResponse.json({ message: "User deleted successfully" });
+    // Account transitions invalidate old sessions, even after restoration.
+    await db.users.setActive(id, active);
+    return NextResponse.json({
+      message: active
+        ? "User restored successfully"
+        : "User deactivated successfully",
+    });
   } catch (error) {
-    console.error("Delete user error:", error);
+    console.error("Change user status error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

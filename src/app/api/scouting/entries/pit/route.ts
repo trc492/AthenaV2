@@ -1,17 +1,13 @@
+import { guestDatabase } from "@/lib/server/guest-database";
 import { NextRequest, NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
 import { DatabaseService, CompetitionType } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 
-// Initialize database service
-let dbService: DatabaseService;
-
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+// Resolve the active provider on each request so configuration changes take effect.
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 // GET /api/scouting/entries/pit - Get all pit entries or filter by year/team/event/competitionType
@@ -39,7 +35,7 @@ export async function GET(request: NextRequest) {
     const competitionType =
       (searchParams.get("competitionType") as CompetitionType) || undefined;
 
-    const service = getDbService();
+    const service = guestDatabase(getDbService(), session);
 
     if (id) {
       const entries = await service.getAllPitEntries();
@@ -49,10 +45,18 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json(entry);
     } else if (teamNumber && year) {
-      const entry = await service.getPitEntry(teamNumber, year, competitionType);
+      const entry = await service.getPitEntry(
+        teamNumber,
+        year,
+        competitionType,
+      );
       return NextResponse.json(entry || null);
     } else {
-      const entries = await service.getAllPitEntries(year, eventCode, competitionType);
+      const entries = await service.getAllPitEntries(
+        year,
+        eventCode,
+        competitionType,
+      );
       return NextResponse.json(entries);
     }
   } catch (error) {

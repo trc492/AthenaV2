@@ -13,7 +13,9 @@ export function parseGameSpecificData(value: unknown): GameSpecificData {
   if (typeof value !== "string" || value.length === 0) return {};
   try {
     const parsed: unknown = JSON.parse(value);
-    return parsed && typeof parsed === "object" ? (parsed as GameSpecificData) : {};
+    return parsed && typeof parsed === "object"
+      ? (parsed as GameSpecificData)
+      : {};
   } catch {
     return {};
   }
@@ -21,7 +23,8 @@ export function parseGameSpecificData(value: unknown): GameSpecificData {
 
 /** Parses a JSON string column that holds an array of strings. */
 export function parseStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  if (Array.isArray(value))
+    return value.filter((item): item is string => typeof item === "string");
   if (typeof value !== "string" || value.length === 0) return [];
   try {
     const parsed: unknown = JSON.parse(value);

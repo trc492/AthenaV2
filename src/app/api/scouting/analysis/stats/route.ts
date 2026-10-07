@@ -1,3 +1,4 @@
+import { guestDatabase } from "@/lib/server/guest-database";
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseManager } from "@/db/database-manager";
 import { CompetitionType } from "@/lib/types";
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     const competitionType =
       (searchParams.get("competitionType") as CompetitionType) || "FRC";
 
-    const service = getDbService();
+    const service = guestDatabase(getDbService(), session);
 
     const pitEntries = await service.getAllPitEntries(
       year,

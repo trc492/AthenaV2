@@ -1,3 +1,6 @@
+import { sqlUsers } from "./sql-users";
+import { sqlGuestLinks } from "./sql-guest-links";
+import type { GuestLinkRecord } from "@/lib/types";
 import {
   DatabaseService,
   PitEntry,
@@ -36,6 +39,7 @@ import {
 } from "./row-mappers";
 
 export class AzureSqlDatabaseService implements DatabaseService {
+  readonly users = sqlUsers(this.query.bind(this), "azuresql");
   private pool: import("mssql").ConnectionPool | null = null;
   private config: AzureSqlConfig;
   private tokenExpiresAt: Date | null = null;
@@ -169,10 +173,11 @@ export class AzureSqlDatabaseService implements DatabaseService {
         const normalize = (rows: ScheduleAssignmentRecord[]) =>
           JSON.stringify(
             [...rows]
-              .sort((a, b) =>
-                a.matchNumber - b.matchNumber ||
-                a.alliance.localeCompare(b.alliance) ||
-                a.position - b.position,
+              .sort(
+                (a, b) =>
+                  a.matchNumber - b.matchNumber ||
+                  a.alliance.localeCompare(b.alliance) ||
+                  a.position - b.position,
               )
               .map(({ matchNumber, alliance, position, userId }) => ({
                 matchNumber,
@@ -261,9 +266,29 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
   }
 
+  async addGuestLink(link: GuestLinkRecord): Promise<void> {
+    await sqlGuestLinks(this.query.bind(this)).addGuestLink(link);
+  }
+  async getGuestLinks(): Promise<GuestLinkRecord[]> {
+    return sqlGuestLinks(this.query.bind(this)).getGuestLinks();
+  }
+  async getGuestLink(id: string): Promise<GuestLinkRecord | undefined> {
+    return sqlGuestLinks(this.query.bind(this)).getGuestLink(id);
+  }
+  async revokeGuestLink(id: string, revokedAt: number): Promise<void> {
+    await sqlGuestLinks(this.query.bind(this)).revokeGuestLink(id, revokedAt);
+  }
   private async initializeTables(): Promise<void> {
     const pool = await this.getPool();
 
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='guestLinks' AND xtype='U')
+      CREATE TABLE guestLinks (
+        id NVARCHAR(32) PRIMARY KEY,
+        data NVARCHAR(MAX) NOT NULL,
+        revokedAt BIGINT NULL
+      )
+    `);
     // Create users table
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='users' AND xtype='U')
@@ -371,11 +396,16 @@ export class AzureSqlDatabaseService implements DatabaseService {
       )
     `);
 
+    // Must be its own batch: SQL Server compiles a whole batch up front, so the
+    // INSERT below would fail with "Invalid column name" if the column were
+    // added in the same batch.
     await pool.request().query(`
       IF COL_LENGTH('matchAssignments', 'competitionType') IS NULL
         ALTER TABLE matchAssignments ADD competitionType NVARCHAR(10) NOT NULL
           CONSTRAINT DF_matchAssignments_competitionType DEFAULT 'FRC';
+    `);
 
+    await pool.request().query(`
       IF EXISTS (
         SELECT 1 FROM sys.indexes i
         WHERE i.object_id = OBJECT_ID('matchAssignments')
@@ -399,6 +429,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
         ALTER TABLE matchAssignments ADD CONSTRAINT uq_match_assignment
           UNIQUE (eventCode, year, competitionType, matchNumber, alliance, position);
       END
+    `);
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'deactivatedAt')
+      ALTER TABLE users ADD deactivatedAt DATETIME NULL;
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'sessionVersion')
+      ALTER TABLE users ADD sessionVersion INT NOT NULL DEFAULT 0;
     `);
 
     // Add preferredPartners column to users table if it doesn't exist
@@ -1604,7 +1641,10 @@ export class AzureSqlDatabaseService implements DatabaseService {
    * callers never write SQL or handle dialect differences.
    * `updated_at` is always refreshed automatically.
    */
-  async updateUser(id: string, updates: import("@/lib/types").UserUpdates): Promise<void> {
+  async updateUser(
+    id: string,
+    updates: import("@/lib/types").UserUpdates,
+  ): Promise<void> {
     const mssql = await import("mssql");
     const pool = await this.getPool();
     const req = pool.request().input("userId", mssql.NVarChar, id);
@@ -1641,12 +1681,18 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
     if (updates.pushSubscriptions !== undefined) {
       setParts.push("push_subscriptions = @pushSubscriptions");
-      req.input("pushSubscriptions", mssql.NVarChar(mssql.MAX), updates.pushSubscriptions);
+      req.input(
+        "pushSubscriptions",
+        mssql.NVarChar(mssql.MAX),
+        updates.pushSubscriptions,
+      );
     }
 
     if (setParts.length === 0) return;
 
     setParts.push("updated_at = GETDATE()");
-    await req.query(`UPDATE users SET ${setParts.join(", ")} WHERE id = @userId`);
+    await req.query(
+      `UPDATE users SET ${setParts.join(", ")} WHERE id = @userId`,
+    );
   }
 }

@@ -34,33 +34,19 @@ export async function POST(request: NextRequest) {
     }
 
     const db = databaseManager.getService();
-    if (!db.query) {
+    if (!db.users) {
       return NextResponse.json(
-        { error: "Database service does not support direct SQL queries" },
+        { error: "User management is not supported by this database provider" },
         { status: 500 },
       );
     }
-    const result = await db.query<{
-      id: string;
-      name: string;
-      username: string;
-      role: string;
-      password_hash: string;
-      avatarUrl: string | null;
-    }>(`
-        SELECT id, name, username, role, password_hash, avatarUrl
-        FROM users
-        WHERE username = @username
-      `, { username });
-
-    if (result.recordset.length === 0) {
+    const user = await db.users.getByUsername(username);
+    if (!user || user.deactivatedAt) {
       return NextResponse.json(
         { error: "Invalid credentials" },
         { status: 401 },
       );
     }
-
-    const user = result.recordset[0];
     const passwordHash = String(user.password_hash || "");
 
     if (!passwordHash) {

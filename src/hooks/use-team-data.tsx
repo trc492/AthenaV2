@@ -6,6 +6,7 @@ import { useAsyncData } from "./use-async-data";
 import { teamApi } from "@/lib/api/database-client";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import type { TeamData } from "@/lib/types";
+import { useSession } from "next-auth/react";
 
 interface TeamDataResult {
   teamData: TeamData | null;
@@ -14,17 +15,20 @@ interface TeamDataResult {
 }
 
 export function useTeamData(teamNumber: string) {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
   const selectedEvent = useSelectedEvent();
   const { currentYear, competitionType } = useGameConfig();
   const eventCode = selectedEvent?.eventCode;
 
   const { data, loading } = useAsyncData<TeamDataResult>(
     teamNumber && currentYear
-      ? `${teamNumber}|${currentYear}|${eventCode ?? ""}|${competitionType}`
+      ? `${teamNumber}|${currentYear}|${eventCode ?? ""}|${competitionType}|${session?.user?.id ?? ""}`
       : null,
     async () => {
       const isOnline =
         typeof navigator !== "undefined" ? navigator.onLine : true;
+      if (isGuest && !isOnline) return { teamData: null, error: "Guest access requires an internet connection", isOfflineData: false };
 
       // If offline, reconstruct from cached pit/match entries
       if (!isOnline && eventCode) {
@@ -52,7 +56,7 @@ export function useTeamData(teamNumber: string) {
         console.error("Error fetching team data:", err);
 
         // Fallback to IndexedDB cache on network error
-        if (eventCode) {
+        if (eventCode && !isGuest) {
           try {
             const offlineData = await buildTeamDataFromCache(
               teamNumber,

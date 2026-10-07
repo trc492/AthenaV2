@@ -1,3 +1,4 @@
+import { guestDatabase } from "@/lib/server/guest-database";
 import { NextRequest, NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
 import { DatabaseService, CompetitionType, MatchEntry } from "@/lib/types";
@@ -12,14 +13,9 @@ import {
 } from "@/lib/types";
 import gameConfig from "../../../../../../config/game-config-loader";
 
-// Initialize database service
-let dbService: DatabaseService;
-
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+// Resolve the active provider on each request so configuration changes take effect.
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 type MetricValueType = AnalysisMetricDefinition["valueType"];
@@ -181,25 +177,38 @@ function calculateMatchEPA(match: MatchEntry, yearConfig?: YearConfig) {
   if (!yearConfig || !match.gameSpecificData) {
     const flattened = flattenScoutingData(match.gameSpecificData);
     return Object.values(flattened).reduce<number>((sum, value) => {
-      if (typeof value === "number" && Number.isFinite(value)) return sum + value;
+      if (typeof value === "number" && Number.isFinite(value))
+        return sum + value;
       return sum;
     }, 0);
   }
 
   const autoPoints = calculatePeriodPoints(
-    (match.gameSpecificData?.autonomous as Record<string, number | string | boolean>) || {},
+    (match.gameSpecificData?.autonomous as Record<
+      string,
+      number | string | boolean
+    >) || {},
     yearConfig.scoring.autonomous,
   );
   const teleopPoints = calculatePeriodPoints(
-    (match.gameSpecificData?.teleop as Record<string, number | string | boolean>) || {},
+    (match.gameSpecificData?.teleop as Record<
+      string,
+      number | string | boolean
+    >) || {},
     yearConfig.scoring.teleop,
   );
   const endgamePoints = calculatePeriodPoints(
-    (match.gameSpecificData?.endgame as Record<string, number | string | boolean>) || {},
+    (match.gameSpecificData?.endgame as Record<
+      string,
+      number | string | boolean
+    >) || {},
     yearConfig.scoring.endgame,
   );
   const penaltiesPoints = calculatePeriodPoints(
-    (match.gameSpecificData?.fouls as Record<string, number | string | boolean>) || {},
+    (match.gameSpecificData?.fouls as Record<
+      string,
+      number | string | boolean
+    >) || {},
     yearConfig.scoring.fouls || {},
   );
 
@@ -235,7 +244,7 @@ export async function GET(request: NextRequest) {
     const competitionType =
       (searchParams.get("competitionType") as CompetitionType) || "FRC";
 
-    const service = getDbService();
+    const service = guestDatabase(getDbService(), session);
 
     // Get all match entries for analysis, filtered by competition type
     const matchEntries = await service.getAllMatchEntries(

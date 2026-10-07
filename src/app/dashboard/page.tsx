@@ -34,6 +34,9 @@ import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { useEventConfig } from "@/hooks/use-event-config";
 import { useOffline } from "@/hooks/use-offline";
 import { useScoutingAssignment } from "@/hooks/use-scouting-assignment";
+import { useSession } from "next-auth/react";
+import { GuestEventLink } from "@/components/events/guest-event-link";
+import { useGameConfig } from "@/hooks/use-game-config";
 
 const subscribeToLocalStorage = () => () => undefined;
 
@@ -43,6 +46,9 @@ function progressPercent(current: number, total: number) {
 }
 
 export default function Page() {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
+  const { currentYear, competitionType } = useGameConfig();
   const { selectedEvent, isLoading: eventLoading } = useEventConfig();
   const { stats, loading, error } = useDashboardStats();
   const { isOnline, pendingCount, syncInProgress } = useOffline();
@@ -69,7 +75,7 @@ export default function Page() {
     0,
     stats.qualificationProgress.total - stats.qualificationProgress.current,
   );
-  const defaultView = stats.eventComplete ? "review" : "live";
+  const defaultView = isGuest || stats.eventComplete ? "review" : "live";
 
   if (eventLoading) {
     return (
@@ -140,11 +146,11 @@ export default function Page() {
       </div>
 
       <Tabs key={defaultView} defaultValue={defaultView} className="space-y-6">
-        <TabsList className="grid h-11 w-full grid-cols-2 sm:w-[360px]">
-          <TabsTrigger value="live" className="gap-2">
+        <TabsList className={`grid h-11 w-full ${isGuest ? "grid-cols-1" : "grid-cols-2"} sm:w-[360px]`}>
+          {!isGuest && <TabsTrigger value="live" className="gap-2">
             <RadioTower className="size-4" />
             Live operations
-          </TabsTrigger>
+          </TabsTrigger>}
           <TabsTrigger value="review" className="gap-2">
             <BarChart3 className="size-4" />
             Review event

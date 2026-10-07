@@ -127,7 +127,8 @@ function createMatchEntries(matchCount: number = MATCH_COUNT): MatchEntry[] {
 
   for (let matchNumber = 1; matchNumber <= matchCount; matchNumber++) {
     const assignments = Array.from({ length: 6 }, (_, position) => {
-      const scouterIndex = ((matchNumber - 1) * 2 + position) % scouterOrder.length;
+      const scouterIndex =
+        ((matchNumber - 1) * 2 + position) % scouterOrder.length;
       return scouterOrder[scouterIndex];
     });
 
@@ -212,10 +213,15 @@ describe("computeScouterAccuracy", () => {
     const matches = createMatchEntries();
     const officialResults = createOfficialResults();
 
-    const result = computeScouterAccuracy(matches, officialResults, mockConfig, {
-      expectedAllianceSize: 3,
-      skipIncompleteAlliances: true,
-    });
+    const result = computeScouterAccuracy(
+      matches,
+      officialResults,
+      mockConfig,
+      {
+        expectedAllianceSize: 3,
+        skipIncompleteAlliances: true,
+      },
+    );
 
     expect(result.convergenceAchieved).toBe(true);
     expect(result.message).toBeUndefined();
@@ -232,16 +238,12 @@ describe("computeScouterAccuracy", () => {
     expect(ranking[ranking.length - 1]).toBe("eve");
 
     expect(result.scouters.map((scouter) => scouter.percentile)).toEqual([
-      100,
-      75,
-      50,
-      25,
-      0,
+      100, 75, 50, 25, 0,
     ]);
 
-    expect(result.scouters.every((scouter) => scouter.matchesScounted >= 10)).toBe(
-      true,
-    );
+    expect(
+      result.scouters.every((scouter) => scouter.matchesScounted >= 10),
+    ).toBe(true);
     expect(result.scouters[0].errorValue).toBeLessThan(
       result.scouters[result.scouters.length - 1].errorValue,
     );

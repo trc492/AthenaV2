@@ -17,16 +17,26 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
   try {
     if (!databaseManager.isConfigured()) {
       console.warn("[setup] No database provider configured");
-      return { isComplete: false, needsAppUrl, needsDatabase: true, needsAdmin: true };
+      return {
+        isComplete: false,
+        needsAppUrl,
+        needsDatabase: true,
+        needsAdmin: true,
+      };
     }
 
     const service = databaseManager.getService();
     if (!service) {
       console.warn("[setup] databaseManager.getService() returned null");
-      return { isComplete: false, needsAppUrl, needsDatabase: true, needsAdmin: true };
+      return {
+        isComplete: false,
+        needsAppUrl,
+        needsDatabase: true,
+        needsAdmin: true,
+      };
     }
 
-    if (service.query) {
+    if (service.users) {
       const adminExists = await hasAnyAdmin();
       if (!adminExists) {
         return {
@@ -47,12 +57,12 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       };
     }
 
-    // Provider doesn't support raw SQL (Firebase/Cosmos) — assume setup complete
+    // A provider without account storage cannot complete credentials setup.
     return {
-      isComplete: !needsAppUrl,
+      isComplete: false,
       needsAppUrl,
       needsDatabase: false,
-      needsAdmin: false,
+      needsAdmin: true,
       currentProvider: databaseManager.getConfig()?.provider,
     };
   } catch (error) {
@@ -77,6 +87,11 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       "[setup] checkSetupStatus failed and DB is not configured:",
       error,
     );
-    return { isComplete: false, needsAppUrl, needsDatabase: true, needsAdmin: true };
+    return {
+      isComplete: false,
+      needsAppUrl,
+      needsDatabase: true,
+      needsAdmin: true,
+    };
   }
 }

@@ -1,5 +1,6 @@
 import type { CompetitionType } from "../competition/competition";
 import type { CustomEvent, MatchEntry, PitEntry } from "./entries";
+import type { GuestLinkRecord } from "../events/guest-links";
 import type {
   Picklist,
   PicklistEntry,
@@ -27,7 +28,56 @@ export type ScheduleAssignmentRecord = {
   userId: string;
 };
 
+export interface UserRecord {
+  id: string;
+  name: string;
+  username: string;
+  role: string;
+  preferredPartners: string | null;
+  avatarUrl: string | null;
+  deactivatedAt: string | null;
+  sessionVersion: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserCredentials extends UserRecord {
+  password_hash: string;
+}
+
+/** Account persistence used by the application's credentials authentication. */
+export interface UserStore {
+  list(includeInactive?: boolean): Promise<UserRecord[]>;
+  getById(id: string): Promise<UserCredentials | undefined>;
+  getByUsername(username: string): Promise<UserCredentials | undefined>;
+  getByIds(ids: string[], activeOnly?: boolean): Promise<UserRecord[]>;
+  hasAdmin(): Promise<boolean>;
+  create(user: {
+    id: string;
+    name: string;
+    username: string;
+    passwordHash: string;
+    role: string;
+  }): Promise<void>;
+  setActive(id: string, active: boolean): Promise<void>;
+  getAvatar(
+    id: string,
+  ): Promise<
+    { avatarData: Buffer | null; avatarMimeType: string | null } | undefined
+  >;
+  getSubscriptions(
+    id?: string,
+  ): Promise<{ id: string; push_subscriptions: string | null }[]>;
+}
+
 export interface DatabaseService {
+  checkConnection?(): Promise<void>;
+  getScheduleAssignments?(scope: ScheduleAssignmentScope): Promise<ScheduleAssignmentRecord[]>;
+  users?: UserStore;
+  addGuestLink(link: GuestLinkRecord): Promise<void>;
+  getGuestLinks(): Promise<GuestLinkRecord[]>;
+  getGuestLink(id: string): Promise<GuestLinkRecord | undefined>;
+  revokeGuestLink(id: string, revokedAt: number): Promise<void>;
   getPool?(): Promise<unknown>;
   query?<T = unknown>(
     sql: string,
@@ -183,11 +233,7 @@ export interface UserUpdates {
   pushSubscriptions?: string | null;
 }
 
-export type DatabaseProvider =
-  | "azuresql"
-  | "firebase"
-  | "cosmos"
-  | "mariadb";
+export type DatabaseProvider = "azuresql" | "firebase" | "cosmos" | "mariadb";
 
 export interface AzureSqlConfig {
   server?: string;

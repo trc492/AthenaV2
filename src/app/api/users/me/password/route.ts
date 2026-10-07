@@ -29,7 +29,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const service = databaseManager.getService();
-    if (!service.query) {
+    if (!service.users) {
       return NextResponse.json(
         { error: "Database operation not supported" },
         { status: 500 },
@@ -37,16 +37,9 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get current password hash
-    const result = await service.query<{ password_hash: string }>(
-      "SELECT password_hash FROM users WHERE id = @id",
-      { id: session.user.id },
-    );
-
-    if (result.recordset.length === 0) {
+    const user = await service.users.getById(session.user.id);
+    if (!user)
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const user = result.recordset[0];
 
     // Verify current password
     const isValid = await bcrypt.compare(currentPassword, user.password_hash);

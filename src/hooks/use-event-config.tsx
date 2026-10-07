@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useMemo,
   ReactNode,
 } from "react";
 import type { Event } from "@/lib/types";
@@ -29,7 +30,9 @@ interface EventContextType {
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
 export function EventProvider({ children }: { children: ReactNode }) {
-  const { status } = useSession();
+  const { status, data: session } = useSession();
+  const guest = session?.guestEvent;
+  const guestEvent = useMemo<Event | null>(() => guest ? { name: guest.name, eventCode: guest.eventCode, region: `${guest.competitionType} ${guest.year}` } : null, [guest]);
   const { currentYear, competitionType, isInitialized } = useGameConfig();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +68,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (status === "loading") return;
 
     if (status !== "authenticated") return;
+    if (guest) return;
 
     // Don't fetch until game config is initialized
     if (!isInitialized) return;
@@ -224,32 +228,33 @@ export function EventProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [currentYear, competitionType, isInitialized, status, selectFromEvents]);
+  }, [currentYear, competitionType, isInitialized, status, selectFromEvents, guest]);
 
   // Save selected event to localStorage and cookies whenever it changes
   useEffect(() => {
-    if (selectedEvent) {
+    if (selectedEvent && !guest) {
       localStorage.setItem("selectedEvent", JSON.stringify(selectedEvent));
       // Also set a cookie for server-side access
       document.cookie = `selectedEvent=${encodeURIComponent(JSON.stringify(selectedEvent))}; path=/; max-age=${60 * 60 * 24 * 30}`; // 30 days
     }
-  }, [selectedEvent]);
+  }, [selectedEvent, guest]);
 
   const setSelectedEvent = (event: Event) => {
+    if (guest) return;
     setSelection({ scopeKey, event });
   };
 
   const contextValue: EventContextType = {
-    events: status === "authenticated" ? events : [],
-    selectedEvent: status === "authenticated" ? selectedEvent : null,
+    events: guestEvent ? [guestEvent] : status === "authenticated" ? events : [],
+    selectedEvent: guestEvent ?? (status === "authenticated" ? selectedEvent : null),
     setSelectedEvent,
     setEvents,
     isLoading:
-      status === "authenticated"
+      guest ? false : status === "authenticated"
         ? isLoading || selection?.scopeKey !== scopeKey
         : false,
-    error: status === "authenticated" ? error : null,
-    isOfflineData: status === "authenticated" ? isOfflineData : false,
+    error: !guest && status === "authenticated" ? error : null,
+    isOfflineData: !guest && status === "authenticated" ? isOfflineData : false,
   };
 
   return (

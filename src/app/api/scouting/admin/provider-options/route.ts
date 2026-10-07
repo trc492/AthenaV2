@@ -63,16 +63,22 @@ function summarizeConfig(config: DatabaseConfig) {
   };
 }
 
-function mergeConfig(config: DatabaseConfig, current: DatabaseConfig): DatabaseConfig {
+function mergeConfig(
+  config: DatabaseConfig,
+  current: DatabaseConfig,
+): DatabaseConfig {
   if (config.provider === "azuresql") {
-    const currentAzure = current.provider === "azuresql" ? current.azuresql : undefined;
+    const currentAzure =
+      current.provider === "azuresql" ? current.azuresql : undefined;
     const azureSql = config.azuresql ?? {};
-    const connectionString = cleanString(azureSql.connectionString) ?? currentAzure?.connectionString;
+    const connectionString =
+      cleanString(azureSql.connectionString) ?? currentAzure?.connectionString;
     const server = cleanString(azureSql.server) ?? currentAzure?.server;
     const database = cleanString(azureSql.database) ?? currentAzure?.database;
     const user = cleanString(azureSql.user) ?? currentAzure?.user;
     const password = cleanString(azureSql.password) ?? currentAzure?.password;
-    const useManagedIdentity = azureSql.useManagedIdentity ?? currentAzure?.useManagedIdentity ?? false;
+    const useManagedIdentity =
+      azureSql.useManagedIdentity ?? currentAzure?.useManagedIdentity ?? false;
 
     return {
       provider: "azuresql",
@@ -83,27 +89,33 @@ function mergeConfig(config: DatabaseConfig, current: DatabaseConfig): DatabaseC
   }
 
   if (config.provider === "firebase") {
-    const currentFirebase = current.provider === "firebase" ? current.firebase : undefined;
+    const currentFirebase =
+      current.provider === "firebase" ? current.firebase : undefined;
+    const suppliedPath = cleanString(config.firebase?.serviceAccountPath);
+    const changedPath = suppliedPath !== undefined && suppliedPath !== currentFirebase?.serviceAccountPath;
     return {
       provider: "firebase",
       firebase: {
         serviceAccountPath:
-          cleanString(config.firebase?.serviceAccountPath) ??
-          currentFirebase?.serviceAccountPath,
+          suppliedPath ?? currentFirebase?.serviceAccountPath,
         serviceAccountJson:
-          config.firebase?.serviceAccountJson ?? currentFirebase?.serviceAccountJson,
+          config.firebase?.serviceAccountJson ??
+          (changedPath ? undefined : currentFirebase?.serviceAccountJson),
         databaseURL:
-          cleanString(config.firebase?.databaseURL) ?? currentFirebase?.databaseURL,
+          cleanString(config.firebase?.databaseURL) ??
+          currentFirebase?.databaseURL,
       },
     };
   }
 
   if (config.provider === "cosmos") {
-    const currentCosmos = current.provider === "cosmos" ? current.cosmos : undefined;
+    const currentCosmos =
+      current.provider === "cosmos" ? current.cosmos : undefined;
     return {
       provider: "cosmos",
       cosmos: {
-        endpoint: cleanString(config.cosmos?.endpoint) ?? currentCosmos?.endpoint,
+        endpoint:
+          cleanString(config.cosmos?.endpoint) ?? currentCosmos?.endpoint,
         key: cleanString(config.cosmos?.key) ?? currentCosmos?.key,
         databaseId:
           cleanString(config.cosmos?.databaseId) ?? currentCosmos?.databaseId,
@@ -113,9 +125,11 @@ function mergeConfig(config: DatabaseConfig, current: DatabaseConfig): DatabaseC
     };
   }
 
-  const currentMariaDb = current.provider === "mariadb" ? current.mariadb : undefined;
+  const currentMariaDb =
+    current.provider === "mariadb" ? current.mariadb : undefined;
   const port =
-    typeof config.mariadb?.port === "number" && Number.isFinite(config.mariadb.port)
+    typeof config.mariadb?.port === "number" &&
+    Number.isFinite(config.mariadb.port)
       ? config.mariadb.port
       : currentMariaDb?.port;
 
@@ -127,9 +141,11 @@ function mergeConfig(config: DatabaseConfig, current: DatabaseConfig): DatabaseC
         currentMariaDb?.connectionString,
       host: cleanString(config.mariadb?.host) ?? currentMariaDb?.host,
       port,
-      database: cleanString(config.mariadb?.database) ?? currentMariaDb?.database,
+      database:
+        cleanString(config.mariadb?.database) ?? currentMariaDb?.database,
       user: cleanString(config.mariadb?.user) ?? currentMariaDb?.user,
-      password: cleanString(config.mariadb?.password) ?? currentMariaDb?.password,
+      password:
+        cleanString(config.mariadb?.password) ?? currentMariaDb?.password,
     },
   };
 }
@@ -141,7 +157,10 @@ function validateConfig(config: DatabaseConfig): string | null {
       return "Azure SQL configuration is required";
     }
 
-    if (!azureSql.connectionString && (!azureSql.server || !azureSql.database)) {
+    if (
+      !azureSql.connectionString &&
+      (!azureSql.server || !azureSql.database)
+    ) {
       return "Azure SQL requires either a connection string or server and database";
     }
   }
@@ -226,6 +245,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
+    const candidate = manager.createServiceForConfig(mergedConfig);
+    if (candidate.checkConnection) await candidate.checkConnection();
+    else if (candidate.query) await candidate.query("SELECT 1 AS healthcheck");
     await savePersistedDatabaseConfig(mergedConfig);
     manager.configure(mergedConfig);
 
@@ -240,7 +262,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Failed to update configuration",
+          error instanceof Error
+            ? error.message
+            : "Failed to update configuration",
       },
       { status: 500 },
     );

@@ -184,18 +184,10 @@ export async function GET(request: NextRequest) {
     if (scouterIds.length > 0) {
       try {
         const db = getDbService();
-        if (db.query) {
-          const idList = scouterIds.map((_, i) => `@id${i}`).join(", ");
-          const params: Record<string, unknown> = {};
-          scouterIds.forEach((id, i) => {
-            params[`id${i}`] = id;
-          });
-          const usersResult = await db.query<{ id: string; name: string }>(
-            `SELECT id, name FROM users WHERE id IN (${idList})`,
-            params,
-          );
-          usersResult.recordset.forEach((row: { id: string; name: string }) => {
-            userNameMap[row.id.toString()] = row.name;
+        if (db.users) {
+          const users = await db.users.getByIds(scouterIds);
+          users.forEach((user) => {
+            userNameMap[user.id] = user.name;
           });
         }
       } catch {

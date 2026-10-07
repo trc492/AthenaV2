@@ -21,7 +21,9 @@ function seededValue(seed: string, matchIndex: number): number {
  * same way the live app does, so an unresolved key shows as missing rather
  * than as a plausible-looking fake number.
  */
-export function buildPreviewStats(config: YearConfig): DetailedGameStats | null {
+export function buildPreviewStats(
+  config: YearConfig,
+): DetailedGameStats | null {
   return calculateDetailedGameStats(buildPreviewMatches(config), config);
 }
 
@@ -30,53 +32,50 @@ const PREVIEW_TEAM_NUMBER = 492;
 function buildPreviewMatches(config: YearConfig): MatchEntry[] {
   const sections = ["autonomous", "teleop", "endgame", "fouls"] as const;
 
-  return Array.from(
-    { length: PREVIEW_MATCH_COUNT },
-    (_, matchIndex) => {
-      const gameSpecificData: MatchEntry["gameSpecificData"] = {};
+  return Array.from({ length: PREVIEW_MATCH_COUNT }, (_, matchIndex) => {
+    const gameSpecificData: MatchEntry["gameSpecificData"] = {};
 
-      for (const section of sections) {
-        const fields = config.scoring?.[section];
-        if (!fields) continue;
+    for (const section of sections) {
+      const fields = config.scoring?.[section];
+      if (!fields) continue;
 
-        const sectionData: Record<string, number | string | boolean> = {};
+      const sectionData: Record<string, number | string | boolean> = {};
 
-        for (const [fieldKey, definition] of Object.entries(fields)) {
-          const roll = seededValue(`${section}.${fieldKey}`, matchIndex);
-          const fieldType = getFieldType(definition);
+      for (const [fieldKey, definition] of Object.entries(fields)) {
+        const roll = seededValue(`${section}.${fieldKey}`, matchIndex);
+        const fieldType = getFieldType(definition);
 
-          if (fieldType === "boolean") {
-            sectionData[fieldKey] = roll > 0.35;
-          } else if (fieldType === "select") {
-            const options = Object.keys(definition.pointValues || {});
-            if (options.length > 0) {
-              sectionData[fieldKey] =
-                options[Math.floor(roll * options.length) % options.length];
-            }
-          } else {
-            const ceiling = section === "fouls" ? 3 : 8;
-            sectionData[fieldKey] = Math.round(roll * ceiling);
+        if (fieldType === "boolean") {
+          sectionData[fieldKey] = roll > 0.35;
+        } else if (fieldType === "select") {
+          const options = Object.keys(definition.pointValues || {});
+          if (options.length > 0) {
+            sectionData[fieldKey] =
+              options[Math.floor(roll * options.length) % options.length];
           }
+        } else {
+          const ceiling = section === "fouls" ? 3 : 8;
+          sectionData[fieldKey] = Math.round(roll * ceiling);
         }
-
-        gameSpecificData[section] = sectionData;
       }
 
-      return {
-        matchNumber: matchIndex + 1,
-        teamNumber: PREVIEW_TEAM_NUMBER,
-        year: 2026,
-        competitionType: config.competitionType,
-        alliance: matchIndex % 2 === 0 ? "red" : "blue",
-        gameSpecificData,
-        notes:
-          matchIndex % 4 === 0
-            ? "Consistent cycles, no defense played this match."
-            : "",
-        timestamp: new Date(2026, 2, 1 + matchIndex),
-      };
-    },
-  );
+      gameSpecificData[section] = sectionData;
+    }
+
+    return {
+      matchNumber: matchIndex + 1,
+      teamNumber: PREVIEW_TEAM_NUMBER,
+      year: 2026,
+      competitionType: config.competitionType,
+      alliance: matchIndex % 2 === 0 ? "red" : "blue",
+      gameSpecificData,
+      notes:
+        matchIndex % 4 === 0
+          ? "Consistent cycles, no defense played this match."
+          : "",
+      timestamp: new Date(2026, 2, 1 + matchIndex),
+    };
+  });
 }
 
 function buildPreviewPitEntry(config: YearConfig): PitEntry {
@@ -107,8 +106,7 @@ function buildPreviewPitEntry(config: YearConfig): PitEntry {
             Math.floor(roll * definition.options.length) %
               definition.options.length
           ];
-        sectionData[fieldKey] =
-          definition.type === "multiselect" ? pick : pick;
+        sectionData[fieldKey] = definition.type === "multiselect" ? pick : pick;
       } else {
         sectionData[fieldKey] = "Sample response";
       }

@@ -9,9 +9,17 @@ import { getSelectedEvent } from "@/lib/server-event-utils";
 import { DynamicTeamList } from "./dynamic-team-list";
 import { TeamCardSkeleton } from "@/components/team-card-skeleton";
 import type { TeamWithImages } from "@/lib/types";
+import { auth } from "@/lib/auth/config";
 
 // Server component to fetch initial teams and their images
 async function InitialTeamList() {
+  const session = await auth();
+  if (session?.guestEvent) {
+    const grant = session.guestEvent;
+    // The client uses the unified FRC/FTC API; never seed guest pages from
+    // a previous signed-in user's selectedEvent cookie.
+    return <DynamicTeamList initialEvent={{ name: grant.name, eventCode: grant.eventCode, region: `${grant.competitionType} ${grant.year}` }} initialTeams={[]} />;
+  }
   const selectedEvent = await getSelectedEvent();
 
   if (!selectedEvent?.eventCode) {

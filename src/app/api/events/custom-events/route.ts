@@ -1,17 +1,13 @@
+import { guestDatabase } from "@/lib/server/guest-database";
 import { NextRequest, NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
 import { CustomEvent, DatabaseService, CompetitionType } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 
-// Initialize database service
-let dbService: DatabaseService;
-
-function getDbService() {
-  if (!dbService) {
-    dbService = databaseManager.getService();
-  }
-  return dbService;
+// Resolve the active provider on each request so configuration changes take effect.
+function getDbService(): DatabaseService {
+  return databaseManager.getService();
 }
 
 // GET /api/events/custom-events - Get all custom events or filter by year
@@ -32,7 +28,7 @@ export async function GET(request: NextRequest) {
     const competitionType =
       (searchParams.get("competitionType") as CompetitionType) || undefined;
 
-    const service = getDbService();
+    const service = guestDatabase(getDbService(), session);
 
     if (eventCode) {
       const event = await service.getCustomEvent(eventCode, competitionType);

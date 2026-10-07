@@ -6,6 +6,7 @@ import { useEventConfig } from "./use-event-config";
 import { useGameConfig } from "./use-game-config";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import type { MatchEntry, PitEntry } from "@/lib/types";
+import { useSession } from "next-auth/react";
 
 interface EntryTypes {
   match: MatchEntry;
@@ -34,15 +35,18 @@ function readCachedEntries<K extends keyof EntryTypes>(
  * first and falls back to the IndexedDB cache when offline.
  */
 export function useScoutingEntries<K extends keyof EntryTypes>(kind: K) {
+  const { data: session } = useSession();
+  const isGuest = !!session?.guestEvent;
   const { competitionType } = useGameConfig();
   const { selectedEvent } = useEventConfig();
   const eventCode = selectedEvent?.eventCode;
 
   const { data, loading, reload } = useAsyncData<EntriesResult<EntryTypes[K]>>(
-    `${kind}|${eventCode ?? ""}|${competitionType}`,
+    `${kind}|${eventCode ?? ""}|${competitionType}|${session?.user?.id ?? ""}`,
     async () => {
       const isOnline =
         typeof navigator !== "undefined" ? navigator.onLine : true;
+      if (isGuest && !isOnline) return { entries: [], error: "Guest access requires an internet connection", isOfflineData: false };
 
       // If offline, go straight to IndexedDB
       if (!isOnline && eventCode) {
@@ -77,7 +81,7 @@ export function useScoutingEntries<K extends keyof EntryTypes>(kind: K) {
         console.error(`Error fetching ${kind} entries:`, err);
 
         // Fallback to IndexedDB cache on network error
-        if (eventCode) {
+        if (eventCode && !isGuest) {
           try {
             const cached = await readCachedEntries(kind, eventCode);
             if (cached && cached.entries.length > 0) {

@@ -4,6 +4,8 @@ import { asNextRequest } from "../helpers/test-doubles";
 const mockSavePersistedDatabaseConfig = vi.fn().mockResolvedValue(undefined);
 const mockConfigure = vi.fn();
 let mockQuery = vi.fn();
+let useDocumentCandidate = false;
+const mockConnectionCheck = vi.fn();
 let mockIsConfigured = false;
 const mockRequirePermission = vi.fn().mockResolvedValue(null);
 
@@ -16,15 +18,17 @@ vi.mock("@/lib/server/require-permission", () => ({
   requirePermission: mockRequirePermission,
 }));
 
-vi.mock("@/db/database-manager", () => {
+vi.mock("@/db/database-manager", async () => {
+  const { sqlUsers } = await import("@/db/sql-users");
   return {
     DatabaseManager: {
       getInstance: vi.fn(() => ({
         isConfigured: () => mockIsConfigured,
-        createServiceForConfig: () => ({ query: mockQuery }),
+        createServiceForConfig: () => useDocumentCandidate ? { checkConnection: mockConnectionCheck } : { query: mockQuery },
         configure: mockConfigure,
         getService: () => ({
           query: mockQuery,
+          users: sqlUsers(mockQuery, "azuresql"),
         }),
         getConfig: () => ({ provider: "mariadb" }),
       })),
@@ -32,6 +36,7 @@ vi.mock("@/db/database-manager", () => {
     databaseManager: {
       getService: () => ({
         query: mockQuery,
+        users: sqlUsers(mockQuery, "azuresql"),
       }),
       getConfig: () => ({ provider: "mariadb" }),
     },
@@ -42,6 +47,8 @@ describe("/api/setup/database", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsConfigured = false;
+    useDocumentCandidate = false;
+    mockConnectionCheck.mockResolvedValue(undefined);
     mockRequirePermission.mockResolvedValue(null);
     mockQuery = vi.fn().mockResolvedValue({ recordset: [] });
   });
@@ -56,6 +63,33 @@ describe("/api/setup/database", () => {
 
     const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(400);
+  });
+
+  it.each(["firebase", "cosmos"])("verifies %s before saving its configuration", async (provider) => {
+    useDocumentCandidate = true;
+    const route = await import("@/app/api/setup/database/route");
+    const response = await route.POST(asNextRequest(new Request("http://test/api/setup/database", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, firebase: { serviceAccountJson: {} }, cosmos: { endpoint: "https://cosmos.test", key: "key" } }),
+    })));
+    expect(response.status).toBe(200);
+    expect(mockConnectionCheck).toHaveBeenCalledOnce();
+    expect(mockConnectionCheck.mock.invocationCallOrder[0]).toBeLessThan(mockSavePersistedDatabaseConfig.mock.invocationCallOrder[0]);
+    expect((await response.json()).setupComplete).toBe(false);
+  });
+
+  it("keeps the current configuration when a document connection check fails", async () => {
+    useDocumentCandidate = true;
+    mockConnectionCheck.mockRejectedValue(new Error("Invalid credentials"));
+    const route = await import("@/app/api/setup/database/route");
+    const response = await route.POST(asNextRequest(new Request("http://test/api/setup/database", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "cosmos", cosmos: { endpoint: "https://cosmos.test", key: "bad" } }),
+    })));
+    expect(response.status).toBe(500);
+    expect(mockSavePersistedDatabaseConfig).not.toHaveBeenCalled();
+    expect(mockConfigure).not.toHaveBeenCalled();
+    mockConnectionCheck.mockResolvedValue(undefined);
   });
 
   it("successfully configures database when valid", async () => {
@@ -145,7 +179,7 @@ describe("/api/setup/admin", () => {
 
   it("rejects admin creation if an admin already exists", async () => {
     mockQuery = vi.fn().mockResolvedValueOnce({
-      recordset: [{ id: "existing-admin-1" }],
+      recordset: [{ count: 1 }],
     });
 
     const route = await import("@/app/api/setup/admin/route");

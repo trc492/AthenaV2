@@ -1,5 +1,7 @@
 "use client";
 
+import { useSession } from "next-auth/react";
+import { GuestMatchSchedule } from "@/components/events/guest-match-schedule";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Card,
@@ -185,6 +187,12 @@ const ActiveScoutCheckbox = React.memo(
 ActiveScoutCheckbox.displayName = "ActiveScoutCheckbox";
 
 export default function SchedulePage() {
+  const { data: session, status } = useSession();
+  if (status === "loading") return <p>Loading schedule…</p>;
+  return session?.guestEvent ? <GuestMatchSchedule /> : <ScoutSchedulePage />;
+}
+
+function ScoutSchedulePage() {
   const {
     users,
     blocks: dbBlocks,

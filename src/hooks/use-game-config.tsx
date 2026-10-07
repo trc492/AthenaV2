@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import gameConfig from "../../config/game-config-loader";
 import type { YearConfig, GameConfig, CompetitionType } from "@/lib/types";
+import { useSession } from "next-auth/react";
 
 interface GameConfigContextType {
   config: GameConfig;
@@ -57,6 +58,8 @@ const GameConfigContext = createContext<GameConfigContextType | undefined>(
 );
 
 export function GameConfigProvider({ children }: { children: ReactNode }) {
+  const { data: session } = useSession();
+  const guest = session?.guestEvent;
   const config = gameConfig as unknown as GameConfig;
   // True once rendering on the client, where the stored selections are readable
   const isInitialized = useSyncExternalStore(
@@ -67,18 +70,20 @@ export function GameConfigProvider({ children }: { children: ReactNode }) {
 
   const savedType = useStoredSelection(COMPETITION_TYPE_KEY);
   const competitionType: CompetitionType =
-    savedType === "FRC" || savedType === "FTC"
+    guest ? guest.competitionType : savedType === "FRC" || savedType === "FTC"
       ? savedType
       : DEFAULT_COMPETITION_TYPE;
 
   const savedYear = parseInt(useStoredSelection(GAME_YEAR_KEY) ?? "");
-  const currentYear = Number.isNaN(savedYear) ? DEFAULT_YEAR : savedYear;
+  const currentYear = guest?.year ?? (Number.isNaN(savedYear) ? DEFAULT_YEAR : savedYear);
 
   const setCurrentYear = (year: number) => {
+    if (guest) return;
     writeSelection(GAME_YEAR_KEY, year.toString());
   };
 
   const setCompetitionType = (type: CompetitionType) => {
+    if (guest) return;
     writeSelection(COMPETITION_TYPE_KEY, type);
     // Reset to latest available year when switching competition types
     const availableYears = Object.keys(config[type] || {});
