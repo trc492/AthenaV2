@@ -1,11 +1,6 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useSyncExternalStore,
-  ReactNode,
-} from "react";
+import { createContext, useContext, useSyncExternalStore, ReactNode } from "react";
 import gameConfig from "../../config/game-config-loader";
 import type { YearConfig, GameConfig, CompetitionType } from "@/lib/types";
 import { useSession } from "next-auth/react";

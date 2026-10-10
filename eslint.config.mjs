@@ -10,4 +10,12 @@ for (const config of eslintConfig) {
   }
 }
 
-export default eslintConfig;
+const projectConfig = [...eslintConfig, {
+  ignores: ["docs/examples/**"],
+}, {
+  rules: {
+    "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+  },
+}];
+
+export default projectConfig;

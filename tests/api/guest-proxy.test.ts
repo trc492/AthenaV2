@@ -16,12 +16,13 @@ vi.mock("@/lib/server/auth-request", () => ({
 }));
 import proxy from "@/proxy";
 
-function guest() {
+function guest(canAddScouting = false) {
   resolveGrant.mockImplementation(async (token: string) =>
     verifyGuestEventLink(token),
   );
   vi.stubEnv("AUTH_SECRET", "proxy-test-secret");
   const { token, expiresAt } = createGuestEventLink({
+    canAddScouting,
     name: "Event",
     eventCode: "2026test",
     year: 2026,
@@ -110,4 +111,19 @@ describe("guest proxy enforcement", () => {
       ),
     ).toBe("http://test/login");
   });
+});
+
+
+it("allows only entry creation for scouting guests", async () => {
+  guest(true);
+  for (const kind of ["match", "pit"]) {
+    const response = await proxy(new NextRequest(`http://test/api/scouting/entries/${kind}`, { method: "POST" }));
+    expect(response.headers.get("x-middleware-rewrite")).toContain("eventCode=2026test");
+    for (const method of ["PUT", "DELETE"]) {
+      expect((await proxy(new NextRequest(`http://test/api/scouting/entries/${kind}`, { method }))).status).toBe(403);
+    }
+  }
+  expect((await proxy(new NextRequest("http://test/dashboard", { method: "POST" }))).status).toBe(403);
+  expect((await proxy(new NextRequest("http://test/api/users", { method: "POST" }))).status).toBe(403);
+  expect((await proxy(new NextRequest("http://test/scout/matchscout"))).headers.get("x-middleware-next")).toBe("1");
 });

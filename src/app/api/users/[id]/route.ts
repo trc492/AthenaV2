@@ -16,7 +16,7 @@ interface RouteParams {
   }>;
 }
 
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     // Check if user has permission to view users
     // VIEW_USERS: full user management access
@@ -167,7 +167,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE now deactivates instead of destroying the account and its attribution.
-export async function DELETE(request: NextRequest, context: RouteParams) {
+export async function DELETE(_request: NextRequest, context: RouteParams) {
   return setAccountActive(context, false);
 }
 

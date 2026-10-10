@@ -1,3 +1,23 @@
+export class HttpError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+export async function requestJSON<T>(
+  url: string,
+  options: RequestInit = {},
+  fallbackMessage = "Request failed",
+): Promise<T> {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new HttpError(response.status, body?.message || body?.error || fallbackMessage);
+  }
+  return response.json();
+}
+
 export async function fetchJSON<T>(
   url: string,
   options: {
@@ -10,16 +30,7 @@ export async function fetchJSON<T>(
     ? url + "?" + new URLSearchParams(options.queryParams).toString()
     : url;
 
-  const res = await fetch(finalUrl, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Fetch error ${res.status} on ${finalUrl}`);
-  }
-
-  return res.json();
+  return requestJSON(finalUrl, {
+    headers: { "Content-Type": "application/json", ...options.headers },
+  }, `Failed to fetch ${finalUrl}`);
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { validateYearConfig } from "@/lib/server/config-validator";
+import { validateYearConfig } from "@/lib/game-config/config-validator";
 import type { YearConfig } from "@/lib/types";
 import { MockAuthSession, asNextRequest } from "../helpers/test-doubles";
 

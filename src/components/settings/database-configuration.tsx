@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, Loader2, Save, ShieldCheck } from "lucide-react";
@@ -52,7 +52,6 @@ export function DatabaseConfigurationComponent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentProvider, setCurrentProvider] = useState<DatabaseProvider>("azuresql");
   const [providers, setProviders] = useState<DatabaseProvider[]>([]);
   const [form, setForm] = useState<DatabaseFormState>(defaultDatabaseFormState);
 
@@ -69,7 +68,6 @@ export function DatabaseConfigurationComponent() {
         const data = (await response.json()) as DatabaseOptionsResponse;
         if (!mounted) return;
 
-        setCurrentProvider(data.currentProvider);
         setProviders(data.providers);
         setForm({
           provider: data.config.provider,
@@ -119,19 +117,6 @@ export function DatabaseConfigurationComponent() {
     };
   }, []);
 
-  const activeSummary = useMemo(() => {
-    switch (currentProvider) {
-      case "firebase":
-        return "Firebase database configuration is active.";
-      case "cosmos":
-        return "Cosmos DB configuration is active.";
-      case "mariadb":
-        return "MariaDB configuration is active.";
-      default:
-        return "Azure SQL configuration is active.";
-    }
-  }, [currentProvider]);
-
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -179,7 +164,6 @@ export function DatabaseConfigurationComponent() {
         throw new Error(result.error || "Failed to update configuration");
       }
 
-      setCurrentProvider(result.currentProvider);
       toast.success("Database configuration updated", {
         description: "The new provider is active for this server instance.",
       });

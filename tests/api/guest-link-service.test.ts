@@ -36,6 +36,15 @@ describe("persistent guest links", () => {
     vi.useRealTimers();
   });
 
+  it("uses current stored access for existing tokens and sessions", async () => {
+    const record = await issueGuestLink({ ...event, canAddScouting: true, canViewNotes: true }, "manager", service);
+    records.set(record.id, { ...record, canAddScouting: false, canViewNotes: false });
+    expect(await resolveGuestEventLink(record.token, service)).toMatchObject({ canAddScouting: false, canViewNotes: false });
+    records.set(record.id, { ...record, canAddScouting: true, canViewNotes: false });
+    expect(await resolveGuestEventLink(record.token, service)).toMatchObject({ canAddScouting: true, canViewNotes: false });
+    expect((await activeGuestLinks(service))[0].path).toBe(`/guest/events/${record.token}`);
+  });
+
   it("persists issued links and lists their copyable paths", async () => {
     const record = await issueGuestLink(event, "manager-1", service);
     expect(record.createdBy).toBe("manager-1");

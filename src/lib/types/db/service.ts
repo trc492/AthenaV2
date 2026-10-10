@@ -70,26 +70,7 @@ export interface UserStore {
   ): Promise<{ id: string; push_subscriptions: string | null }[]>;
 }
 
-export interface DatabaseService {
-  checkConnection?(): Promise<void>;
-  getScheduleAssignments?(scope: ScheduleAssignmentScope): Promise<ScheduleAssignmentRecord[]>;
-  users?: UserStore;
-  addGuestLink(link: GuestLinkRecord): Promise<void>;
-  getGuestLinks(): Promise<GuestLinkRecord[]>;
-  getGuestLink(id: string): Promise<GuestLinkRecord | undefined>;
-  revokeGuestLink(id: string, revokedAt: number): Promise<void>;
-  getPool?(): Promise<unknown>;
-  query?<T = unknown>(
-    sql: string,
-    params?: Record<string, unknown>,
-  ): Promise<{ recordset: T[] }>;
-  applyScheduleAssignmentChanges?(
-    scope: ScheduleAssignmentScope,
-    changes: ScheduleAssignmentChange[],
-    replaceAll?: boolean,
-    expectedAssignments?: ScheduleAssignmentRecord[],
-  ): Promise<void>;
-
+export interface ScoutingStore {
   addPitEntry(entry: Omit<PitEntry, "id">): Promise<number>;
   getPitEntry(
     teamNumber: number,
@@ -123,7 +104,9 @@ export interface DatabaseService {
     matchNumber: number,
     eventCode: string,
   ): Promise<boolean>;
+}
 
+export interface CustomEventStore {
   addCustomEvent(event: Omit<CustomEvent, "id">): Promise<number>;
   getCustomEvent(
     eventCode: string,
@@ -138,13 +121,9 @@ export interface DatabaseService {
     updates: Partial<CustomEvent>,
   ): Promise<void>;
   deleteCustomEvent(eventCode: string): Promise<void>;
+}
 
-  updateUserPreferredPartners(
-    userId: string,
-    preferredPartners: string[],
-  ): Promise<void>;
-  getUserPreferredPartners(userId: string): Promise<string[]>;
-
+export interface PicklistStore {
   addPicklist(
     picklist: Omit<Picklist, "id" | "created_at" | "updated_at">,
   ): Promise<number>;
@@ -193,7 +172,9 @@ export interface DatabaseService {
   ): Promise<PicklistNote[]>;
   updatePicklistNote(id: number, updates: Partial<PicklistNote>): Promise<void>;
   deletePicklistNote(id: number): Promise<void>;
+}
 
+export interface DatabaseMaintenance {
   exportData(
     year?: number,
     competitionType?: CompetitionType,
@@ -205,6 +186,15 @@ export interface DatabaseService {
   resetDatabase(): Promise<void>;
   syncToCloud?(): Promise<void>;
   syncFromCloud?(): Promise<void>;
+}
+
+export interface AccountStore {
+  users?: UserStore;
+  updateUserPreferredPartners(
+    userId: string,
+    preferredPartners: string[],
+  ): Promise<void>;
+  getUserPreferredPartners(userId: string): Promise<string[]>;
 
   /**
    * Updates one or more fields on a user record.
@@ -215,6 +205,32 @@ export interface DatabaseService {
    * unchanged. `updated_at` is always refreshed automatically.
    */
   updateUser(id: string, updates: UserUpdates): Promise<void>;
+}
+
+export interface GuestLinkStore {
+  addGuestLink(link: GuestLinkRecord): Promise<void>;
+  getGuestLinks(): Promise<GuestLinkRecord[]>;
+  getGuestLink(id: string): Promise<GuestLinkRecord | undefined>;
+  updateGuestLinkAccess(id: string, access: { canAddScouting: boolean; canViewNotes: boolean }): Promise<void>;
+  revokeGuestLink(id: string, revokedAt: number): Promise<void>;
+}
+
+/** Provider composition; features can depend on narrower persistence contracts. */
+export interface DatabaseService extends ScoutingStore, CustomEventStore, PicklistStore,
+  DatabaseMaintenance, AccountStore, GuestLinkStore {
+  checkConnection?(): Promise<void>;
+  getScheduleAssignments?(scope: ScheduleAssignmentScope): Promise<ScheduleAssignmentRecord[]>;
+  getPool?(): Promise<unknown>;
+  query?<T = unknown>(
+    sql: string,
+    params?: Record<string, unknown>,
+  ): Promise<{ recordset: T[] }>;
+  applyScheduleAssignmentChanges?(
+    scope: ScheduleAssignmentScope,
+    changes: ScheduleAssignmentChange[],
+    replaceAll?: boolean,
+    expectedAssignments?: ScheduleAssignmentRecord[],
+  ): Promise<void>;
 }
 
 /**

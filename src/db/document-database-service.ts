@@ -276,6 +276,12 @@ export class DocumentDatabaseService implements DatabaseService {
   addGuestLink(link: GuestLinkRecord) { return this.store.create("guestLinks", link.id, link as unknown as Document); }
   async getGuestLinks() { return (await this.store.list("guestLinks")).map((d) => d.data as unknown as GuestLinkRecord); }
   async getGuestLink(id: string) { return await this.store.get("guestLinks", id) as unknown as GuestLinkRecord | undefined; }
+  async updateGuestLinkAccess(id: string, access: { canAddScouting: boolean; canViewNotes: boolean }) {
+    await this.store.transact("guestLinks", [id], (docs) => {
+      const link = docs.get(id);
+      return link && link.revokedAt === null ? new Map([[id, { ...link, ...access }]]) : new Map();
+    });
+  }
   async revokeGuestLink(id: string, revokedAt: number) {
     await this.store.transact("guestLinks", [id], (docs) => {
       const link = docs.get(id);

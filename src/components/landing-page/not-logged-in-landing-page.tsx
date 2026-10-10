@@ -1,8 +1,8 @@
-﻿import Image from "next/image";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BarChart3, CalendarDays, Check, ClipboardList, Heart, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { APP_LOGO, APP_LOGO_DARK, APP_NAME, ORGANIZATION_NAME, ORGANIZATION_URL } from "@/lib/app-config";
+import { APP_LOGO, APP_LOGO_DARK, APP_NAME, ORGANIZATION_URL } from "@/lib/app-config";
 import { DashboardPreview, SchedulePreview, PitPreview, MatchPreview, AnalyticsPreview } from "./product-previews";
 
 export const features = [

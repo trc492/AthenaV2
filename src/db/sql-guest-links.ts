@@ -32,6 +32,14 @@ export function sqlGuestLinks(query: Query) {
       );
       return result.recordset[0] ? record(result.recordset[0]) : undefined;
     },
+    async updateGuestLinkAccess(id: string, access: { canAddScouting: boolean; canViewNotes: boolean }) {
+      const result = await query<Row>("SELECT data, revokedAt FROM guestLinks WHERE id = @id", { id });
+      const row = result.recordset[0];
+      if (!row || row.revokedAt !== null) return;
+      await query("UPDATE guestLinks SET data = @data WHERE id = @id AND revokedAt IS NULL", {
+        id, data: JSON.stringify({ ...record(row), ...access }),
+      });
+    },
     async revokeGuestLink(id: string, revokedAt: number) {
       await query(
         "UPDATE guestLinks SET revokedAt = @revokedAt WHERE id = @id AND revokedAt IS NULL",

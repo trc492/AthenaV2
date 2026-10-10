@@ -51,6 +51,7 @@ export function NavUser({
 
   const handleLogout = async () => {
     await signOut({ redirect: false });
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Reset all account-specific client state after sign-out.
     window.location.assign("/");
   };
 

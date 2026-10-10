@@ -247,18 +247,6 @@ class DatabaseManager {
     return this.getService().resetDatabase();
   }
 
-  async switchProvider(
-    provider: DatabaseProvider,
-    config?: Partial<DatabaseConfig>,
-  ) {
-    const newConfig: DatabaseConfig = {
-      ...(this.config ?? { provider }),
-      provider,
-      ...config,
-    };
-    this.configure(newConfig);
-  }
-
   async updateUser(id: string, updates: import("@/lib/types").UserUpdates) {
     return this.getService().updateUser(id, updates);
   }

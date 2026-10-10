@@ -1,8 +1,8 @@
-import type { YearConfig, ScoringDefinition } from "@/lib/types";
 import {
   buildDatapointRegistry,
   findDatapoint,
 } from "@/lib/game-config/datapoint-registry";
+import type { ScoringDefinition, YearConfig } from "@/lib/types";
 
 export interface ValidationResult {
   valid: boolean;
@@ -76,7 +76,6 @@ export function validateYearConfig(data: unknown): ValidationResult {
             `scoring.${section}.${key}`,
             def,
             errors,
-            warnings,
           );
         });
       }
@@ -94,7 +93,6 @@ export function validateYearConfig(data: unknown): ValidationResult {
             `scoring.fouls.${key}`,
             def,
             errors,
-            warnings,
           );
         });
       }
@@ -287,7 +285,6 @@ function validateScoringDefinition(
   path: string,
   def: unknown,
   errors: string[],
-  warnings: string[],
 ) {
   if (!def || typeof def !== "object") {
     errors.push(`${path} must be an object definition.`);

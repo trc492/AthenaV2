@@ -35,8 +35,6 @@ import { useEventConfig } from "@/hooks/use-event-config";
 import { useOffline } from "@/hooks/use-offline";
 import { useScoutingAssignment } from "@/hooks/use-scouting-assignment";
 import { useSession } from "next-auth/react";
-import { GuestEventLink } from "@/components/events/guest-event-link";
-import { useGameConfig } from "@/hooks/use-game-config";
 
 const subscribeToLocalStorage = () => () => undefined;
 
@@ -48,7 +46,6 @@ function progressPercent(current: number, total: number) {
 export default function Page() {
   const { data: session } = useSession();
   const isGuest = !!session?.guestEvent;
-  const { currentYear, competitionType } = useGameConfig();
   const { selectedEvent, isLoading: eventLoading } = useEventConfig();
   const { stats, loading, error } = useDashboardStats();
   const { isOnline, pendingCount, syncInProgress } = useOffline();

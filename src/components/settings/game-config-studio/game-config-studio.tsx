@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,29 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Save,
-  Plus,
-  Copy,
-  Download,
-  Upload,
-  Trophy,
-  Zap,
-  Code,
-  FileJson,
-  Sparkles,
-  MousePointer,
-  Play,
-  Monitor,
-  Tablet,
-  Smartphone,
-  Sliders,
-  Eye,
-  Swords,
-  LayoutDashboard,
-  AlertTriangle,
-  Pencil,
-} from "lucide-react";
+import { Save, Plus, Copy, Code, FileJson, Sparkles, MousePointer, Play, Monitor, Tablet, Smartphone, Swords, LayoutDashboard, AlertTriangle, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import type {
   YearConfig,
@@ -51,14 +29,14 @@ import type {
   PitScoutingFieldDefinition,
 } from "@/lib/types";
 import { getErrorMessage } from "@/lib/utils";
-import { DEFAULT_NEW_CONFIG, slugifyKey } from "./types";
+import { DEFAULT_NEW_CONFIG } from "./types";
 import { ComponentPalette, PaletteComponentType } from "./component-palette";
 import { VisualCanvas } from "./visual-canvas";
 import { PropertyInspector, SelectedComponentInfo } from "./property-inspector";
 import { VisualMatchupCanvas } from "./visual-matchup-canvas";
 import { VisualTeamPageCanvas } from "./visual-teampage-canvas";
 import { BuilderJsonEditor } from "./builder-json-editor";
-import { validateYearConfig } from "@/lib/server/config-validator";
+import { validateYearConfig } from "@/lib/game-config/config-validator";
 
 // Static defaults as instant fallback
 import FRC2026 from "../../../../config/years/FRC-2026.json";

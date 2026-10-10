@@ -1,16 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { databaseManager } from "@/db/database-manager";
-import { DatabaseService, CompetitionType } from "@/lib/types";
+import { getEventRankings } from "@/lib/api/tba";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { getDbService } from "@/lib/server/db-service";
 import { calculateEPA } from "@/lib/statistics";
-import { getEventRankings } from "@/lib/api/tba";
+import { CompetitionType } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
 import gameConfig from "../../../../../config/game-config-loader";
 
-// Resolve the active provider on each request so configuration changes take effect.
-function getDbService(): DatabaseService {
-  return databaseManager.getService();
-}
 
 interface TeamPicklistData {
   teamNumber: number;

@@ -106,3 +106,21 @@ describe("guest event access", () => {
     expect(() => scoped.query).toThrow("Operation unavailable");
   });
 });
+
+
+describe("configurable guest access", () => {
+  it("preserves notes only when allowed, while always hiding identities and other events", async () => {
+    const grant = { ...event, canViewNotes: true, expiresAt: Date.now() + 10000, nonce: "a".repeat(32) };
+    const entry = { ...event, notes: "Useful note", userId: "private", gameSpecificData: { comments: "Nested note", scoutName: "private" } };
+    const db = { getAllMatchEntries: vi.fn().mockResolvedValue([entry, { ...entry, eventCode: "other" }]) } as unknown as DatabaseService;
+    const session = { user: { role: "guest" }, guestEvent: grant } as Session;
+    const visible = await guestDatabase(db, session).getAllMatchEntries();
+    expect(visible).toHaveLength(1);
+    expect(visible[0]).toMatchObject({ notes: "Useful note", gameSpecificData: { comments: "Nested note" } });
+    expect(visible[0]).not.toHaveProperty("userId");
+    expect(visible[0].gameSpecificData).not.toHaveProperty("scoutName");
+    const hidden = await guestDatabase(db, { ...session, guestEvent: { ...grant, canViewNotes: false } }).getAllMatchEntries();
+    expect(hidden[0].notes).toBe("");
+    expect(hidden[0].gameSpecificData).not.toHaveProperty("comments");
+  });
+});

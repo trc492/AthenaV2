@@ -1,21 +1,11 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { PermissionGuard } from "@/components/auth/PermissionGuard";
+
+
 import { OfflinePrecache } from "@/components/sync/offline-precache";
-import { ROLES } from "@/lib/auth/roles";
-import {
-  Database,
-  Users,
-  KeyRound,
-  FileJson,
-  Bell,
-  ArrowRight,
-  Info,
-  Shield,
-  Layers,
-} from "lucide-react";
+
+import { Info, Layers } from "lucide-react";
 
 export default function SettingsPage() {
   return (

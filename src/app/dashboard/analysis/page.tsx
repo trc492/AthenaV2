@@ -148,8 +148,9 @@ export default function Page() {
   const { stats, loading } = useAnalysisStats();
   const { getCurrentYearConfig } = useGameConfig();
   const currentConfig = getCurrentYearConfig();
-  const insightDefinitions =
-    currentConfig?.analysisInsights?.insights ?? [];
+  const insightDefinitions = useMemo(
+    () => currentConfig?.analysisInsights?.insights ?? [], [currentConfig],
+  );
   const insights = useMemo(() => {
     function formatValue(value: number, format?: "percent" | "number") {
       if (format === "percent") return `${(value * 100).toFixed(1)}%`;

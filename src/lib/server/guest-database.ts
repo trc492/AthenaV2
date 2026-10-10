@@ -2,19 +2,17 @@ import type { Session } from "next-auth";
 import type { DatabaseService, MatchEntry, PitEntry } from "@/lib/types";
 import type { GuestEventGrant } from "./event-guest";
 
-function publicFields(value: unknown): unknown {
+function publicFields(value: unknown, canViewNotes = false): unknown {
   if (value instanceof Date) return value;
-  if (Array.isArray(value)) return value.map(publicFields);
+  if (Array.isArray(value)) return value.map((child) => publicFields(child, canViewNotes));
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value)
       .filter(
         ([key]) =>
-          !/(note|comment|scout|userid|username|email|preferredpartner|drawing)/i.test(
-            key,
-          ),
+          !(canViewNotes ? /(scout|userid|username|email|preferredpartner)/i : /(note|comment|scout|userid|username|email|preferredpartner|drawing)/i).test(key),
       )
-      .map(([key, child]) => [key, publicFields(child)]),
+      .map(([key, child]) => [key, publicFields(child, canViewNotes)]),
   );
 }
 
@@ -46,7 +44,7 @@ export function guestDatabase(
       )
     )
       .filter(inScope)
-      .map((entry) => ({ ...(publicFields(entry) as MatchEntry), notes: "" }));
+      .map((entry) => ({ ...(publicFields(entry, grant.canViewNotes) as MatchEntry), ...(!grant.canViewNotes ? { notes: "" } : {}) }));
   const pits = async () =>
     (
       await service.getAllPitEntries(
@@ -56,7 +54,7 @@ export function guestDatabase(
       )
     )
       .filter(inScope)
-      .map((entry) => publicFields(entry) as PitEntry);
+      .map((entry) => publicFields(entry, grant.canViewNotes) as PitEntry);
   const customEvents = async () =>
     (
       await service.getAllCustomEvents(grant.year, grant.competitionType)

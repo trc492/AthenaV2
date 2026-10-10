@@ -1,7 +1,7 @@
 // Offline data types for IndexedDB storage and synchronization
 // Handles caching of pit and match scouting data when offline
 
-import type { PitEntry, MatchEntry, Event } from "@/lib/types";
+import type { CompetitionType, Event, MatchEntry, PitEntry } from "@/lib/types";
 
 // Status of a queued entry
 export type SyncStatus = "pending" | "syncing" | "synced" | "error";
@@ -63,6 +63,16 @@ export interface NetworkStatus {
   lastOffline?: Date;
 }
 
+export interface EventScope {
+  eventCode: string;
+  competitionType: CompetitionType;
+  year: number;
+}
+
+export function eventScopeKey(scope: EventScope): [string, number, CompetitionType] {
+  return [scope.eventCode, scope.year, scope.competitionType];
+}
+
 // Cached team info for offline scouting
 export interface CachedTeamInfo {
   teamNumber: number;
@@ -71,10 +81,7 @@ export interface CachedTeamInfo {
 }
 
 // Cached event teams data
-export interface CachedEventTeams {
-  eventCode: string;
-  competitionType: string;
-  year: number;
+export interface CachedEventTeams extends EventScope {
   teams: CachedTeamInfo[];
   cachedAt: Date;
 }
@@ -104,11 +111,8 @@ export interface CachedScoutList {
 // ============================================
 
 // Metadata about what is cached for each event
-export interface EventCacheStatus {
-  eventCode: string;
+export interface EventCacheStatus extends EventScope {
   eventName: string;
-  competitionType: string;
-  year: number;
   cachedAt: Date;
   pitEntryCount: number;
   matchEntryCount: number;
@@ -119,28 +123,25 @@ export interface EventCacheStatus {
 }
 
 // Cached pit entries for an event (stored in bulk)
-export interface CachedPitEntries {
-  eventCode: string;
+export interface CachedPitEntries extends EventScope {
   entries: PitEntry[];
   cachedAt: Date;
 }
 
 // Cached match entries for an event (stored in bulk)
-export interface CachedMatchEntries {
-  eventCode: string;
+export interface CachedMatchEntries extends EventScope {
   entries: MatchEntry[];
   cachedAt: Date;
 }
 
 // Cached analysis data for an event
-export interface CachedAnalysisData {
-  eventCode: string;
+export interface CachedAnalysisData extends EventScope {
   data: import("@/lib/types").AnalysisData;
   cachedAt: Date;
 }
 
 // IndexedDB schema version - increment when adding new stores
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 export const DB_NAME = "athena-offline-cache";
 
 // Store names

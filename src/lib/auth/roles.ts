@@ -4,14 +4,13 @@ export const ROLES = {
   SCOUT: "scout",
   TABLET: "tablet",
   VIEWER: "viewer",
-  EXTERNAL: "external",
   GUEST: "guest",
 } as const;
 
 export const PERMISSIONS = {
   // Dashboard & Overview
   VIEW_DASHBOARD: "view_dashboard",
-  VIEW_COMMENTS: "view_comments", // We hide this for EXTERNAL users due to GP issues
+  VIEW_COMMENTS: "view_comments",
 
   // Scouting Operations
   CREATE_MATCH_SCOUTING: "create_match_scouting",
@@ -166,12 +165,6 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_PIT_SCOUTING,
     PERMISSIONS.VIEW_PICKLIST,
     PERMISSIONS.VIEW_SCHEDULE,
-  ],
-  [ROLES.EXTERNAL]: [
-    // Very limited access, mainly for external teams - no comments due to GP concerns
-    PERMISSIONS.VIEW_DASHBOARD,
-    PERMISSIONS.VIEW_MATCH_SCOUTING, // Can see match data (no comments)
-    PERMISSIONS.VIEW_PIT_SCOUTING, // Can see pit data (no comments)
   ],
 };
 

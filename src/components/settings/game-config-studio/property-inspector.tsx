@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -14,18 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sliders,
-  Trash2,
-  Copy,
-  X,
-  Plus,
-  Trophy,
-  MapPin,
-  Layers,
-  Sparkles,
-  Info,
-} from "lucide-react";
+import { Sliders, Trash2, Copy, X, Plus, Trophy, MapPin, Layers, Info } from "lucide-react";
 import type {
   YearConfig,
   ScoringDefinition,

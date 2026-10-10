@@ -22,5 +22,5 @@ export function GuestSignIn({ token, name }: { token: string; name: string }) {
     started.current = true;
     void enter();
   }, [enter]);
-  return <main className="mx-auto max-w-xl space-y-4 p-8"><h1 className="text-2xl font-bold">{name}</h1><p>{error ? "Unable to open guest access. Please try again." : "Opening the event website with read-only guest access…"}</p>{error && <Button onClick={enter}>Try again</Button>}</main>;
+  return <main className="mx-auto max-w-xl space-y-4 p-8"><h1 className="text-2xl font-bold">{name}</h1><p>{error ? "Unable to open guest access. Please try again." : "Opening the event website with guest access…"}</p>{error && <Button onClick={enter}>Try again</Button>}</main>;
 }

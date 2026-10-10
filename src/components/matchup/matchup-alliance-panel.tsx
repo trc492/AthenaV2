@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import type { CompetitionType } from "@/lib/types";
 import { ConfigurableMatchupCard } from "./configurable-matchup-card";

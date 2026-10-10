@@ -57,7 +57,6 @@ export default function MatchupPage() {
   const yearConfig = getCurrentYearConfig();
   const selectedEvent = useSelectedEvent();
   const {
-    scheduleData,
     isLoading: scheduleLoading,
     error: scheduleError,
     hasScheduleData,

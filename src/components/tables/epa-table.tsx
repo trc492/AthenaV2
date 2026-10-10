@@ -183,7 +183,7 @@ export function EPATable({
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
-  const tableData = data || [];
+  const tableData = React.useMemo(() => data ?? [], [data]);
   const availableMetrics = metrics || [];
   const selectedMetric = availableMetrics.find(
     (metric) => metric.key === selectedMetricKey,

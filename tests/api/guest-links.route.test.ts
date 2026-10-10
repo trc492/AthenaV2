@@ -7,6 +7,7 @@ const store = vi.hoisted(() => ({
   getGuestLinks: vi.fn(),
   getGuestLink: vi.fn(),
   revokeGuestLink: vi.fn(),
+  updateGuestLinkAccess: vi.fn(),
 }));
 vi.mock("@/lib/server/db-service", () => ({ getDbService: () => store }));
 vi.mock("@/lib/server/require-permission", () => ({
@@ -16,7 +17,7 @@ vi.mock("@/lib/server/require-permission", () => ({
     return { denied, session: denied ? null : { user: { id: "admin" } } };
   },
 }));
-import { POST, GET, DELETE } from "@/app/api/events/guest-links/route";
+import { POST, GET, DELETE, PATCH } from "@/app/api/events/guest-links/route";
 import { verifyGuestEventLink } from "@/lib/server/event-guest";
 
 const event = {
@@ -105,5 +106,31 @@ describe("guest link creation", () => {
     store.getGuestLink.mockResolvedValue({ id });
     expect((await DELETE(revokeRequest())).status).toBe(200);
     expect(store.revokeGuestLink).toHaveBeenCalledWith(id, expect.any(Number));
+  });
+});
+
+
+describe("editing guest access", () => {
+  const access = { id: "a".repeat(32), canAddScouting: true, canViewNotes: false };
+  it("requires management permission", async () => {
+    permission.mockResolvedValue(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+    expect((await PATCH(request(access))).status).toBe(403);
+  });
+  it("updates both permissions on the existing link", async () => {
+    permission.mockResolvedValue(null);
+    store.getGuestLink.mockResolvedValue({ revokedAt: null, expiresAt: Date.now() + 100000 });
+    const response = await PATCH(request(access));
+    expect(response.status).toBe(200);
+    expect(store.updateGuestLinkAccess).toHaveBeenCalledWith(access.id, { canAddScouting: true, canViewNotes: false });
+  });
+  it("rejects invalid settings, missing links, and inactive links", async () => {
+    permission.mockResolvedValue(null);
+    expect((await PATCH(request({ ...access, canViewNotes: "yes" }))).status).toBe(400);
+    expect((await PATCH(request({ ...access, eventCode: "other" }))).status).toBe(400);
+    expect((await PATCH(request(access))).status).toBe(404);
+    store.getGuestLink.mockResolvedValue({ revokedAt: 1, expiresAt: Date.now() + 100000 });
+    expect((await PATCH(request(access))).status).toBe(409);
+    store.getGuestLink.mockResolvedValue({ revokedAt: null, expiresAt: 1 });
+    expect((await PATCH(request(access))).status).toBe(409);
   });
 });

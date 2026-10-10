@@ -258,7 +258,7 @@ export function DynamicPitScoutForm() {
 
     try {
       // Check for duplicate pit scout entry (only for new entries, not edits)
-      if (!isEditMode && selectedEvent?.eventCode) {
+      if (!session?.guestEvent && !isEditMode && selectedEvent?.eventCode) {
         try {
           const response = await fetch(
             `/api/scouting/entries/pit/check?teamNumber=${formData.team}&eventCode=${selectedEvent.eventCode}`,
@@ -361,7 +361,12 @@ export function DynamicPitScoutForm() {
             : {}),
         };
 
-        const result = await pitApi.create(entryToSave);
+        const result = session?.guestEvent ? await (async () => {
+          const response = await fetch("/api/scouting/entries/pit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entryToSave) });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Unable to save scouting data");
+          return { id: data.id, isQueued: false };
+        })() : await pitApi.create(entryToSave);
 
         if (result.isQueued) {
           toast("Data queued for sync", {
@@ -404,7 +409,7 @@ export function DynamicPitScoutForm() {
             });
             window.dispatchEvent(ev);
           }
-        } catch (err) {
+        } catch {
           // ignore
         }
       }

@@ -234,7 +234,7 @@ export const MatchScoutingTable = React.memo(function MatchScoutingTable({
 
   const table = useReactTable({
     data,
-    columns: isGuest ? columns.filter((column) => column.id !== "actions" && column.id !== "select" && (!("accessorKey" in column) || column.accessorKey !== "notes")) : columns,
+    columns: isGuest ? columns.filter((column) => column.id !== "actions" && column.id !== "select" && (!("accessorKey" in column) || column.accessorKey !== "notes" || !!session?.guestEvent?.canViewNotes)) : columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),

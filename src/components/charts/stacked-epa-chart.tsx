@@ -20,6 +20,11 @@ import {
 } from "@/components/ui/card";
 
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useSelectedEvent } from "@/hooks/use-event-config";
+import { useGameConfig } from "@/hooks/use-game-config";
+import { useAsyncData } from "@/hooks/use-async-data";
 type TeamEPAChartDatum = {
   team: string;
   auto: number;
@@ -35,11 +40,6 @@ type TeamEPAChartDatum = {
     max: number;
   };
 };
-import { useIsMobile } from "@/hooks/use-mobile";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useSelectedEvent } from "@/hooks/use-event-config";
-import { useGameConfig } from "@/hooks/use-game-config";
-import { useAsyncData } from "@/hooks/use-async-data";
 
 // Define types for better type safety
 interface TooltipPayload {
@@ -201,88 +201,6 @@ const buildBoxPlotData = (
     } satisfies BoxPlotDatum;
   });
 
-function MedianTick(props: {
-  cx?: number;
-  cy?: number;
-  payload?: BoxPlotDatum;
-}) {
-  const { cx, cy, payload } = props;
-  if (!payload || cx === undefined || cy === undefined) return null;
-
-  const width = 28;
-  return (
-    <line
-      x1={cx - width / 2}
-      x2={cx + width / 2}
-      y1={cy}
-      y2={cy}
-      stroke={payload.color}
-      strokeWidth={2}
-    />
-  );
-}
-
-function WhiskerLines({
-  xAxisMap,
-  yAxisMap,
-  data,
-}: {
-  xAxisMap?: Record<
-    string,
-    { scale: (value: string) => number; bandSize?: number }
-  >;
-  yAxisMap?: Record<string, { scale: (value: number) => number }>;
-  data?: BoxPlotDatum[];
-}) {
-  const xAxis = xAxisMap ? Object.values(xAxisMap)[0] : undefined;
-  const yAxis = yAxisMap ? Object.values(yAxisMap)[0] : undefined;
-
-  if (!xAxis || !yAxis || !data) return null;
-
-  const bandSize = xAxis.bandSize ?? 0;
-  const capWidth = 10;
-
-  return (
-    <g>
-      {data.map((entry) => {
-        const x = xAxis.scale(entry.categoryKey) + bandSize / 2;
-        const yMin = yAxis.scale(entry.min);
-        const yMax = yAxis.scale(entry.max);
-
-        if (
-          !Number.isFinite(x) ||
-          !Number.isFinite(yMin) ||
-          !Number.isFinite(yMax)
-        ) {
-          return null;
-        }
-
-        return (
-          <g
-            key={`${entry.categoryKey}-whisker`}
-            stroke={entry.color}
-            strokeWidth={2}
-          >
-            <line x1={x} x2={x} y1={yMax} y2={yMin} />
-            <line
-              x1={x - capWidth / 2}
-              x2={x + capWidth / 2}
-              y1={yMax}
-              y2={yMax}
-            />
-            <line
-              x1={x - capWidth / 2}
-              x2={x + capWidth / 2}
-              y1={yMin}
-              y2={yMin}
-            />
-          </g>
-        );
-      })}
-    </g>
-  );
-}
-
 // Custom interactive legend component
 function CustomLegend({
   visibleCategories,
@@ -333,7 +251,7 @@ function CustomLegend({
 const NO_TEAM_COLORS: TeamColorsMap = {};
 
 export function StackedEPAChart({ data }: { data?: TeamEPAChartDatum[] }) {
-  const displayData = data || [];
+  const displayData = useMemo(() => data ?? [], [data]);
   const isMobile = useIsMobile();
   const selectedEvent = useSelectedEvent();
   const { competitionType } = useGameConfig();
@@ -597,7 +515,6 @@ export function StackedEPAChart({ data }: { data?: TeamEPAChartDatum[] }) {
                       !Number.isFinite(props.height)
                     )
                       return <g />;
-                    const cx = props.x + props.width / 2;
                     const medianY =
                       entry.iqr === 0
                         ? props.y + props.height / 2

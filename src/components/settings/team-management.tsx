@@ -228,8 +228,6 @@ export function TeamManagement() {
         return "default";
       case ROLES.VIEWER:
         return "outline";
-      case ROLES.EXTERNAL:
-        return "outline";
       default:
         return "secondary";
     }
@@ -247,8 +245,6 @@ export function TeamManagement() {
         return "Tablet";
       case ROLES.VIEWER:
         return "Viewer";
-      case ROLES.EXTERNAL:
-        return "External";
       default:
         return role;
     }
@@ -354,7 +350,6 @@ export function TeamManagement() {
                           <SelectItem value="tablet">Tablet</SelectItem>
                           <SelectItem value="scout">Scout</SelectItem>
                           <SelectItem value="viewer">Viewer</SelectItem>
-                          <SelectItem value="external">External</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -524,7 +519,6 @@ export function TeamManagement() {
                   <SelectItem value="lead_scout">Lead Scout</SelectItem>
                   <SelectItem value="tablet">Tablet</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
-                  <SelectItem value="external">External</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>

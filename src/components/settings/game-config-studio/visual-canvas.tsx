@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -29,21 +28,25 @@ import {
   CheckCircle,
   GripVertical,
   Trash2,
-  Copy,
-  Pencil,
-  Sparkles,
+  Copy, Sparkles,
   MousePointer,
   Play,
   RotateCcw,
   ArrowLeft,
   ArrowRight,
-  Lock,
+  Lock
 } from "lucide-react";
 import type {
   YearConfig,
   ScoringDefinition,
   PitScoutingFieldDefinition,
 } from "@/lib/types";
+import {
+  getFieldType,
+  encodeStartPosition,
+} from "@/components/forms/match-form-utils";
+import type { SelectedComponentInfo } from "./property-inspector";
+import type { PaletteComponentType } from "./component-palette";
 
 /** A value entered while previewing a field in test mode. */
 type TestValue = string | number | boolean | string[];
@@ -52,12 +55,6 @@ type TestValue = string | number | boolean | string[];
 function toTestNumber(value: TestValue | undefined): number {
   return typeof value === "number" ? value : Number(value) || 0;
 }
-import {
-  getFieldType,
-  encodeStartPosition,
-} from "@/components/forms/match-form-utils";
-import type { SelectedComponentInfo } from "./property-inspector";
-import type { PaletteComponentType } from "./component-palette";
 
 interface VisualCanvasProps {
   config: YearConfig;
@@ -512,7 +509,6 @@ export function VisualCanvas({
                       testValue={testData[key]}
                       onTestChange={(val) => updateTestValue(key, val)}
                       onSelect={() => onSelectComponent({ mode: "pit", section: activeSection, fieldKey: key })}
-                      onDuplicate={() => onDuplicateComponent({ mode: "pit", section: activeSection, fieldKey: key })}
                       onDelete={() => onDeleteComponent({ mode: "pit", section: activeSection, fieldKey: key })}
                       onMove={(dir) => handleMoveItem(key, dir)}
                       onDragStart={(e) => handleItemDragStart(e, key)}
@@ -883,7 +879,6 @@ function PitCanvasItem({
   testValue,
   onTestChange,
   onSelect,
-  onDuplicate,
   onDelete,
   onMove,
   onDragStart,
@@ -900,7 +895,6 @@ function PitCanvasItem({
   testValue: TestValue | undefined;
   onTestChange: (val: TestValue) => void;
   onSelect: () => void;
-  onDuplicate: () => void;
   onDelete: () => void;
   onMove: (dir: "prev" | "next") => void;
   onDragStart: (e: React.DragEvent) => void;

@@ -1,14 +1,10 @@
-import { guestDatabase } from "@/lib/server/guest-database";
-import { NextRequest, NextResponse } from "next/server";
-import { databaseManager } from "@/db/database-manager";
-import { CustomEvent, DatabaseService, CompetitionType } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { getDbService } from "@/lib/server/db-service";
+import { guestDatabase } from "@/lib/server/guest-database";
+import { CompetitionType, CustomEvent } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
 
-// Resolve the active provider on each request so configuration changes take effect.
-function getDbService(): DatabaseService {
-  return databaseManager.getService();
-}
 
 // GET /api/events/custom-events - Get all custom events or filter by year
 export async function GET(request: NextRequest) {

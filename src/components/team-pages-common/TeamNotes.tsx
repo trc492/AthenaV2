@@ -20,7 +20,7 @@ export function TeamNotes({
   const filtered = notes.filter((n) =>
     n.toLowerCase().includes(searchNote.toLowerCase()),
   );
-  if (session?.guestEvent) return null;
+  if (session?.guestEvent && !session.guestEvent.canViewNotes) return null;
 
   return (
     <Card>

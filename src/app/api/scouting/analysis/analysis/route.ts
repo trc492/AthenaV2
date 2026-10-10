@@ -1,22 +1,13 @@
-import { guestDatabase } from "@/lib/server/guest-database";
-import { NextRequest, NextResponse } from "next/server";
-import { databaseManager } from "@/db/database-manager";
-import { DatabaseService, CompetitionType, MatchEntry } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { calculatePeriodPoints } from "@/lib/game-config/scoring";
+import { getDbService } from "@/lib/server/db-service";
+import { guestDatabase } from "@/lib/server/guest-database";
 import { calculateEPA } from "@/lib/statistics";
-import {
-  AnalysisMetricDefinition,
-  EPABreakdown,
-  ScoringDefinition,
-  YearConfig,
-} from "@/lib/types";
+import { AnalysisMetricDefinition, CompetitionType, EPABreakdown, MatchEntry, YearConfig } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
 import gameConfig from "../../../../../../config/game-config-loader";
 
-// Resolve the active provider on each request so configuration changes take effect.
-function getDbService(): DatabaseService {
-  return databaseManager.getService();
-}
 
 type MetricValueType = AnalysisMetricDefinition["valueType"];
 
@@ -60,19 +51,6 @@ function toLabelPart(segment: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
-}
-
-function inferMetricCategory(key: string): string {
-  const normalized = key.toLowerCase();
-
-  if (/(breakdown|disabled|dead|immobilized|died|stuck)/.test(normalized))
-    return "Reliability";
-  if (/(foul|penalt)/.test(normalized)) return "Penalties";
-  if (/(auto|autonomous)/.test(normalized)) return "Autonomous";
-  if (/(teleop|tele|teleoperated)/.test(normalized)) return "Teleop";
-  if (/(endgame|climb|hang|park)/.test(normalized)) return "Endgame";
-
-  return "General";
 }
 
 function toMetricLabel(key: string, valueType: MetricValueType): string {
@@ -127,50 +105,6 @@ function buildMetricDefinition(
     category: formatCategory(period),
     valueType,
   };
-}
-
-function calculatePeriodPoints(
-  periodData: Record<string, number | string | boolean>,
-  periodConfig: Record<string, ScoringDefinition>,
-): number {
-  let points = 0;
-
-  for (const [key, value] of Object.entries(periodData)) {
-    const configKey = Object.keys(periodConfig).find(
-      (config) => config.toLowerCase() === key.toLowerCase(),
-    );
-    if (!configKey) continue;
-    const scoringDef = periodConfig[configKey];
-
-    if (typeof value === "number") {
-      const multiplier = scoringDef.points || 0;
-      if (!isNaN(multiplier) && !isNaN(value)) {
-        points += value * multiplier;
-      }
-    } else if (typeof value === "boolean" && value) {
-      const pts = scoringDef.points || 0;
-      if (!isNaN(pts)) {
-        points += pts;
-      }
-    } else if (typeof value === "string" && value !== "" && value !== "none") {
-      if (
-        scoringDef.pointValues &&
-        scoringDef.pointValues[value] !== undefined
-      ) {
-        const pts = scoringDef.pointValues[value];
-        if (!isNaN(pts)) {
-          points += pts;
-        }
-      } else if (scoringDef.points) {
-        const pts = scoringDef.points;
-        if (!isNaN(pts)) {
-          points += pts;
-        }
-      }
-    }
-  }
-
-  return points;
 }
 
 function calculateMatchEPA(match: MatchEntry, yearConfig?: YearConfig) {

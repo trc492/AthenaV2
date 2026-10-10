@@ -165,7 +165,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   size="lg"
-                  tooltip={`${guest.name} · ${guest.competitionType} ${guest.year} · Read-only guest`}
+                  tooltip={`${guest.name} · ${guest.competitionType} ${guest.year} · Guest`}
                   className="h-auto min-h-12 cursor-default group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:justify-center"
                   asChild
                 >
@@ -173,7 +173,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <CalendarDays className="shrink-0" aria-hidden="true" />
                     <div className="min-w-0 space-y-1 group-data-[collapsible=icon]:hidden">
                       <p className="whitespace-normal break-words text-sm font-semibold">{guest.name}</p>
-                      <p className="whitespace-normal text-xs text-muted-foreground">{guest.competitionType} {guest.year} · Read-only guest</p>
+                      <p className="whitespace-normal text-xs text-muted-foreground">{guest.competitionType} {guest.year} · Guest</p>
                     </div>
                   </div>
                 </SidebarMenuButton>

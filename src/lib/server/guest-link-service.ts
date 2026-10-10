@@ -12,7 +12,7 @@ async function database(service?: DatabaseService) {
 export async function issueGuestLink(
   event: Pick<
     GuestEventGrant,
-    "name" | "eventCode" | "year" | "competitionType"
+    "name" | "eventCode" | "year" | "competitionType" | "canAddScouting" | "canViewNotes"
   >,
   createdBy: string,
   service?: DatabaseService,
@@ -42,7 +42,7 @@ export async function resolveGuestEventLink(
     const db = await database(service);
     const record = await db.getGuestLink(grant.nonce);
     return record && record.token === token && record.revokedAt === null
-      ? grant
+      ? { ...grant, canAddScouting: record.canAddScouting ?? false, canViewNotes: record.canViewNotes ?? false }
       : null;
   } catch {
     // No registry read means no authorization, including already signed-in guests.

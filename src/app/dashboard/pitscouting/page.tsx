@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Card,
@@ -37,6 +38,7 @@ import { useScoutingEntries } from "@/hooks/use-scouting-entries";
 import { useEventConfig } from "@/hooks/use-event-config";
 
 export default function PitScoutingPage() {
+  const router = useRouter();
   const { data: session } = useSession();
   const isGuest = !!session?.guestEvent;
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -104,7 +106,7 @@ export default function PitScoutingPage() {
 
   // Handle edit - navigate to scout form with edit ID
   const handleEdit = (entry: PitEntry) => {
-    window.location.href = `/scout/pitscout?editId=${entry.id}`;
+    router.push(`/scout/pitscout?editId=${entry.id}`);
   };
 
   // Handle delete
@@ -210,7 +212,7 @@ export default function PitScoutingPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>}
-          {!isGuest && <Button onClick={() => window.open("/scout/pitscout", "_blank")}>
+          {(!isGuest || session?.guestEvent?.canAddScouting) && <Button onClick={() => window.open("/scout/pitscout", "_blank")}>
             <Plus className="mr-2 h-4 w-4" />
             Add New Entry
           </Button>}

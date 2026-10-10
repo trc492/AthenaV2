@@ -21,8 +21,18 @@
  */
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
-import { hasPermission, hasAnyPermission } from "@/lib/auth/roles";
+import { hasPermission } from "@/lib/auth/roles";
 import type { Session } from "next-auth";
+
+export function sessionHasPermission(session: Session, permission: string) {
+  if (session.user?.role === "guest") {
+    const grant = session.guestEvent;
+    if (!grant || grant.expiresAt <= Date.now()) return false;
+    if (["create_match_scouting", "create_pit_scouting"].includes(permission)) return !!grant.canAddScouting;
+    if (permission === "view_comments") return !!grant.canViewNotes;
+  }
+  return hasPermission(session.user?.role ?? null, permission);
+}
 
 /** Checks a single permission. Returns a response on denial, null on success. */
 export async function requirePermission(
@@ -32,7 +42,7 @@ export async function requirePermission(
   if (!session?.user?.role) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!hasPermission(session.user.role, permission)) {
+  if (!sessionHasPermission(session, permission)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return null;
@@ -46,7 +56,7 @@ export async function requireAnyPermission(
   if (!session?.user?.role) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!hasAnyPermission(session.user.role, permissions)) {
+  if (!permissions.some((permission) => sessionHasPermission(session, permission))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return null;
@@ -66,7 +76,7 @@ export async function requirePermissionWithSession(
       session: null,
     };
   }
-  if (!hasPermission(session.user.role, permission)) {
+  if (!sessionHasPermission(session, permission)) {
     return {
       denied: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
       session: null,

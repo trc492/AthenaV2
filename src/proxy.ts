@@ -47,7 +47,7 @@ export default async function middleware(req: NextRequest) {
             )
           : NextResponse.redirect(new URL("/login", publicRequest.url)),
       );
-    if (req.method !== "GET" && req.method !== "HEAD")
+    if (req.method !== "GET" && req.method !== "HEAD" && !(req.method === "POST" && grant.canAddScouting && ["/api/scouting/entries/match", "/api/scouting/entries/pit"].includes(path)))
       return noStore(
         NextResponse.json(
           { error: "Guest access is read-only" },
@@ -66,7 +66,7 @@ export default async function middleware(req: NextRequest) {
       return noStore(NextResponse.rewrite(scoped));
     }
     if (
-      isGuestPage(path) ||
+      isGuestPage(path, grant) ||
       path === "/login" ||
       path.startsWith("/serwist/") ||
       path.startsWith("/_next/") ||

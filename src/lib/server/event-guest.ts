@@ -6,6 +6,8 @@ export const guestEventSchema = z.object({
   name: z.string().trim().min(1).max(200),
   year: z.number().int().min(1992).max(2100),
   competitionType: z.enum(["FRC", "FTC"]),
+  canAddScouting: z.boolean().optional(),
+  canViewNotes: z.boolean().optional(),
 });
 const grantSchema = guestEventSchema.extend({
   expiresAt: z.number().int().positive(),

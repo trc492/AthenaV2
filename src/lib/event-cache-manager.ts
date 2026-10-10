@@ -2,8 +2,8 @@
 // Orchestrates downloading and caching all event data for full offline use
 
 import { indexedDBService } from "@/lib/indexeddb-service";
-import type { EventCacheStatus } from "@/lib/offline-types";
-import type { PitEntry, MatchEntry, AnalysisData } from "@/lib/types";
+import type { EventCacheStatus, EventScope } from "@/lib/offline-types";
+import type { AnalysisData, MatchEntry, PitEntry } from "@/lib/types";
 
 export type CacheStepId =
   | "session"
@@ -73,11 +73,8 @@ export function buildSteps(stepIds: CacheStepId[]): CacheStep[] {
   }));
 }
 
-interface CacheOptions {
-  eventCode: string;
+interface CacheOptions extends EventScope {
   eventName: string;
-  competitionType: string;
-  year: number;
   userRole?: string;
   onStepUpdate: (stepId: CacheStepId, update: Partial<CacheStep>) => void;
 }
@@ -228,7 +225,7 @@ async function cacheScoutSchedule(opts: CacheOptions): Promise<void> {
     detail: "Downloading scouting schedule...",
   });
   try {
-    const url = `/api/scouting/entries/match-assignments?eventCode=${opts.eventCode}&year=${opts.year}`;
+    const url = `/api/scouting/entries/match-assignments?eventCode=${encodeURIComponent(opts.eventCode)}&year=${opts.year}&competitionType=${opts.competitionType}`;
     const res = await fetchAndCache(url);
     await res.text();
     opts.onStepUpdate("scoutSchedule", {
@@ -278,7 +275,7 @@ async function cachePitEntries(opts: CacheOptions): Promise<number> {
     const entries: PitEntry[] = await res.json();
     const count = Array.isArray(entries) ? entries.length : 0;
 
-    await indexedDBService.cachePitEntries(opts.eventCode, entries);
+    await indexedDBService.cachePitEntries(opts, entries);
 
     opts.onStepUpdate("pitEntries", {
       status: "success",
@@ -304,7 +301,7 @@ async function cacheMatchEntries(opts: CacheOptions): Promise<number> {
     const entries: MatchEntry[] = await res.json();
     const count = Array.isArray(entries) ? entries.length : 0;
 
-    await indexedDBService.cacheMatchEntries(opts.eventCode, entries);
+    await indexedDBService.cacheMatchEntries(opts, entries);
 
     opts.onStepUpdate("matchEntries", {
       status: "success",
@@ -329,7 +326,7 @@ async function cacheAnalysisData(opts: CacheOptions): Promise<void> {
     const res = await fetchAndCache(url);
     const data: AnalysisData = await res.json();
 
-    await indexedDBService.cacheAnalysisData(opts.eventCode, data);
+    await indexedDBService.cacheAnalysisData(opts, data);
 
     opts.onStepUpdate("analysisData", {
       status: "success",

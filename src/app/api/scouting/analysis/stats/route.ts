@@ -1,16 +1,12 @@
-import { guestDatabase } from "@/lib/server/guest-database";
-import { NextRequest, NextResponse } from "next/server";
-import { DatabaseManager } from "@/db/database-manager";
-import { CompetitionType } from "@/lib/types";
-import { calculateEPA } from "@/lib/statistics";
-import gameConfig from "../../../../../../config/game-config-loader";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { getDbService } from "@/lib/server/db-service";
+import { guestDatabase } from "@/lib/server/guest-database";
+import { calculateEPA } from "@/lib/statistics";
+import { CompetitionType } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
+import gameConfig from "../../../../../../config/game-config-loader";
 
-// Get database service from manager
-function getDbService() {
-  return DatabaseManager.getInstance().getService();
-}
 
 // GET /api/scouting/analysis/stats - Get dashboard statistics
 export async function GET(request: NextRequest) {

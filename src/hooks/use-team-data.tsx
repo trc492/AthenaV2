@@ -1,18 +1,15 @@
 "use client";
 
-import { useSelectedEvent } from "./use-event-config";
-import { useGameConfig } from "./use-game-config";
-import { useAsyncData } from "./use-async-data";
+import type { EventScope } from "@/lib/offline-types";
+
 import { teamApi } from "@/lib/api/database-client";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { loadWithOfflineCache } from "@/lib/offline-data";
 import type { TeamData } from "@/lib/types";
 import { useSession } from "next-auth/react";
-
-interface TeamDataResult {
-  teamData: TeamData | null;
-  error: string | null;
-  isOfflineData: boolean;
-}
+import { useAsyncData } from "./use-async-data";
+import { useSelectedEvent } from "./use-event-config";
+import { useGameConfig } from "./use-game-config";
 
 export function useTeamData(teamNumber: string) {
   const { data: session } = useSession();
@@ -20,73 +17,24 @@ export function useTeamData(teamNumber: string) {
   const selectedEvent = useSelectedEvent();
   const { currentYear, competitionType } = useGameConfig();
   const eventCode = selectedEvent?.eventCode;
-
-  const { data, loading } = useAsyncData<TeamDataResult>(
+  const { data, loading, error } = useAsyncData(
     teamNumber && currentYear
-      ? `${teamNumber}|${currentYear}|${eventCode ?? ""}|${competitionType}|${session?.user?.id ?? ""}`
+      ? JSON.stringify([teamNumber, currentYear, eventCode, competitionType, session?.user?.id, isGuest])
       : null,
-    async () => {
-      const isOnline =
-        typeof navigator !== "undefined" ? navigator.onLine : true;
-      if (isGuest && !isOnline) return { teamData: null, error: "Guest access requires an internet connection", isOfflineData: false };
-
-      // If offline, reconstruct from cached pit/match entries
-      if (!isOnline && eventCode) {
-        const offlineData = await buildTeamDataFromCache(teamNumber, eventCode);
-        if (offlineData) {
-          return { teamData: offlineData, error: null, isOfflineData: true };
-        }
-        return {
-          teamData: null,
-          error: "Offline — no cached data available for this team",
-          isOfflineData: false,
-        };
-      }
-
-      try {
-        // Fetch team data from API
-        const teamData = await teamApi.getTeamData(
-          parseInt(teamNumber),
-          currentYear,
-          eventCode,
-          competitionType,
-        );
-        return { teamData, error: null, isOfflineData: false };
-      } catch (err) {
-        console.error("Error fetching team data:", err);
-
-        // Fallback to IndexedDB cache on network error
-        if (eventCode && !isGuest) {
-          try {
-            const offlineData = await buildTeamDataFromCache(
-              teamNumber,
-              eventCode,
-            );
-            if (offlineData) {
-              return {
-                teamData: offlineData,
-                error: null,
-                isOfflineData: true,
-              };
-            }
-          } catch (cacheErr) {
-            console.warn("Failed to read cached team data:", cacheErr);
-          }
-        }
-
-        return {
-          teamData: null,
-          error: "Failed to load team data",
-          isOfflineData: false,
-        };
-      }
-    },
+    () => loadWithOfflineCache({
+      isGuest,
+      load: () => teamApi.getTeamData(Number(teamNumber), currentYear, eventCode, competitionType),
+      readCache: () => eventCode
+        ? buildTeamDataFromCache(teamNumber, { eventCode, competitionType, year: currentYear })
+        : Promise.resolve(null),
+      offlineMessage: "Offline - no cached data available for this team",
+      errorMessage: "Failed to load team data",
+    }),
   );
-
   return {
-    teamData: data?.teamData ?? null,
+    teamData: data?.data ?? null,
     loading,
-    error: data?.error ?? null,
+    error: data?.error ?? (error ? "Failed to load team data" : null),
     isOfflineData: data?.isOfflineData ?? false,
   };
 }
@@ -94,13 +42,13 @@ export function useTeamData(teamNumber: string) {
 /** Reconstruct a partial TeamData from cached pit/match entries */
 async function buildTeamDataFromCache(
   teamNumber: string,
-  eventCode: string,
+  scope: EventScope,
 ): Promise<TeamData | null> {
   const teamNum = parseInt(teamNumber);
 
   const [cachedMatch, cachedPit] = await Promise.all([
-    indexedDBService.getCachedMatchEntries(eventCode),
-    indexedDBService.getCachedPitEntries(eventCode),
+    indexedDBService.getCachedMatchEntries(scope),
+    indexedDBService.getCachedPitEntries(scope),
   ]);
 
   const matchEntries =
@@ -113,7 +61,7 @@ async function buildTeamDataFromCache(
 
   return {
     teamNumber: teamNum,
-    eventCode,
+    eventCode: scope.eventCode,
     matchEntries,
     pitEntry,
     // Server-computed fields are unavailable offline

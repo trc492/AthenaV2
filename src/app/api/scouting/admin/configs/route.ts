@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
-import { validateYearConfig } from "@/lib/server/config-validator";
+import { validateYearConfig } from "@/lib/game-config/config-validator";
 import type { YearConfig } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

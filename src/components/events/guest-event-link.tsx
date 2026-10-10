@@ -1,5 +1,6 @@
 "use client";
 
+import { GuestAccessControls } from "./guest-access-controls";
 import { useState } from "react";
 import { useGameConfig } from "@/hooks/use-game-config";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -11,6 +12,8 @@ import Link from "next/link";
 
 export function GuestEventLink({ event, onCreated }: { event: Event; onCreated?: () => void | Promise<void> }) {
   const { currentYear, competitionType } = useGameConfig();
+  const [canAddScouting, setCanAddScouting] = useState(false);
+  const [canViewNotes, setCanViewNotes] = useState(false);
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -21,7 +24,7 @@ export function GuestEventLink({ event, onCreated }: { event: Event; onCreated?:
     try {
       const response = await fetch("/api/events/guest-links", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...event, year: currentYear, competitionType }),
+        body: JSON.stringify({ ...event, year: currentYear, competitionType, canAddScouting, canViewNotes }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create link");
@@ -36,11 +39,12 @@ export function GuestEventLink({ event, onCreated }: { event: Event; onCreated?:
     catch { setMessage("Select and copy the link below."); }
   }
   return <PermissionGuard permission={PERMISSIONS.MANAGE_EVENT_SETTINGS}>
-    <div className="space-y-2 border-t pt-3">
-      <Button variant="outline" size="sm" disabled={busy} onClick={createLink}>{busy ? "Creating…" : "Create guest viewer link"}</Button>
+    <div className="space-y-4 border-t pt-3">
+      <GuestAccessControls value={{ canAddScouting, canViewNotes }} disabled={busy} onChange={(access) => { setCanAddScouting(access.canAddScouting); setCanViewNotes(access.canViewNotes); }} />
+      <Button variant="outline" size="sm" disabled={busy} onClick={createLink}>{busy ? "Creating…" : "Create guest link"}</Button>
       {!onCreated && <Button asChild variant="ghost" size="sm"><Link href="/dashboard/guest-links">Manage guest links</Link></Button>}
-      <p className="text-xs text-muted-foreground">Anyone with the link can browse this event’s website in read-only mode for 7 days. Picklists, comments, scout identities, and administration are hidden.</p>
-      {link && <div className="flex gap-2"><Input aria-label="Guest viewer link" readOnly value={link} onFocus={(event) => event.target.select()} /><Button variant="outline" onClick={copyLink}>Copy</Button></div>}
+      <p className="text-xs text-muted-foreground">Anyone with the link can access this event for 7 days with the selected permissions. Scout identities, picklists, and administration stay hidden.</p>
+      {link && <div className="flex gap-2"><Input aria-label="Guest link" readOnly value={link} onFocus={(event) => event.target.select()} /><Button variant="outline" onClick={copyLink}>Copy</Button></div>}
       {message && <p role="status" className="text-sm">{message}</p>}
     </div>
   </PermissionGuard>;

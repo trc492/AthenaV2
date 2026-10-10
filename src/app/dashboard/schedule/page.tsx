@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { GuestMatchSchedule } from "@/components/events/guest-match-schedule";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -43,148 +43,8 @@ import {
 } from "@/components/ui/collapsible";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { toast } from "sonner";
-
-type UserWithPartners = {
-  id: string;
-  name: string;
-  username: string;
-  role: string;
-  preferredPartners: string[];
-};
-
-type DisplayBlock = {
-  id: number;
-  name: string;
-  blockNumber: number;
-  matches: number[];
-};
-
-type MatchAssignment = {
-  matchNumber: number;
-  redScouts: (string | null)[];
-  blueScouts: (string | null)[];
-};
-
-const MatchAssignmentRow = React.memo(
-  ({
-    match,
-    scoutsPerAlliance,
-    getAvailableUsersForMatchSlot,
-    setLocalMatchScout,
-  }: {
-    match: MatchAssignment;
-    scoutsPerAlliance: number;
-    getAvailableUsersForMatchSlot: (
-      match: MatchAssignment,
-      alliance: "red" | "blue",
-      position: number,
-    ) => UserWithPartners[];
-    setLocalMatchScout: (
-      matchNumber: number,
-      alliance: "red" | "blue",
-      position: number,
-      scoutId: string | null,
-    ) => void;
-  }) => {
-    return (
-      <div className="rounded-md border px-3 py-2">
-        <div className="flex flex-col flex-wrap gap-3">
-          <div className="text-sm font-semibold">
-            Match {match.matchNumber}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {[...match.redScouts, ...match.blueScouts].filter(Boolean).length} / {scoutsPerAlliance * 2} positions filled
-          </div>
-          <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
-            {(["red", "blue"] as const).map((alliance) => (
-              <div
-                key={`${match.matchNumber}-${alliance}`}
-                className="min-w-0 rounded-md bg-muted/40 p-3 space-y-2"
-              >
-                <span
-                  className={`text-xs font-medium w-8 ${alliance === "red" ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}
-                >
-                  {alliance === "red" ? "Red" : "Blue"}
-                </span>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {Array.from({ length: scoutsPerAlliance }, (_, position) => {
-                    const slotValue =
-                      alliance === "red"
-                        ? match.redScouts[position]
-                        : match.blueScouts[position];
-                    const availableUsers = getAvailableUsersForMatchSlot(
-                      match,
-                      alliance,
-                      position,
-                    );
-                    return (
-                      <Select
-                        key={`${match.matchNumber}-${alliance}-${position}`}
-                        value={slotValue ?? "none"}
-                        onValueChange={(value) =>
-                          setLocalMatchScout(
-                            match.matchNumber,
-                            alliance,
-                            position,
-                            value === "none" ? null : value,
-                          )
-                        }
-                      >
-                        <SelectTrigger
-                          aria-label={`Match ${match.matchNumber}, ${alliance} position ${position + 1}`}
-                          className="w-full min-w-0 text-xs"
-                        >
-                          <span className="shrink-0 text-muted-foreground">{position + 1}</span>
-                          <SelectValue placeholder="Open" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Open</SelectItem>
-                          {availableUsers.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  },
-);
-MatchAssignmentRow.displayName = "MatchAssignmentRow";
-
-const ActiveScoutCheckbox = React.memo(
-  ({
-    scout,
-    isActive,
-    onToggle,
-  }: {
-    scout: UserWithPartners;
-    isActive: boolean;
-    onToggle: (scoutId: string, checked: boolean) => void;
-  }) => (
-    <div className="flex items-center space-x-2">
-      <Checkbox
-        id={`active-${scout.id}`}
-        checked={isActive}
-        onCheckedChange={(checked) => onToggle(scout.id, checked === true)}
-      />
-      <label
-        htmlFor={`active-${scout.id}`}
-        className="text-sm font-medium cursor-pointer"
-      >
-        {scout.name}
-      </label>
-    </div>
-  ),
-);
-ActiveScoutCheckbox.displayName = "ActiveScoutCheckbox";
+import { MatchAssignmentRow, ActiveScoutCheckbox } from "@/components/schedule/schedule-rows";
+import { autoAssignMatches, computeUserWorkload, hasPreferredPartnerInMatch as hasPartnerInMatch, type UserWithPartners, type DisplayBlock, type MatchAssignment } from "@/lib/schedule/assignments";
 
 export default function SchedulePage() {
   const { data: session, status } = useSession();
@@ -378,40 +238,12 @@ function ScoutSchedulePage() {
       && (!onlyOpenSlots || scouts.some((scout) => !scout));
   }), [localMatches, matchQuery, scoutFilter, onlyOpenSlots]);
 
-  const computeUserWorkload = useCallback(
-    (targetMatches: MatchAssignment[]) => {
-      const workload = new Map<string, number>();
-      sortedUsers.forEach((user) => workload.set(user.id, 0));
-      targetMatches.forEach((match) => {
-        match.redScouts.forEach((scoutId) => {
-          if (scoutId) workload.set(scoutId, (workload.get(scoutId) ?? 0) + 1);
-        });
-        match.blueScouts.forEach((scoutId) => {
-          if (scoutId) workload.set(scoutId, (workload.get(scoutId) ?? 0) + 1);
-        });
-      });
-      return workload;
-    },
-    [sortedUsers],
-  );
-
   const workloadMap = useMemo(
-    () => computeUserWorkload(localMatches),
-    [localMatches, computeUserWorkload],
+    () => computeUserWorkload(localMatches, sortedUsers),
+    [localMatches, sortedUsers],
   );
-
   const hasPreferredPartnerInMatch = useCallback(
-    (userId: string, match: MatchAssignment) => {
-      const user = usersById.get(userId);
-      if (!user || user.preferredPartners.length === 0) return false;
-      const assignedScouts = new Set<string>([
-        ...match.redScouts.filter((s): s is string => s !== null),
-        ...match.blueScouts.filter((s): s is string => s !== null),
-      ]);
-      return user.preferredPartners.some((partnerId) =>
-        assignedScouts.has(partnerId),
-      );
-    },
+    (userId: string, match: MatchAssignment) => hasPartnerInMatch(userId, match, usersById),
     [usersById],
   );
 
@@ -566,73 +398,7 @@ function ScoutSchedulePage() {
 
     setIsAutoAssigning(true);
     try {
-      const draft = localMatches.map((match) => ({
-        ...match,
-        redScouts: [...match.redScouts],
-        blueScouts: [...match.blueScouts],
-      }));
-      const workload = computeUserWorkload(draft);
-
-      for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-        const blockMatchIndexes = blocks[blockIndex].matches
-          .map((matchNumber) => matchNumber - 1)
-          .filter((index) => index >= 0 && index < draft.length);
-        if (blockMatchIndexes.length === 0) continue;
-
-        const previousBlockScouts = new Set<string>();
-        if (blockIndex > 0) {
-          blocks[blockIndex - 1].matches
-            .map((matchNumber) => matchNumber - 1)
-            .filter((index) => index >= 0 && index < draft.length)
-            .forEach((index) => {
-              [...draft[index].redScouts, ...draft[index].blueScouts].forEach(
-                (scoutId) => scoutId && previousBlockScouts.add(scoutId),
-              );
-            });
-        }
-
-        const assignGroupSlot = (alliance: "red" | "blue", position: number) => {
-          const openIndexes = blockMatchIndexes.filter((index) => {
-            const slots = alliance === "red" ? draft[index].redScouts : draft[index].blueScouts;
-            return slots[position] === null;
-          });
-          if (openIndexes.length === 0) return;
-
-          const candidates = sortedActiveUsers.filter((candidate) =>
-            openIndexes.every((index) => {
-              const assigned = [...draft[index].redScouts, ...draft[index].blueScouts];
-              return !assigned.includes(candidate.id);
-            }),
-          );
-          const representativeMatch = draft[openIndexes[0]];
-          candidates.sort((a, b) => {
-            const score = (candidate: UserWithPartners) => [
-              previousBlockScouts.has(candidate.id) ? 1 : 0,
-              workload.get(candidate.id) ?? 0,
-              hasPreferredPartnerInMatch(candidate.id, representativeMatch) ? 0 : 1,
-              sortedActiveUsers.findIndex((user) => user.id === candidate.id),
-            ];
-            const aScore = score(a);
-            const bScore = score(b);
-            for (let index = 0; index < aScore.length; index++) {
-              if (aScore[index] !== bScore[index]) return aScore[index] - bScore[index];
-            }
-            return 0;
-          });
-
-          const best = candidates[0];
-          if (!best) return;
-          openIndexes.forEach((index) => {
-            const slots = alliance === "red" ? draft[index].redScouts : draft[index].blueScouts;
-            slots[position] = best.id;
-            workload.set(best.id, (workload.get(best.id) ?? 0) + 1);
-          });
-        };
-
-        for (let pos = 0; pos < scoutsPerAlliance; pos++) assignGroupSlot("red", pos);
-        for (let pos = 0; pos < scoutsPerAlliance; pos++) assignGroupSlot("blue", pos);
-      }
-
+      const draft = autoAssignMatches(localMatches, blocks, sortedActiveUsers, scoutsPerAlliance);
       setLocalMatches(draft);
       const unfilled = draft.reduce(
         (count, match) =>
@@ -652,8 +418,6 @@ function ScoutSchedulePage() {
     }
   }, [
     sortedActiveUsers,
-    computeUserWorkload,
-    hasPreferredPartnerInMatch,
     scoutsPerAlliance,
     blocks,
     localMatches,

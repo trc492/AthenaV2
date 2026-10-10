@@ -255,6 +255,9 @@ export class MariaDbDatabaseService implements DatabaseService {
   async getGuestLink(id: string): Promise<GuestLinkRecord | undefined> {
     return sqlGuestLinks(this.query.bind(this)).getGuestLink(id);
   }
+  async updateGuestLinkAccess(id: string, access: { canAddScouting: boolean; canViewNotes: boolean }): Promise<void> {
+    await sqlGuestLinks(this.query.bind(this)).updateGuestLinkAccess(id, access);
+  }
   async revokeGuestLink(id: string, revokedAt: number): Promise<void> {
     await sqlGuestLinks(this.query.bind(this)).revokeGuestLink(id, revokedAt);
   }

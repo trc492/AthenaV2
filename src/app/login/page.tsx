@@ -57,6 +57,7 @@ export default function Page() {
           description: `Welcome back to ${APP_NAME}!`,
         });
         // Use hard redirect to ensure session cookie is properly sent
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Reload the session provider after credentials sign-in.
         window.location.href = "/dashboard";
       } else {
         console.error("Unexpected login result:", result);

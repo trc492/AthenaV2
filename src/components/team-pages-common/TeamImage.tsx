@@ -140,7 +140,7 @@ export function TeamImage({
         <div className="relative h-full w-full">
           <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground bg-background/80">
             <ImageIcon className="h-16 w-16 mb-4 opacity-50" />
-            <p className="text-sm font-medium">No robot image available</p>
+            <p className="text-sm font-medium">{error ?? "No robot image available"}</p>
             <p className="text-xs">Team {teamNumber}</p>
             {yearLabel && <p className="text-xs mt-1">{yearLabel}</p>}
           </div>

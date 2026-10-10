@@ -1,13 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { databaseManager } from "@/db/database-manager";
-import { DatabaseService, CompetitionType } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { getDbService } from "@/lib/server/db-service";
+import { CompetitionType } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
 
 
-function getDbService(): DatabaseService {
-  return databaseManager.getService();
-}
 
 // GET /api/scouting/entries/stats/auto - Get autonomous drawing for a team
 export async function GET(request: NextRequest) {

@@ -9,7 +9,8 @@ const pages = new Set([
   "/dashboard/matchup",
   "/dashboard/schedule",
 ]);
-export function isGuestPage(pathname: string) {
+export function isGuestPage(pathname: string, grant?: GuestEventGrant) {
+  if (grant?.canAddScouting && ["/scout/matchscout", "/scout/pitscout"].includes(pathname)) return true;
   return pages.has(pathname) || /^\/dashboard\/team\/\d+$/.test(pathname);
 }
 

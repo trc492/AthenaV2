@@ -1,19 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { DatabaseManager } from "@/db/database-manager";
-import { CompetitionType } from "@/lib/types";
-import { computeScouterAccuracy } from "@/lib/statistics";
-import gameConfig from "../../../../../../config/game-config-loader";
-import { auth } from "@/lib/auth/config";
-import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import {
   fetchOfficialResults,
   OfficialResultsError,
 } from "@/lib/api/spr-official-results";
+import { auth } from "@/lib/auth/config";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { getDbService } from "@/lib/server/db-service";
+import { computeScouterAccuracy } from "@/lib/statistics";
+import { CompetitionType } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
+import gameConfig from "../../../../../../config/game-config-loader";
 
-// Get database service from manager
-function getDbService() {
-  return DatabaseManager.getInstance().getService();
-}
 
 /**
  * GET /api/scouting/analysis/spr

@@ -103,3 +103,12 @@ describe("guest website policy", () => {
     }
   });
 });
+
+
+it("allows submission pages only for guests authorized to scout", () => {
+  expect(isGuestPage("/scout/matchscout", grant)).toBe(false);
+  expect(isGuestPage("/scout/matchscout", { ...grant, canAddScouting: true })).toBe(true);
+  expect(isGuestPage("/scout/pitscout", { ...grant, canAddScouting: true })).toBe(true);
+  expect(isGuestPage("/dashboard/admin/database", { ...grant, canAddScouting: true })).toBe(false);
+  expect(hasPermission("external", PERMISSIONS.VIEW_DASHBOARD)).toBe(false);
+});

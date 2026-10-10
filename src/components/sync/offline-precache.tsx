@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,40 +9,40 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useSelectedEvent } from "@/hooks/use-event-config";
 import { useGameConfig } from "@/hooks/use-game-config";
-import { indexedDBService } from "@/lib/indexeddb-service";
 import {
   buildSteps,
-  SCOUT_STEPS,
   FULL_CACHE_STEPS,
   runEventCache,
+  SCOUT_STEPS,
   type CacheStep,
   type CacheStepId,
 } from "@/lib/event-cache-manager";
+import { indexedDBService } from "@/lib/indexeddb-service";
 import type { EventCacheStatus } from "@/lib/offline-types";
 import {
-  Download,
-  HardDriveDownload,
-  CheckCircle,
   AlertCircle,
-  WifiOff,
-  Loader2,
-  Trash2,
-  Database,
-  FileText,
-  ClipboardList,
-  Users,
-  Calendar,
-  Shield,
-  Layout,
   BarChart3,
+  Calendar,
+  CheckCircle,
+  ClipboardList,
+  Database,
+  Download,
+  FileText,
+  HardDriveDownload,
+  Layout,
+  Loader2,
+  Shield,
+  Trash2,
+  Users,
+  WifiOff,
   type LucideIcon,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type CacheMode = "scout" | "full";
@@ -121,9 +121,10 @@ export function OfflinePrecache({ className }: { className?: string }) {
 
   // Clear the previous event's cache status as soon as the event changes
   const eventCode = selectedEvent?.eventCode;
-  const [statusEventCode, setStatusEventCode] = useState(eventCode);
-  if (statusEventCode !== eventCode) {
-    setStatusEventCode(eventCode);
+  const scopeKey = `${eventCode}|${currentYear}|${competitionType}`;
+  const [statusEventCode, setStatusEventCode] = useState(scopeKey);
+  if (statusEventCode !== scopeKey) {
+    setStatusEventCode(scopeKey);
     setCacheStatus(null);
   }
 
@@ -132,7 +133,7 @@ export function OfflinePrecache({ className }: { className?: string }) {
     if (!eventCode) return;
     let cancelled = false;
     indexedDBService
-      .getEventCacheStatus(eventCode)
+      .getEventCacheStatus({ eventCode, competitionType, year: currentYear })
       .catch(() => null)
       .then((status) => {
         if (!cancelled) setCacheStatus(status);
@@ -140,7 +141,7 @@ export function OfflinePrecache({ className }: { className?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [eventCode]);
+  }, [eventCode, competitionType, currentYear]);
 
   const currentStepIds = mode === "full" ? FULL_CACHE_STEPS : SCOUT_STEPS;
 
@@ -221,7 +222,7 @@ export function OfflinePrecache({ className }: { className?: string }) {
       // Refresh cache status
       if (mode === "full") {
         const status = await indexedDBService.getEventCacheStatus(
-          selectedEvent.eventCode,
+          { eventCode: selectedEvent.eventCode, competitionType, year: currentYear },
         );
         setCacheStatus(status);
       }
@@ -237,7 +238,7 @@ export function OfflinePrecache({ className }: { className?: string }) {
 
     setIsClearing(true);
     try {
-      await indexedDBService.clearEventCache(selectedEvent.eventCode);
+      await indexedDBService.clearEventCache({ eventCode: selectedEvent.eventCode, competitionType, year: currentYear });
       setCacheStatus(null);
       setSteps([]);
       setProgress(0);

@@ -1,14 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { databaseManager } from "@/db/database-manager";
-import { PitEntry, MatchEntry, DatabaseService } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { getDbService } from "@/lib/server/db-service";
 import { validateImportAgainstSchema } from "@/lib/server/import-schema-validator";
+import { MatchEntry, PitEntry, } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
 
-// Resolve the active provider on each request so configuration changes take effect.
-function getDbService(): DatabaseService {
-  return databaseManager.getService();
-}
 
 // POST /api/admin/import - Import data
 export async function POST(request: NextRequest) {

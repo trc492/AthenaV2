@@ -1,22 +1,10 @@
 "use client";
 
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Plus,
-  GripVertical,
-  CheckCircle,
-  Minus,
-  ChevronDown,
-  Type,
-  Hash,
-  ToggleLeft,
-  ListFilter,
-  CheckSquare,
-  Sparkles,
-} from "lucide-react";
+import { Plus, GripVertical, CheckCircle, ChevronDown, Type, Hash, ToggleLeft, ListFilter, CheckSquare, Sparkles } from "lucide-react";
 
 export type PaletteComponentType =
   | "multi-stepper"

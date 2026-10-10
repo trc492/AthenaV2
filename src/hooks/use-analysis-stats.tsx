@@ -1,12 +1,13 @@
 "use client";
 import { useSession } from "next-auth/react";
 
-import { useState, useEffect } from "react";
-import { useSelectedEvent } from "./use-event-config";
-import { useGameConfig } from "./use-game-config";
 import { statsApi } from "@/lib/api/database-client";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { loadWithOfflineCache } from "@/lib/offline-data";
 import { AnalysisMetricDefinition } from "@/lib/types";
+import { useAsyncData } from "./use-async-data";
+import { useSelectedEvent } from "./use-event-config";
+import { useGameConfig } from "./use-game-config";
 
 export interface AnalysisStats {
   teamsAnalyzed: number;
@@ -81,92 +82,42 @@ function transformToStats(
   };
 }
 
+const EMPTY_STATS: AnalysisStats = {
+  teamsAnalyzed: 0, highestEPA: 0, averageEPA: 0, dataPoints: 0,
+  availableMetrics: [], teamEPAData: [],
+};
+
 export function useAnalysisStats() {
   const { data: session } = useSession();
-  const isGuest = !!session?.guestEvent;
   const selectedEvent = useSelectedEvent();
-  const { currentYear, getCurrentYearConfig, competitionType } =
-    useGameConfig();
+  const { currentYear, getCurrentYearConfig, competitionType } = useGameConfig();
+  const eventCode = selectedEvent?.eventCode;
   const gameConfig = getCurrentYearConfig();
-  const [stats, setStats] = useState<AnalysisStats>({
-    teamsAnalyzed: 0,
-    highestEPA: 0,
-    averageEPA: 0,
-    dataPoints: 0,
-    availableMetrics: [],
-    teamEPAData: [],
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isOfflineData, setIsOfflineData] = useState(false);
-
-  useEffect(() => {
-    async function fetchAnalysisStats() {
-      if (!selectedEvent || !gameConfig) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        setIsOfflineData(false);
-
-        const isOnline =
-          typeof navigator !== "undefined" ? navigator.onLine : true;
-        if (isGuest && !isOnline) throw new Error("Guest access requires an internet connection");
-
-        // If offline, go straight to IndexedDB
-        if (!isOnline) {
-          const cached = await indexedDBService.getCachedAnalysisData(
-            selectedEvent.eventCode,
-          );
-          if (cached) {
-            setStats(transformToStats(cached.data));
-            setIsOfflineData(true);
-            return;
-          }
-          setError(
-            "Offline — no cached analysis data available. Use the pre-cache feature in Settings while online.",
-          );
-          return;
-        }
-
-        // Fetch analysis data from API
-        const apiStats = await statsApi.getAnalysisData(
-          currentYear,
-          selectedEvent.eventCode,
-          competitionType,
-          true,
-        );
-        setStats(transformToStats(apiStats));
-      } catch (err) {
-        console.error("Error fetching analysis stats:", err);
-
-        // Fallback to IndexedDB cache on network error
-        if (selectedEvent?.eventCode && !isGuest) {
-          try {
-            const cached = await indexedDBService.getCachedAnalysisData(
-              selectedEvent.eventCode,
-            );
-            if (cached) {
-              setStats(transformToStats(cached.data));
-              setIsOfflineData(true);
-              return;
-            }
-          } catch (cacheErr) {
-            console.warn("Failed to read cached analysis data:", cacheErr);
-          }
-        }
-
-        setError("Failed to load analysis statistics");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchAnalysisStats();
-  }, [selectedEvent, currentYear, gameConfig, competitionType, isGuest]);
-
-  return { stats, loading, error, isOfflineData };
+  const isGuest = !!session?.guestEvent;
+  const { data, loading, error } = useAsyncData(
+    eventCode && gameConfig
+      ? JSON.stringify([eventCode, currentYear, competitionType, session?.user?.id, isGuest])
+      : null,
+    () => loadWithOfflineCache({
+      isGuest,
+      load: async () => transformToStats(await statsApi.getAnalysisData(
+        currentYear, eventCode, competitionType, true,
+      )),
+      readCache: async () => {
+        if (!eventCode) return null;
+        const cached = await indexedDBService.getCachedAnalysisData({
+          eventCode, year: currentYear, competitionType,
+        });
+        return cached ? transformToStats(cached.data) : null;
+      },
+      offlineMessage: "Offline - no cached analysis data available. Use the pre-cache feature in Settings while online.",
+      errorMessage: "Failed to load analysis statistics",
+    }),
+  );
+  return {
+    stats: data?.data ?? EMPTY_STATS,
+    loading,
+    error: data?.error ?? (error ? "Failed to load analysis statistics" : null),
+    isOfflineData: data?.isOfflineData ?? false,
+  };
 }

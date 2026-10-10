@@ -168,33 +168,6 @@ export function usePicklist(options: UsePicklistOptions) {
     [currentPicklistId, entries, createPicklist],
   );
 
-  // Reset/delete picklist
-  const resetPicklist = useCallback(async () => {
-    if (!currentPicklistId) return;
-
-    try {
-      setIsSaving(true);
-      const response = await fetch(
-        `/api/scouting/picklist?picklistId=${currentPicklistId}`,
-        {
-          method: "DELETE",
-        },
-      );
-
-      if (!response.ok) throw new Error("Failed to delete picklist");
-
-      setPicklist(null);
-      setEntries([]);
-      toast.success("Picklist reset successfully");
-    } catch (error) {
-      console.error("Error resetting picklist:", error);
-      toast.error("Failed to reset picklist");
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [currentPicklistId]);
-
   // Add a note for a team
   const addNote = useCallback(
     async (teamNumber: number, note: string) => {

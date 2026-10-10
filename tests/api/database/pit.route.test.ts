@@ -118,4 +118,31 @@ describe("/api/scouting/entries/pit", () => {
     expect(data.id).toBe(101);
     expect(service.addPitEntry).toHaveBeenCalled();
   });
+
+  it("rejects invalid writes before accessing persistence", async () => {
+    const route = await import("@/app/api/scouting/entries/pit/route");
+    const response = await route.POST(asNextRequest(new Request("http://test/api/scouting/entries/pit", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ teamNumber: -1, competitionType: "unknown" }),
+    })));
+    expect(response.status).toBe(400);
+    expect(service.addPitEntry).not.toHaveBeenCalled();
+  });
+
+  it("rejects attempts to change ownership through updates", async () => {
+    const route = await import("@/app/api/scouting/entries/pit/route");
+    const response = await route.PUT(asNextRequest(new Request("http://test/api/scouting/entries/pit", {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: 1, userId: "another-user", notes: "updated" }),
+    })));
+    expect(response.status).toBe(400);
+    expect(service.updatePitEntry).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 for an unauthenticated read", async () => {
+    authSession = null;
+    const route = await import("@/app/api/scouting/entries/pit/route");
+    const response = await route.GET(asNextRequest(new Request("http://test/api/scouting/entries/pit")));
+    expect(response.status).toBe(401);
+  });
 });

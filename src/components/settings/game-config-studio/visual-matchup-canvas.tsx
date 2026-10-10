@@ -13,22 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Swords,
-  Flame,
-  Zap,
-  Target,
-  Activity,
-  Sparkles,
-  Package,
-  Puzzle,
-  AlertTriangle,
-  Plus,
-  Trash2,
-  Sliders,
-  Check,
-  HelpCircle,
-} from "lucide-react";
+import { Swords, Flame, Zap, Target, Activity, Sparkles, Package, Puzzle, AlertTriangle, Plus, Trash2, Sliders } from "lucide-react";
 import type { YearConfig, MetricDisplayConfig, MatchupCardConfig } from "@/lib/types";
 import {
   buildDatapointRegistry,

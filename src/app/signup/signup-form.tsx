@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,6 +24,7 @@ interface SignupFormData {
 }
 
 export function SignupForm() {
+  const router = useRouter();
   const [formData, setFormData] = useState<SignupFormData>({
     name: "",
     username: "",
@@ -78,7 +80,7 @@ export function SignupForm() {
           description: `Welcome to ${APP_NAME}! Please sign in.`,
         });
         // Redirect to login page
-        window.location.href = "/login";
+        router.push("/login");
       } else {
         if (data.code === "DUPLICATE_ACCOUNT") setDuplicateError(data.error);
         toast.error("Registration failed", {

@@ -59,7 +59,6 @@ export function DynamicMatchScoutForm() {
     recommendedStartMatch,
     recommendedAlliance,
     recommendedPosition,
-    getAssignmentForMatch,
     getNextAssignment,
   } = useScoutingAssignment();
   const [formData, setFormData] = useState<DynamicMatchData>(() =>
@@ -318,7 +317,7 @@ export function DynamicMatchScoutForm() {
 
     try {
       // Check for duplicate match scout entry (only for new entries, not edits)
-      if (!isEditMode && selectedEvent?.eventCode) {
+      if (!session?.guestEvent && !isEditMode && selectedEvent?.eventCode) {
         try {
           const response = await fetch(
             `/api/scouting/entries/match/check?teamNumber=${formData.teamNumber}&matchNumber=${formData.matchNumber}&eventCode=${selectedEvent.eventCode}`,
@@ -398,7 +397,12 @@ export function DynamicMatchScoutForm() {
             : {}),
         };
 
-        const result = await matchApi.create(entryToSave);
+        const result = session?.guestEvent ? await (async () => {
+          const response = await fetch("/api/scouting/entries/match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entryToSave) });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Unable to save scouting data");
+          return { id: data.id, isQueued: false };
+        })() : await matchApi.create(entryToSave);
 
         if (result.isQueued) {
           toast.success("Data queued for sync", {
@@ -802,7 +806,7 @@ export function DynamicMatchScoutForm() {
             </Button>
 
             <div className="flex gap-1">
-              {tabs.map((tab, index) => (
+              {tabs.map((tab) => (
                 <div
                   key={tab.id}
                   className={`h-2 w-2 rounded-full transition-all ${

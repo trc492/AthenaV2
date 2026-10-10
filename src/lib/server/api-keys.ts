@@ -12,12 +12,6 @@ export interface ApiKeys {
   nexusApiKey: string;
 }
 
-const EMPTY_KEYS: ApiKeys = {
-  tbaApiKey: "",
-  ftcApiKey: "",
-  nexusApiKey: "",
-};
-
 /**
  * Load API keys with this priority:
  *  1. .runtime/api-keys.json (persisted via the settings UI / json config)

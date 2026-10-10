@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSelectedEvent } from "./use-event-config";
-import { useGameConfig } from "./use-game-config";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { useSelectedEvent } from "./use-event-config";
+import { useGameConfig } from "./use-game-config";
 
 export interface TeamInfo {
   teamNumber: number;
@@ -59,7 +59,7 @@ export function useEventTeams() {
       let hasCachedTeams = false;
       try {
         const cachedData = isGuest ? null : await indexedDBService.getCachedEventTeams(
-          selectedEvent.eventCode,
+          { eventCode: selectedEvent.eventCode, competitionType, year: currentYear },
         );
         if (cachedData && cachedData.teams.length > 0 && !isCancelled) {
           hasCachedTeams = true;
@@ -134,9 +134,7 @@ export function useEventTeams() {
         // Cache the teams for offline use
         try {
           if (!isGuest) await indexedDBService.cacheEventTeams(
-            selectedEvent.eventCode,
-            competitionType,
-            currentYear,
+            { eventCode: selectedEvent.eventCode, competitionType, year: currentYear },
             sortedTeams,
           );
         } catch (cacheError) {

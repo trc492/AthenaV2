@@ -9,7 +9,6 @@ export const VALID_ROLES = [
   "scout",
   "tablet",
   "viewer",
-  "external",
 ] as const;
 
 export type UserRole = (typeof VALID_ROLES)[number];

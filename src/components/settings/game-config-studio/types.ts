@@ -1,4 +1,4 @@
-import type { YearConfig, ScoringDefinition } from "@/lib/types";
+import type { YearConfig } from "@/lib/types";
 
 export interface BuilderState {
   competitionType: "FRC" | "FTC";

@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useSelectedEvent } from "@/hooks/use-event-config";
 import { useSPRData, type ScouterSPR } from "@/hooks/use-spr-data";
-import { get } from "http";
+
 
 function getPerformanceBadge(percentile: number) {
   if (percentile >= 75) {

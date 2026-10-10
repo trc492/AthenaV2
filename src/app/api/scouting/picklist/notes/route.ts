@@ -1,13 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { databaseManager } from "@/db/database-manager";
-import { DatabaseService } from "@/lib/types";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { getDbService } from "@/lib/server/db-service";
+import { NextRequest, NextResponse } from "next/server";
 
 
-function getDbService(): DatabaseService {
-  return databaseManager.getService();
-}
 
 // GET /api/scouting/picklist/notes - Get picklist notes for a team or all
 export async function GET(request: NextRequest) {

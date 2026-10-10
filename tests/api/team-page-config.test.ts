@@ -5,7 +5,7 @@ import ftc2026 from "../../config/years/FTC-2026.json";
 import { buildTeamPageDefaults } from "@/lib/game-config/team-page-defaults";
 import { buildPreviewTeamData } from "@/lib/game-config/preview-stats";
 import { calculateDetailedGameStats } from "@/lib/statistics";
-import { validateYearConfig } from "@/lib/server/config-validator";
+import { validateYearConfig } from "@/lib/game-config/config-validator";
 import type { YearConfig } from "@/lib/types";
 
 describe("team page studio configuration", () => {

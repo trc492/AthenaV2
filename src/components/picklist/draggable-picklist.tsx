@@ -391,14 +391,6 @@ export function DraggablePicklist({
     }
   }, [pick1, pick2, blacklist]);
 
-  // Calculate total unique teams in picklists
-  const totalPicklistTeams = useMemo(() => {
-    const allPicklistTeams = new Set<number>();
-    localPick1Order.forEach((e) => allPicklistTeams.add(e.teamNumber));
-    localPick2Order.forEach((e) => allPicklistTeams.add(e.teamNumber));
-    return allPicklistTeams.size;
-  }, [localPick1Order, localPick2Order]);
-
   const totalEventTeams = allEventTeams.filter(
     (t) => t.teamNumber !== ownTeamNumber,
   ).length;
@@ -568,11 +560,6 @@ export function DraggablePicklist({
 
   const handlePick2Change = useCallback((newState: SortableTeamItem[]) => {
     setLocalPick2Order(newState);
-    setHasUnsavedChanges(true);
-  }, []);
-
-  const handleUnlistedChange = useCallback((newState: SortableTeamItem[]) => {
-    setLocalUnlisted(newState);
     setHasUnsavedChanges(true);
   }, []);
 

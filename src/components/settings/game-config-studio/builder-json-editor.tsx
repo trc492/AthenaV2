@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Code,
   Copy,
@@ -17,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { YearConfig } from "@/lib/types";
-import { validateYearConfig } from "@/lib/server/config-validator";
+import { validateYearConfig } from "@/lib/game-config/config-validator";
 import { getErrorMessage } from "@/lib/utils";
 
 interface BuilderJsonEditorProps {
@@ -199,6 +198,15 @@ export function BuilderJsonEditor({
             <div className="flex items-center gap-2 p-2 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               <span>Valid YearConfig JSON schema</span>
+            </div>
+          )}
+
+          {!parseError && validationWarnings.length > 0 && (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs">
+              <p className="font-semibold">Configuration warnings</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {validationWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
             </div>
           )}
 
