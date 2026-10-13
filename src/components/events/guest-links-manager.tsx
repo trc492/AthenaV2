@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GuestAccessControls, type GuestAccessSettings } from "./guest-access-controls";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { GuestEventLink } from "./guest-event-link";
 import { useGameConfig } from "@/hooks/use-game-config";
 import type { GuestLinkRecord } from "@/lib/types";
 import { useAsyncData } from "@/hooks/use-async-data";
+import { useActivePolling } from "@/hooks/use-active-polling";
 
 type ActiveLink = Omit<GuestLinkRecord, "token"> & { path: string };
 
@@ -37,10 +38,7 @@ export function GuestLinksManager() {
   const origin = data?.origin ?? "";
   const error = loadError instanceof Error ? loadError.message : loadError ? "Unable to load guest links" : "";
 
-  useEffect(() => {
-    const timer = window.setInterval(() => void refresh(), 30000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
+  useActivePolling(refresh, 30_000);
 
   async function revoke() {
     if (!pending) return;

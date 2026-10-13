@@ -7,7 +7,7 @@ import { loadSystemSettings } from "@/lib/server/env-file";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const status = await checkSetupStatus();
+  const status = await checkSetupStatus({ useCachedCompletion: true });
   if (!status.isComplete) {
     redirect("/setup");
   }

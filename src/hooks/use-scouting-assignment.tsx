@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useSelectedEvent } from "./use-event-config";
 import { useGameConfig } from "./use-game-config";
+import { useActivePolling } from "./use-active-polling";
 
 const assignmentsCache = new Map<string, MatchAssignmentRow[]>();
 const getAssignmentsCacheKey = (
@@ -31,6 +32,7 @@ type MatchAssignmentRow = {
 
 export function useScoutingAssignment() {
   const { data: session } = useSession();
+  const authenticated = !!session?.user;
   const selectedEvent = useSelectedEvent();
   const { currentYear, competitionType } = useGameConfig();
 
@@ -38,6 +40,12 @@ export function useScoutingAssignment() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
+
+  useActivePolling(
+    () => setRefreshNonce((value) => value + 1),
+    30_000,
+    authenticated && !!selectedEvent?.eventCode && !session?.guestEvent,
+  );
 
   useEffect(() => {
     const refresh = (event: Event) => {
@@ -50,24 +58,24 @@ export function useScoutingAssignment() {
         assignmentsCache.delete(
           getAssignmentsCacheKey(detail.eventCode, detail.year, detail.competitionType),
         );
-        setRefreshNonce((value) => value + 1);
+        if (document.visibilityState === "visible" && navigator.onLine)
+          setRefreshNonce((value) => value + 1);
       }
     };
-    const refreshOnFocus = () => setRefreshNonce((value) => value + 1);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible" && navigator.onLine)
+        setRefreshNonce((value) => value + 1);
+    };
     const refreshFromStorage = (event: StorageEvent) => {
       const expectedKey = selectedEvent?.eventCode
         ? `schedule-updated:${competitionType}-${selectedEvent.eventCode}-${currentYear}`
         : null;
       if (expectedKey && event.key === expectedKey) refreshOnFocus();
     };
-    const intervalId = window.setInterval(refreshOnFocus, 30_000);
     window.addEventListener("schedule-updated", refresh);
-    window.addEventListener("focus", refreshOnFocus);
     window.addEventListener("storage", refreshFromStorage);
     return () => {
-      window.clearInterval(intervalId);
       window.removeEventListener("schedule-updated", refresh);
-      window.removeEventListener("focus", refreshOnFocus);
       window.removeEventListener("storage", refreshFromStorage);
     };
   }, [selectedEvent?.eventCode, currentYear, competitionType]);
@@ -76,7 +84,7 @@ export function useScoutingAssignment() {
   useEffect(() => {
     const controller = new AbortController();
     const fetchAssignments = async () => {
-      if (!selectedEvent?.eventCode || session?.guestEvent) {
+      if (!authenticated || !selectedEvent?.eventCode || session?.guestEvent) {
         setRows([]);
         return;
       }
@@ -135,7 +143,7 @@ export function useScoutingAssignment() {
 
     fetchAssignments();
     return () => controller.abort();
-  }, [selectedEvent?.eventCode, currentYear, competitionType, refreshNonce, session?.guestEvent]);
+  }, [selectedEvent?.eventCode, currentYear, competitionType, refreshNonce, authenticated, session?.guestEvent]);
 
   // Find the current user's assignments across all matches
   const userAssignments = useMemo((): ScoutingAssignment[] => {

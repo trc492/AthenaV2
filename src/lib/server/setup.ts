@@ -1,6 +1,7 @@
 import { databaseManager } from "@/db/database-manager";
 import { loadAppConfig } from "@/lib/server/env-file";
 import { hasAnyAdmin } from "./user-service";
+import { hasSavedSetupCompletion, saveSetupCompletion } from "./setup-completion";
 
 export interface SetupStatus {
   isComplete: boolean;
@@ -10,7 +11,9 @@ export interface SetupStatus {
   currentProvider?: string;
 }
 
-export async function checkSetupStatus(): Promise<SetupStatus> {
+export async function checkSetupStatus(
+  options: { useCachedCompletion?: boolean } = {},
+): Promise<SetupStatus> {
   const appConfig = loadAppConfig();
   const needsAppUrl = !appConfig?.appUrl;
 
@@ -22,6 +25,19 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
         needsAppUrl,
         needsDatabase: true,
         needsAdmin: true,
+      };
+    }
+
+    const config = databaseManager.getConfig();
+    // Public visits need setup routing, not a live account check. Setup pages
+    // and mutation endpoints still verify the database directly.
+    if (options.useCachedCompletion && config && hasSavedSetupCompletion(config)) {
+      return {
+        isComplete: !needsAppUrl,
+        needsAppUrl,
+        needsDatabase: false,
+        needsAdmin: false,
+        currentProvider: config.provider,
       };
     }
 
@@ -38,6 +54,7 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
 
     if (service.users) {
       const adminExists = await hasAnyAdmin();
+      if (config) await saveSetupCompletion(config, adminExists);
       if (!adminExists) {
         return {
           isComplete: false,

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { DRIVE_TRAINS } from "@/lib/types";
 
 const scalar = z.union([z.number().finite(), z.string(), z.boolean()]);
+// Multiselect pit fields submit string arrays.
+const value = z.union([scalar, z.array(scalar)]);
 const gameSpecificData = z.record(z.string(), z.union([
-  scalar, z.record(z.string(), scalar),
+  value, z.record(z.string(), value),
 ]));
 const common = {
   teamNumber: z.number().int().positive(),
@@ -15,7 +18,7 @@ const common = {
 };
 const pitFields = z.object({
   ...common,
-  driveTrain: z.enum(["Swerve", "Mecanum", "Tank", "Other"]),
+  driveTrain: z.enum(DRIVE_TRAINS),
   weight: z.number().finite().nonnegative().optional(),
   length: z.number().finite().nonnegative().optional(),
   width: z.number().finite().nonnegative().optional(),

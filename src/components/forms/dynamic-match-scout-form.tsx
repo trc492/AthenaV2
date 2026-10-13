@@ -345,12 +345,12 @@ export function DynamicMatchScoutForm() {
           },
           body: JSON.stringify({
             id: editingEntryId,
-            matchNumber: formData.matchNumber,
-            teamNumber: formData.teamNumber,
+            matchNumber: Number(formData.matchNumber),
+            teamNumber: Number(formData.teamNumber),
             year: currentYear,
             competitionType: competitionType,
             alliance: formData.alliance,
-            alliancePosition: formData.alliancePosition,
+            alliancePosition: Number(formData.alliancePosition),
             eventName: selectedEvent?.name || "Unknown Event",
             eventCode: selectedEvent?.eventCode || "Unknown Code",
             gameSpecificData: {
@@ -376,12 +376,12 @@ export function DynamicMatchScoutForm() {
       } else {
         // Create new entry
         const entryToSave = {
-          matchNumber: formData.matchNumber,
-          teamNumber: formData.teamNumber,
+          matchNumber: Number(formData.matchNumber),
+          teamNumber: Number(formData.teamNumber),
           year: currentYear,
           competitionType: competitionType,
           alliance: formData.alliance,
-          alliancePosition: formData.alliancePosition,
+          alliancePosition: Number(formData.alliancePosition),
           eventName: selectedEvent?.name || "Unknown Event",
           eventCode: selectedEvent?.eventCode || "Unknown Code",
           gameSpecificData: {

@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import { pitApi } from "@/lib/api/database-client";
 import { ScoutSelector } from "@/components/scout-selector";
 import { FieldDrawingCanvas } from "@/components/forms/field-drawing-canvas";
-import type { PitEntry } from "@/lib/types";
+import { driveTrainSlug, normalizeDriveTrain, type PitEntry } from "@/lib/types";
 import type {
   DynamicPitData,
   PitScoutingFieldDefinition,
@@ -95,6 +95,9 @@ export function DynamicPitScoutForm() {
                       ? fieldConfig.options[0]
                       : "";
                   break;
+                case "multiselect":
+                  data.gameSpecificData[`${category}_${fieldName}`] = [];
+                  break;
                 default:
                   data.gameSpecificData[`${category}_${fieldName}`] = "";
               }
@@ -148,7 +151,7 @@ export function DynamicPitScoutForm() {
 
         const populatedData: DynamicPitData = {
           team: entry.teamNumber,
-          drivetrain: entry.driveTrain.toLowerCase(),
+          drivetrain: driveTrainSlug(entry.driveTrain),
           weight:
             entry.weight !== null && entry.weight !== undefined
               ? String(entry.weight)
@@ -164,10 +167,7 @@ export function DynamicPitScoutForm() {
           hasAuto,
           autoDrawing: entry.autoDrawing || "",
           notes: typeof entry.notes === "string" ? entry.notes : "",
-          gameSpecificData: gameData as Record<
-            string,
-            number | string | boolean
-          >,
+          gameSpecificData: gameData as DynamicPitData["gameSpecificData"],
         };
 
         setFormData(populatedData);
@@ -254,6 +254,25 @@ export function DynamicPitScoutForm() {
       return;
     }
 
+    const teamNumber = Number(formData.team);
+    if (!Number.isInteger(teamNumber) || teamNumber <= 0) {
+      toast.error("Please enter a valid team number");
+      return;
+    }
+    const driveTrain = normalizeDriveTrain(formData.drivetrain);
+    if (!driveTrain) {
+      toast.error("Please select a drivetrain");
+      return;
+    }
+    const dimension = (value: string | number) => {
+      const n = parseFloat(String(value));
+      return Number.isFinite(n) && n >= 0 ? n : undefined;
+    };
+    // Entries loaded for editing may carry nulls the API rejects.
+    const gameSpecificData = Object.fromEntries(
+      Object.entries(formData.gameSpecificData).filter(([, v]) => v != null),
+    );
+
     setIsSubmitting(true);
 
     try {
@@ -287,31 +306,20 @@ export function DynamicPitScoutForm() {
           },
           body: JSON.stringify({
             id: editingEntryId,
-            teamNumber: Number(formData.team),
+            teamNumber,
             year: currentYear,
             competitionType: competitionType,
-            driveTrain: (formData.drivetrain.charAt(0).toUpperCase() +
-              formData.drivetrain.slice(1)) as
-              | "Swerve"
-              | "Mecanum"
-              | "Tank"
-              | "Other",
-            weight: formData.weight
-              ? parseFloat(formData.weight as string)
-              : undefined,
-            length: formData.length
-              ? parseFloat(formData.length as string)
-              : undefined,
-            width: formData.width
-              ? parseFloat(formData.width as string)
-              : undefined,
+            driveTrain,
+            weight: dimension(formData.weight),
+            length: dimension(formData.length),
+            width: dimension(formData.width),
             eventName: selectedEvent?.name || "Unknown Event",
             eventCode: selectedEvent?.eventCode || "Unknown Code",
             notes: formData.notes || "",
             autoDrawing: formData.autoDrawing || "",
             gameSpecificData: {
               hasAuto: formData.hasAuto,
-              ...formData.gameSpecificData,
+              ...gameSpecificData,
             },
           }),
         });
@@ -330,30 +338,20 @@ export function DynamicPitScoutForm() {
       } else {
         // Create new entry
         const entryToSave = {
-          teamNumber: Number(formData.team),
+          teamNumber,
           year: currentYear,
           competitionType: competitionType,
-          driveTrain: formData.drivetrain as
-            | "Swerve"
-            | "Mecanum"
-            | "Tank"
-            | "Other",
-          weight: formData.weight
-            ? parseFloat(formData.weight as string)
-            : undefined,
-          length: formData.length
-            ? parseFloat(formData.length as string)
-            : undefined,
-          width: formData.width
-            ? parseFloat(formData.width as string)
-            : undefined,
+          driveTrain,
+          weight: dimension(formData.weight),
+          length: dimension(formData.length),
+          width: dimension(formData.width),
           eventName: selectedEvent?.name || "Unknown Event",
           eventCode: selectedEvent?.eventCode || "Unknown Code",
           notes: formData.notes || "",
           autoDrawing: formData.autoDrawing || "",
           gameSpecificData: {
             hasAuto: formData.hasAuto,
-            ...formData.gameSpecificData,
+            ...gameSpecificData,
           },
           // Include scout ID for tablet accounts
           ...(session?.user?.role === "tablet" && selectedScoutId
@@ -445,7 +443,12 @@ export function DynamicPitScoutForm() {
               type={field.type}
               value={String(value || "")}
               onChange={(e) =>
-                handleGameSpecificChange(field.name, e.target.value)
+                handleGameSpecificChange(
+                  field.name,
+                  field.type === "number" && e.target.value !== ""
+                    ? Number(e.target.value)
+                    : e.target.value,
+                )
               }
               className="h-12 text-base"
             />
