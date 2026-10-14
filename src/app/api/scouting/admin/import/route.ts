@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { getDbService } from "@/lib/server/db-service";
 import { validateImportAgainstSchema } from "@/lib/server/import-schema-validator";
-import { MatchEntry, PitEntry, } from "@/lib/types";
+import { MatchEntry, normalizeDriveTrain, PitEntry } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 
 
@@ -55,7 +55,42 @@ export async function POST(request: NextRequest) {
       ? data.matchEntries
       : [];
 
+    // JSON imports (and hand-edited sheets) may carry string numbers or
+    // lowercase drivetrains, so normalize before anything hits the database.
+    for (const entry of data.pitEntries) {
+      const driveTrain = normalizeDriveTrain(entry.driveTrain);
+      if (!driveTrain) {
+        return NextResponse.json(
+          { error: `Invalid drivetrain "${entry.driveTrain}" for team ${entry.teamNumber}` },
+          { status: 400 },
+        );
+      }
+      entry.driveTrain = driveTrain;
+      entry.teamNumber = Number(entry.teamNumber);
+      entry.year = Number(entry.year);
+      for (const key of ["weight", "length", "width"] as const) {
+        const value = entry[key] as unknown;
+        entry[key] =
+          value === undefined || value === null || value === "" ? undefined : Number(value);
+      }
+    }
+
     for (const entry of data.matchEntries) {
+      entry.matchNumber = Number(entry.matchNumber);
+      entry.teamNumber = Number(entry.teamNumber);
+      entry.year = Number(entry.year);
+      if (entry.alliancePosition != null) {
+        entry.alliancePosition = Number(entry.alliancePosition);
+      }
+      if (
+        !Number.isInteger(entry.matchNumber) ||
+        !Number.isInteger(entry.teamNumber)
+      ) {
+        return NextResponse.json(
+          { error: `Invalid match/team number in match entry (match ${entry.matchNumber}, team ${entry.teamNumber})` },
+          { status: 400 },
+        );
+      }
       if (!(entry.timestamp instanceof Date)) {
         entry.timestamp = new Date(entry.timestamp);
       }
@@ -174,7 +209,7 @@ async function parseCSV(
                 (entryData.competitionType as string) || "FRC"
               ).toUpperCase() as "FRC" | "FTC",
               driveTrain: entryData.driveTrain as
-                "Swerve" | "Mecanum" | "Tank" | "Other",
+                PitEntry["driveTrain"],
               weight: entryData.weight
                 ? parseFloat(entryData.weight as string)
                 : undefined,
@@ -313,7 +348,7 @@ async function parseXLSX(
           (entryData.competitionType as string) || "FRC"
         ).toUpperCase() as "FRC" | "FTC",
         driveTrain: entryData.driveTrain as
-          "Swerve" | "Mecanum" | "Tank" | "Other",
+          PitEntry["driveTrain"],
         weight: entryData.weight
           ? parseFloat(entryData.weight as string)
           : undefined,

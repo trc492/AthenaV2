@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+vi.mock("@/lib/server/setup-completion", () => ({
+  hasSavedSetupCompletion: () => false,
+  saveSetupCompletion: vi.fn(),
+}));
 const mocks = vi.hoisted(() => ({
   hasAdmin: vi.fn(),
   getAssignments: vi.fn(),
