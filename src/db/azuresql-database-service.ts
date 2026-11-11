@@ -38,9 +38,13 @@ import {
   toPitEntry,
 } from "./row-mappers";
 
+/** Bump whenever initializeTables() changes so existing databases re-run it once. */
+const SCHEMA_VERSION = 2;
+
 export class AzureSqlDatabaseService implements DatabaseService {
   readonly users = sqlUsers(this.query.bind(this), "azuresql");
   private pool: import("mssql").ConnectionPool | null = null;
+  private connecting: Promise<import("mssql").ConnectionPool> | null = null;
   private config: AzureSqlConfig;
   private tokenExpiresAt: Date | null = null;
 
@@ -59,6 +63,14 @@ export class AzureSqlDatabaseService implements DatabaseService {
       return this.pool;
     }
 
+    // Concurrent cold-start requests share one connection and schema check.
+    this.connecting ??= this.connect().finally(() => {
+      this.connecting = null;
+    });
+    return this.connecting;
+  }
+
+  private async connect(): Promise<import("mssql").ConnectionPool> {
     const mssql = await import("mssql");
     let config: MssqlConfig | string;
 
@@ -121,7 +133,7 @@ export class AzureSqlDatabaseService implements DatabaseService {
     try {
       this.pool = await mssql.connect(config);
       console.log("Azure SQL: Connection pool created successfully");
-      await this.initializeTables();
+      await this.ensureSchema(this.pool);
       return this.pool;
     } catch (error) {
       console.error("Azure SQL: Failed to create connection pool:", error);
@@ -281,6 +293,25 @@ export class AzureSqlDatabaseService implements DatabaseService {
   async revokeGuestLink(id: string, revokedAt: number): Promise<void> {
     await sqlGuestLinks(this.query.bind(this)).revokeGuestLink(id, revokedAt);
   }
+  /** One version read per cold start instead of re-running every DDL statement. */
+  private async ensureSchema(pool: import("mssql").ConnectionPool): Promise<void> {
+    try {
+      const result = await pool
+        .request()
+        .query<{ version: number | null }>(`SELECT MAX(version) AS version FROM athenaSchema`);
+      if ((result.recordset[0]?.version ?? 0) >= SCHEMA_VERSION) return;
+    } catch {
+      // The marker table predates this check or the database is new.
+    }
+    await this.initializeTables();
+    await pool.request().input("version", SCHEMA_VERSION).query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='athenaSchema' AND xtype='U')
+      CREATE TABLE athenaSchema (version INT NOT NULL);
+      DELETE FROM athenaSchema;
+      INSERT INTO athenaSchema (version) VALUES (@version);
+    `);
+  }
+
   private async initializeTables(): Promise<void> {
     const pool = await this.getPool();
 
@@ -315,9 +346,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
         year INT NOT NULL,
         competitionType NVARCHAR(10) DEFAULT 'FRC' NOT NULL,
         driveTrain NVARCHAR(50) NOT NULL,
-        weight DECIMAL(10,2) NOT NULL,
-        length DECIMAL(10,2) NOT NULL,
-        width DECIMAL(10,2) NOT NULL,
+        weight DECIMAL(10,2) NULL,
+        length DECIMAL(10,2) NULL,
+        width DECIMAL(10,2) NULL,
         eventName NVARCHAR(255),
         eventCode NVARCHAR(50),
         userId NVARCHAR(255),
@@ -329,6 +360,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
         FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL,
         CONSTRAINT uq_pit_entry UNIQUE (teamNumber, eventCode, year, competitionType)
       )
+    `);
+
+    // Measurements are optional in scouting forms, including on existing databases.
+    await pool.request().query(`
+      ALTER TABLE pitEntries ALTER COLUMN weight DECIMAL(10,2) NULL;
+      ALTER TABLE pitEntries ALTER COLUMN length DECIMAL(10,2) NULL;
+      ALTER TABLE pitEntries ALTER COLUMN width DECIMAL(10,2) NULL;
     `);
 
     // Add autoDrawing column to pitEntries table if it doesn't exist
@@ -733,6 +771,8 @@ export class AzureSqlDatabaseService implements DatabaseService {
   async checkPitScoutExists(
     teamNumber: number,
     eventCode: string,
+    year: number,
+    competitionType: CompetitionType,
   ): Promise<boolean> {
     try {
       const pool = await this.getPool();
@@ -740,10 +780,13 @@ export class AzureSqlDatabaseService implements DatabaseService {
       const result = await pool
         .request()
         .input("teamNumber", mssql.Int, teamNumber)
-        .input("eventCode", mssql.NVarChar, eventCode).query(`
-          SELECT COUNT(*) as count 
-          FROM pitEntries 
+        .input("eventCode", mssql.NVarChar, eventCode)
+        .input("year", mssql.Int, year)
+        .input("competitionType", mssql.NVarChar, competitionType).query(`
+          SELECT COUNT(*) as count
+          FROM pitEntries
           WHERE teamNumber = @teamNumber AND eventCode = @eventCode
+            AND year = @year AND competitionType = @competitionType
         `);
 
       return result.recordset[0].count > 0;
@@ -938,6 +981,8 @@ export class AzureSqlDatabaseService implements DatabaseService {
     teamNumber: number,
     matchNumber: number,
     eventCode: string,
+    year: number,
+    competitionType: CompetitionType,
   ): Promise<boolean> {
     try {
       const pool = await this.getPool();
@@ -946,12 +991,16 @@ export class AzureSqlDatabaseService implements DatabaseService {
         .request()
         .input("teamNumber", mssql.Int, teamNumber)
         .input("matchNumber", mssql.Int, matchNumber)
-        .input("eventCode", mssql.NVarChar, eventCode).query(`
-          SELECT COUNT(*) as count 
-          FROM matchEntries 
-          WHERE teamNumber = @teamNumber 
-            AND matchNumber = @matchNumber 
+        .input("eventCode", mssql.NVarChar, eventCode)
+        .input("year", mssql.Int, year)
+        .input("competitionType", mssql.NVarChar, competitionType).query(`
+          SELECT COUNT(*) as count
+          FROM matchEntries
+          WHERE teamNumber = @teamNumber
+            AND matchNumber = @matchNumber
             AND eventCode = @eventCode
+            AND year = @year
+            AND competitionType = @competitionType
         `);
 
       return result.recordset[0].count > 0;

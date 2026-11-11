@@ -1,7 +1,8 @@
+import { findGameConfigPath, isConfigDeleted, saveGameConfig, deleteGameConfig } from "@/lib/server/game-config-store";
 import { NextRequest, NextResponse } from "next/server";
-import { readdir, readFile, writeFile, unlink, mkdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { validateYearConfig } from "@/lib/game-config/config-validator";
@@ -13,16 +14,10 @@ const CONFIG_YEARS_DIR = join(process.cwd(), "config", "years");
 const RUNTIME_CONFIGS_DIR = join(process.cwd(), ".runtime", "configs");
 
 function isSafeConfigFilename(filename: string) {
-  return /^[a-zA-Z0-9_\-.]+\.json$/.test(filename) && !filename.includes("..");
+  return /^(FRC|FTC)-\d{4}\.json$/.test(filename);
 }
 
-function findConfigPath(filename: string) {
-  const primaryPath = join(CONFIG_YEARS_DIR, filename);
-  const runtimePath = join(RUNTIME_CONFIGS_DIR, filename);
-  if (existsSync(primaryPath)) return primaryPath;
-  if (existsSync(runtimePath)) return runtimePath;
-  return null;
-}
+const findConfigPath = findGameConfigPath;
 
 async function requireConfigAdmin() {
   const session = await auth();
@@ -67,7 +62,7 @@ async function loadConfigsFromDirectory(
     const results: ConfigSummary[] = [];
 
     for (const file of files) {
-      if (!file.endsWith(".json")) continue;
+      if (!file.endsWith(".json") || isConfigDeleted(file)) continue;
       try {
         const fullPath = join(dir, file);
         const content = readFileSync(fullPath, "utf-8");
@@ -159,9 +154,7 @@ export async function GET(req: NextRequest) {
     const configMap = new Map<string, ConfigSummary>();
     builtinConfigs.forEach((c) => configMap.set(c.filename, c));
     runtimeConfigs.forEach((c) => {
-      if (!configMap.has(c.filename)) {
-        configMap.set(c.filename, c);
-      }
+      configMap.set(c.filename, c);
     });
 
     const configs = Array.from(configMap.values()).sort((a, b) => {
@@ -233,13 +226,14 @@ export async function POST(req: NextRequest) {
   const gameYear = year || new Date().getFullYear();
   const filename = body.filename || `${compType}-${gameYear}.json`;
 
-  if (!/^[a-zA-Z0-9_\-.]+\.json$/.test(filename) || filename.includes("..")) {
+  if (!isSafeConfigFilename(filename)) {
     return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
+  }
+  if (!filename.startsWith(`${config.competitionType}-`)) {
+    return NextResponse.json({ error: "Filename must match the configuration competition type" }, { status: 400 });
   }
 
   try {
-    await mkdir(CONFIG_YEARS_DIR, { recursive: true });
-    const targetPath = join(CONFIG_YEARS_DIR, filename);
 
     if (body.createOnly && findConfigPath(filename)) {
       return NextResponse.json(
@@ -249,8 +243,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Write formatted JSON
-    const content = JSON.stringify(config, null, 2) + "\n";
-    await writeFile(targetPath, content, "utf-8");
+    await saveGameConfig(filename, config);
 
     return NextResponse.json({
       success: true,
@@ -352,13 +345,8 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const targetPath = join(dirname(sourcePath), targetFilename);
-    await writeFile(
-      targetPath,
-      `${JSON.stringify(config, null, 2)}\n`,
-      "utf-8",
-    );
-    if (targetPath !== sourcePath) await unlink(sourcePath);
+    await saveGameConfig(targetFilename, config);
+    if (targetFilename !== sourceFilename) await deleteGameConfig(sourceFilename);
 
     return NextResponse.json({
       success: true,
@@ -397,24 +385,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
   }
 
-  const primaryPath = join(CONFIG_YEARS_DIR, filename);
-  const runtimePath = join(RUNTIME_CONFIGS_DIR, filename);
-
-  let deleted = false;
-
   try {
-    if (existsSync(primaryPath)) {
-      await unlink(primaryPath);
-      deleted = true;
-    }
-    if (existsSync(runtimePath)) {
-      await unlink(runtimePath);
-      deleted = true;
-    }
-
-    if (!deleted) {
+    if (!findConfigPath(filename)) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
+    await deleteGameConfig(filename);
 
     return NextResponse.json({ success: true, message: `Deleted ${filename}` });
   } catch (err) {

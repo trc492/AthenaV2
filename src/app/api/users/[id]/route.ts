@@ -9,6 +9,7 @@ import {
   ROLES,
 } from "@/lib/auth/roles";
 import { USERNAME_REGEX } from "@/lib/server/user-service";
+import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 
 interface RouteParams {
   params: Promise<{
@@ -155,6 +156,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (role) updates.role = role;
 
     await db.updateUser(id, updates);
+    invalidateSessionUser(id);
 
     return NextResponse.json({ message: "User updated successfully" });
   } catch (error) {
@@ -215,6 +217,7 @@ async function setAccountActive({ params }: RouteParams, active: boolean) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     // Account transitions invalidate old sessions, even after restoration.
     await db.users.setActive(id, active);
+    invalidateSessionUser(id);
     return NextResponse.json({
       message: active
         ? "User restored successfully"

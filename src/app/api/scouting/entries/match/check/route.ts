@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
+import type { CompetitionType } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,10 +8,15 @@ export async function GET(request: NextRequest) {
     const teamNumber = searchParams.get("teamNumber");
     const matchNumber = searchParams.get("matchNumber");
     const eventCode = searchParams.get("eventCode");
+    const year = searchParams.get("year");
+    const competitionType = searchParams.get("competitionType");
 
-    if (!teamNumber || !matchNumber || !eventCode) {
+    if (!teamNumber || !matchNumber || !eventCode || !year || !competitionType) {
       return NextResponse.json(
-        { error: "Team number, match number, and event code are required" },
+        {
+          error:
+            "Team number, match number, event code, year, and competition type are required",
+        },
         { status: 400 },
       );
     }
@@ -20,6 +26,8 @@ export async function GET(request: NextRequest) {
       parseInt(teamNumber),
       parseInt(matchNumber),
       eventCode,
+      parseInt(year),
+      competitionType as CompetitionType,
     );
 
     return NextResponse.json({ exists });

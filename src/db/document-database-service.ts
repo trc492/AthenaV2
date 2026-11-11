@@ -205,13 +205,13 @@ export class DocumentDatabaseService implements DatabaseService {
   getAllPitEntries(year?: number, eventCode?: string, competitionType?: CompetitionType) { return this.rows<PitEntry>("pitEntries", { year, eventCode, competitionType }); }
   updatePitEntry(id: number, updates: Partial<PitEntry>) { return this.update("pitEntries", { numericId: id }, updates); }
   deletePitEntry(id: number) { return this.remove("pitEntries", { numericId: id }); }
-  async checkPitScoutExists(teamNumber: number, eventCode: string) { return !!await this.one("pitEntries", { teamNumber, eventCode }); }
+  async checkPitScoutExists(teamNumber: number, eventCode: string, year: number, competitionType: CompetitionType) { return !!await this.one("pitEntries", { teamNumber, eventCode, year, competitionType }); }
   addMatchEntry(entry: Omit<MatchEntry, "id">) { return this.add("matchEntries", entry); }
   getMatchEntries(teamNumber: number, year?: number, competitionType?: CompetitionType) { return this.rows<MatchEntry>("matchEntries", { teamNumber, year, competitionType }); }
   getAllMatchEntries(year?: number, eventCode?: string, competitionType?: CompetitionType) { return this.rows<MatchEntry>("matchEntries", { year, eventCode, competitionType }); }
   updateMatchEntry(id: number, updates: Partial<MatchEntry>) { return this.update("matchEntries", { numericId: id }, updates); }
   deleteMatchEntry(id: number) { return this.remove("matchEntries", { numericId: id }); }
-  async checkMatchScoutExists(teamNumber: number, matchNumber: number, eventCode: string) { return !!await this.one("matchEntries", { teamNumber, matchNumber, eventCode }); }
+  async checkMatchScoutExists(teamNumber: number, matchNumber: number, eventCode: string, year: number, competitionType: CompetitionType) { return !!await this.one("matchEntries", { teamNumber, matchNumber, eventCode, year, competitionType }); }
   addCustomEvent(event: Omit<CustomEvent, "id">) { return this.add("customEvents", event); }
   getCustomEvent(eventCode: string, competitionType?: CompetitionType) { return this.one<CustomEvent>("customEvents", { eventCode, ...(competitionType === undefined ? {} : { competitionType }) }); }
   getAllCustomEvents(year?: number, competitionType?: CompetitionType) { return this.rows<CustomEvent>("customEvents", { year, competitionType }); }

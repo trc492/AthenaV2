@@ -37,6 +37,8 @@ import { PermissionGuard } from "../auth/PermissionGuard";
 import { ROLES } from "@/lib/auth/roles";
 import { APP_LOGO } from "@/lib/app-config";
 import { isGuestPage } from "@/lib/auth/guest-policy";
+import { GuidedTour } from "@/components/onboarding/guided-tour";
+import { useTourHighlight } from "@/components/onboarding/onboarding-provider";
 const data = {
   navMain: [
     { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
@@ -122,6 +124,7 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
+  const eventHighlight = useTourHighlight("event");
   const guest = session?.guestEvent;
   const navigation = guest ? data.navMain.filter((item) => !item.url || isGuestPage(item.url)).map((item) => ({ ...item, items: item.items?.filter((child) => isGuestPage(child.url)) })) : data.navMain;
   const { competitionType } = useGameConfig();
@@ -158,6 +161,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </p>
         </div>
       </SidebarHeader>
+      <GuidedTour />
       <SidebarContent>
         <div className="mx-2 mt-1">
           {guest ? (
@@ -179,7 +183,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
-          ) : <EventSwitcher />}
+          ) : <div data-tour-target="event" className={`rounded-lg ${eventHighlight}`}><EventSwitcher /></div>}
         </div>
         <SearchForm className="mt-1 ms-2" />
         <NavMain items={navigation} />

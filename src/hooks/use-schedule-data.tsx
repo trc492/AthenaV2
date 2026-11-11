@@ -435,114 +435,6 @@ export function useScheduleData() {
     }
   }, [selectedEvent, competitionType, currentYear]);
 
-  // Set manual match count
-  const setManualMatchCount = useCallback((count: number) => {
-    setMatchCount(count);
-  }, []);
-
-  // Assign scout to a virtual block position (range write)
-  const assignScout = useCallback(
-    async (
-      blockId: number,
-      userId: string | null,
-      alliance: "red" | "blue",
-      position: number,
-    ) => {
-      if (!selectedEvent) return;
-
-      const block = blocks.find((b) => b.id === blockId);
-      if (!block) return;
-
-      const response = await fetch("/api/scouting/schedule/assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventCode: selectedEvent.eventCode,
-          year: currentYear,
-          competitionType,
-          startMatch: block.startMatch,
-          endMatch: block.endMatch,
-          alliance,
-          position,
-          userId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save assignment");
-      }
-      announceScheduleUpdate();
-    },
-    [selectedEvent, currentYear, competitionType, blocks, announceScheduleUpdate],
-  );
-
-  // Assign scout to a single match/slot
-  const assignMatchScout = useCallback(
-    async (
-      matchNumber: number,
-      userId: string | null,
-      alliance: "red" | "blue",
-      position: number,
-    ) => {
-      if (!selectedEvent) return;
-
-      const response = await fetch("/api/scouting/schedule/assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventCode: selectedEvent.eventCode,
-          year: currentYear,
-          competitionType,
-          startMatch: matchNumber,
-          endMatch: matchNumber,
-          alliance,
-          position,
-          userId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save assignment");
-      }
-      announceScheduleUpdate();
-    },
-    [selectedEvent, currentYear, competitionType, announceScheduleUpdate],
-  );
-
-  // Assign scout to a match range/slot in a single request
-  const assignScoutRange = useCallback(
-    async (
-      startMatch: number,
-      endMatch: number,
-      userId: string | null,
-      alliance: "red" | "blue",
-      position: number,
-    ) => {
-      if (!selectedEvent) return;
-
-      const response = await fetch("/api/scouting/schedule/assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventCode: selectedEvent.eventCode,
-          year: currentYear,
-          competitionType,
-          startMatch,
-          endMatch,
-          alliance,
-          position,
-          userId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to save assignment range");
-      }
-      announceScheduleUpdate();
-    },
-    [selectedEvent, currentYear, competitionType, announceScheduleUpdate],
-  );
-
   const replaceAllAssignments = useCallback(
     async (changes: ScheduleAssignmentChange[]) => {
       if (!selectedEvent) return;
@@ -592,21 +484,6 @@ export function useScheduleData() {
     setRefreshTrigger((prev) => prev + 1);
   }, [selectedEvent, currentYear, competitionType, announceScheduleUpdate]);
 
-  // Delete all blocks (virtual) => clear all schedule data
-  const deleteAllBlocks = useCallback(async () => {
-    // Clearing schedule == clearing all matchAssignments for this event
-    await clearAllAssignments();
-  }, [clearAllAssignments]);
-
-  // Add/delete single block are no longer supported; keep them as helpers that refresh.
-  const addBlock = useCallback(async () => {
-    setRefreshTrigger((prev) => prev + 1);
-  }, []);
-
-  const deleteBlock = useCallback(async () => {
-    setRefreshTrigger((prev) => prev + 1);
-  }, []);
-
   // Refresh data manually
   const refreshData = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1);
@@ -622,7 +499,7 @@ export function useScheduleData() {
     blockSize,
     setBlockSize,
     matchCount,
-    setManualMatchCount,
+    setManualMatchCount: setMatchCount,
     apiMatchCount,
     isApiMatchCountAvailable,
     competitionType,
@@ -636,14 +513,8 @@ export function useScheduleData() {
     // Actions
     generateBlocks,
     syncMatchCountFromApi,
-    assignScout,
-    assignMatchScout,
-    assignScoutRange,
     replaceAllAssignments,
-    clearAllAssignments,
-    deleteAllBlocks,
-    addBlock,
-    deleteBlock,
+    deleteAllBlocks: clearAllAssignments,
     refreshData,
   };
 }

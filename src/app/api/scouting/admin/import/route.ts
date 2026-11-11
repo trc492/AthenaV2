@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { getDbService } from "@/lib/server/db-service";
+import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 import { validateImportAgainstSchema } from "@/lib/server/import-schema-validator";
 import { MatchEntry, normalizeDriveTrain, PitEntry } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
 
     const service = getDbService();
     await service.importData(data);
+    invalidateSessionUser();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error importing data:", error);

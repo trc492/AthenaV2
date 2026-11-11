@@ -22,20 +22,26 @@ export class ScoutingService {
   constructor(private readonly db: ScoutingStore) {}
 
   async createPit(entry: Omit<PitEntry, "id">): Promise<number> {
-    const entries = await this.db.getAllPitEntries(entry.year, entry.eventCode, entry.competitionType);
-    if (entries.some((existing) => existing.teamNumber === entry.teamNumber &&
-      existing.eventCode === entry.eventCode && existing.year === entry.year &&
-      existing.competitionType === entry.competitionType)) {
+    // A targeted existence query avoids reading the whole event's entries.
+    const exists = entry.eventCode
+      ? await this.db.checkPitScoutExists(entry.teamNumber, entry.eventCode, entry.year, entry.competitionType)
+      : (await this.db.getAllPitEntries(entry.year, entry.eventCode, entry.competitionType)).some((existing) =>
+        existing.teamNumber === entry.teamNumber && existing.eventCode === entry.eventCode &&
+        existing.year === entry.year && existing.competitionType === entry.competitionType);
+    if (exists) {
       throw new ScoutingError(409, `Pit scouting entry already exists for team ${entry.teamNumber} at this event`);
     }
     return this.db.addPitEntry(entry);
   }
 
   async createMatch(entry: Omit<MatchEntry, "id">): Promise<number> {
-    const entries = await this.db.getAllMatchEntries(entry.year, entry.eventCode, entry.competitionType);
-    if (entries.some((existing) => existing.teamNumber === entry.teamNumber &&
-      existing.matchNumber === entry.matchNumber && existing.eventCode === entry.eventCode &&
-      existing.year === entry.year && existing.competitionType === entry.competitionType)) {
+    const exists = entry.eventCode
+      ? await this.db.checkMatchScoutExists(entry.teamNumber, entry.matchNumber, entry.eventCode, entry.year, entry.competitionType)
+      : (await this.db.getAllMatchEntries(entry.year, entry.eventCode, entry.competitionType)).some((existing) =>
+        existing.teamNumber === entry.teamNumber && existing.matchNumber === entry.matchNumber &&
+        existing.eventCode === entry.eventCode && existing.year === entry.year &&
+        existing.competitionType === entry.competitionType);
+    if (exists) {
       throw new ScoutingError(409, `Match scouting entry already exists for team ${entry.teamNumber} in match ${entry.matchNumber}`);
     }
     return this.db.addMatchEntry(entry);

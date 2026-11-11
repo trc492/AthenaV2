@@ -1,3 +1,4 @@
+import { requireSetupToken, withSetupLock } from "@/lib/server/setup-access";
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseConfig, DatabaseProvider } from "@/lib/types";
 import { DatabaseManager } from "@/db/database-manager";
@@ -66,10 +67,17 @@ function validateConfig(config: DatabaseConfig): string | null {
 }
 
 export async function POST(request: NextRequest) {
+  return withSetupLock(() => handlePost(request));
+}
+
+async function handlePost(request: NextRequest) {
   try {
     const manager = DatabaseManager.getInstance();
     if (manager.isConfigured() && (await hasAnyAdmin())) {
       const denied = await requirePermission(PERMISSIONS.MANAGE_DATABASE);
+      if (denied) return denied;
+    } else {
+      const denied = requireSetupToken(request);
       if (denied) return denied;
     }
 

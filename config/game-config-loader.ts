@@ -8,6 +8,7 @@
 
 import FRC2026 from "./years/FRC-2026.json";
 import FRC2025 from "./years/FRC-2025.json";
+import FTC2027 from "./years/FTC-2027.json";
 import FTC2026 from "./years/FTC-2026.json";
 import { GameConfig, YearConfig } from "@/lib/types";
 /**
@@ -20,6 +21,7 @@ const gameConfig: GameConfig = {
     2025: FRC2025 as YearConfig,
   },
   FTC: {
+    2027: FTC2027 as YearConfig,
     2026: FTC2026 as YearConfig,
   },
 };

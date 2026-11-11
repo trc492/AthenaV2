@@ -55,12 +55,12 @@ export interface SPRData {
 export function useSPRData(options?: { verbose?: boolean }) {
   const verbose = options?.verbose ?? false;
   const selectedEvent = useSelectedEvent();
-  const { currentYear, competitionType } = useGameConfig();
+  const { currentYear, competitionType, getCurrentYearConfig } = useGameConfig();
   const eventCode = selectedEvent?.eventCode;
 
   const { data, loading, error, reload } = useAsyncData<SPRData>(
     eventCode && currentYear
-      ? `${eventCode}|${currentYear}|${competitionType}|${verbose}`
+      ? JSON.stringify([eventCode, currentYear, competitionType, verbose, getCurrentYearConfig()])
       : null,
     async () => {
       const params = new URLSearchParams({

@@ -11,7 +11,7 @@ for (const config of eslintConfig) {
 }
 
 const projectConfig = [...eslintConfig, {
-  ignores: ["docs/examples/**"],
+  ignores: [".runtime/**", "docs/examples/**", "test-results/**", "playwright-report/**"],
 }, {
   rules: {
     "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],

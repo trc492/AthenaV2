@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { loadAppConfig } from "@/lib/server/env-file";
+import { getAuthSecret } from "@/lib/server/runtime-secrets";
 
 /** Resolve the public origin at request time, including in standalone Docker builds. */
 export function withAuthOrigin(request: NextRequest): NextRequest {
@@ -34,4 +36,16 @@ export function withAuthOrigin(request: NextRequest): NextRequest {
   }
 
   return new NextRequest(url, request);
+}
+
+/**
+ * Decodes the signed session cookie without auth()'s database account check.
+ * Only for responses that are safe to serve to a recently deactivated user.
+ */
+export function readSessionToken(request: NextRequest) {
+  return getToken({
+    req: request,
+    secret: getAuthSecret(),
+    secureCookie: withAuthOrigin(request).nextUrl.protocol === "https:",
+  });
 }

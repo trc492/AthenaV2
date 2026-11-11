@@ -1,0 +1,11 @@
+title = "Athena secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "FRC 2025 scoring metric references, verified against historical findings"
+condition = "AND"
+paths = ['''(^|/)config/years/FRC-2025\.json$''']
+regexTarget = "secret"
+regexes = ['''^teleop\.L[1-4]_coral$''']

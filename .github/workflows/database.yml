@@ -1,0 +1,45 @@
+name: Database persistence
+
+on:
+  workflow_call:
+
+jobs:
+  persistence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: mariadb
+            image: mariadb:11.4
+            port: 3306
+          - provider: azuresql
+            image: mcr.microsoft.com/mssql/server:2022-latest
+            port: 1433
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          MARIADB_ROOT_PASSWORD: Athena-test-only-123!
+          MARIADB_ROOT_HOST: '%'
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: Athena-test-only-123!
+        ports:
+          - ${{ matrix.port }}:${{ matrix.port }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Test real SQL persistence
+        run: pnpm test:database
+        env:
+          TEST_DATABASE_PROVIDER: ${{ matrix.provider }}
+          TEST_DATABASE_PORT: ${{ matrix.port }}
+          TEST_DATABASE_PASSWORD: Athena-test-only-123!

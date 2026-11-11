@@ -4,6 +4,7 @@ import path from "node:path";
 export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
+    exclude: ["tests/database/**", "**/node_modules/**"],
     environment: "node",
     globals: true,
     clearMocks: true,

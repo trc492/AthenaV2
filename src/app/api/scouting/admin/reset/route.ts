@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
 import { auth } from "@/lib/auth/config";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
+import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 
 // POST /api/admin/reset - Reset all database data
 export async function POST() {
@@ -14,6 +15,7 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
     await databaseManager.resetDatabase();
+    invalidateSessionUser();
     return NextResponse.json({
       success: true,
       message: "Database reset successfully",

@@ -7,13 +7,23 @@ on:
   workflow_call:
 
 jobs:
+  browser-tests:
+    uses: ./.github/workflows/playwright.yml
+    permissions:
+      contents: read
+
+  database-tests:
+    uses: ./.github/workflows/database.yml
+    permissions:
+      contents: read
+
   checks:
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 

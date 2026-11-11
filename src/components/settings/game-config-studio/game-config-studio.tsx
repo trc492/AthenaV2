@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { notifyGameConfigUpdated } from "@/lib/game-config/updates";
 
 import { Button } from "@/components/ui/button";
 
@@ -38,11 +39,6 @@ import { VisualTeamPageCanvas } from "./visual-teampage-canvas";
 import { BuilderJsonEditor } from "./builder-json-editor";
 import { validateYearConfig } from "@/lib/game-config/config-validator";
 
-// Static defaults as instant fallback
-import FRC2026 from "../../../../config/years/FRC-2026.json";
-import FRC2025 from "../../../../config/years/FRC-2025.json";
-import FTC2026 from "../../../../config/years/FTC-2026.json";
-
 interface ConfigOption {
   filename: string;
   competitionType: string;
@@ -53,30 +49,36 @@ interface ConfigOption {
 
 export type StudioDesignerMode = "match" | "pit" | "matchup" | "teampage";
 
-/** Returns the saved config list, or null if there is none or it failed. */
-async function loadConfigList() {
-  try {
-    const res = await fetch("/api/scouting/admin/configs");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.configs && data.configs.length > 0) {
-        return data.configs;
-      }
-    }
-  } catch (err) {
-    console.error("Failed to load configs from server:", err);
+async function loadConfigList(): Promise<ConfigOption[]> {
+  const res = await fetch("/api/scouting/admin/configs", { cache: "no-store" });
+  const data = await res.json();
+  if (!res.ok || !Array.isArray(data.configs)) {
+    throw new Error(data.error || "Failed to load saved configurations");
   }
-  return null;
+  return data.configs;
+}
+
+async function loadSavedConfig(filename?: string) {
+  const configs = filename ? undefined : await loadConfigList();
+  filename ??= configs?.find((config) => config.filename === "FRC-2026.json")?.filename ?? configs?.[0]?.filename;
+  if (!filename) return { configs, filename: "", config: undefined };
+  const res = await fetch(`/api/scouting/admin/configs?file=${encodeURIComponent(filename)}`, { cache: "no-store" });
+  const data = await res.json();
+  if (!res.ok || !data.config) throw new Error(data.error || "Failed to load saved configuration");
+  const validation = validateYearConfig(data.config);
+  if (!validation.valid) throw new Error(validation.errors.join(", "));
+  return { configs, filename, config: data.config as YearConfig };
 }
 
 export function GameConfigStudio() {
-  const [configList, setConfigList] = useState<ConfigOption[]>([
-    { filename: "FRC-2026.json", competitionType: "FRC", year: 2026, gameName: (FRC2026 as YearConfig).gameName, isBuiltin: true },
-    { filename: "FRC-2025.json", competitionType: "FRC", year: 2025, gameName: (FRC2025 as YearConfig).gameName, isBuiltin: true },
-    { filename: "FTC-2026.json", competitionType: "FTC", year: 2026, gameName: (FTC2026 as YearConfig).gameName, isBuiltin: true },
-  ]);
-  const [selectedFile, setSelectedFile] = useState<string>("FRC-2026.json");
-  const [currentConfig, setCurrentConfig] = useState<YearConfig>(() => JSON.parse(JSON.stringify(FRC2026)));
+  const [configList, setConfigList] = useState<ConfigOption[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string>("");
+  const [currentConfig, setCurrentConfig] = useState<YearConfig>(() => structuredClone(DEFAULT_NEW_CONFIG));
+  const [savedConfig, setSavedConfig] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadVersion = useRef(0);
+  const isDirty = selectedFile !== "" && JSON.stringify(currentConfig) !== savedConfig;
   const [currentYear, setCurrentYear] = useState<number>(2026);
   const referenceWarnings = React.useMemo(
     () => validateYearConfig(currentConfig).warnings,
@@ -106,54 +108,54 @@ export function GameConfigStudio() {
 
   // Fetch configs list from server
   const fetchConfigs = async () => {
-    const configs = await loadConfigList();
-    if (configs) setConfigList(configs);
+    try {
+      setConfigList(await loadConfigList());
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    loadConfigList().then((configs) => {
-      if (!cancelled && configs) setConfigList(configs);
+  // Commit the filename and contents together, only after a successful read.
+  const loadSelectedConfig = useCallback((filename?: string) => {
+    const version = ++loadVersion.current;
+    return loadSavedConfig(filename).then((data) => {
+      if (version !== loadVersion.current) return;
+      if (data.configs) setConfigList(data.configs);
+      setSelectedFile(data.filename);
+      if (!data.config) return;
+      setCurrentConfig(data.config);
+      setSavedConfig(JSON.stringify(data.config));
+      setCurrentYear(Number(data.filename.match(/-(\d{4})\.json$/i)?.[1]));
+      setSelectedComponent(null);
+    }).catch((error) => {
+      if (version === loadVersion.current) setLoadError(getErrorMessage(error));
+    }).finally(() => {
+      if (version === loadVersion.current) setIsLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  // Load selected config
-  const handleSelectConfig = async (filename: string) => {
-    setSelectedFile(filename);
-    setSelectedComponent(null);
-    try {
-      const res = await fetch(`/api/scouting/admin/configs?file=${encodeURIComponent(filename)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.config) {
-          setCurrentConfig(data.config);
-          const match = filename.match(/^(FRC|FTC)-(\d{4})\.json$/i);
-          if (match) {
-            setCurrentYear(parseInt(match[2], 10));
-          }
-          return;
-        }
-      }
-    } catch {
-      // Fallback
-    }
+  useEffect(() => {
+    const requests = loadVersion;
+    void loadSelectedConfig();
+    return () => { requests.current++; };
+  }, [loadSelectedConfig]);
 
-    if (filename === "FRC-2026.json") {
-      setCurrentConfig(JSON.parse(JSON.stringify(FRC2026)));
-      setCurrentYear(2026);
-    } else if (filename === "FRC-2025.json") {
-      setCurrentConfig(JSON.parse(JSON.stringify(FRC2025)));
-      setCurrentYear(2025);
-    } else if (filename === "FTC-2026.json") {
-      setCurrentConfig(JSON.parse(JSON.stringify(FTC2026)));
-      setCurrentYear(2026);
-    }
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
+
+  const handleSelectConfig = async (filename: string) => {
+    if (isDirty && !window.confirm("Discard unsaved configuration changes?")) return;
+    setIsLoading(true);
+    setLoadError(null);
+    await loadSelectedConfig(filename);
   };
 
   const openCreateDialog = () => {
+    if (isDirty && !window.confirm("Discard unsaved configuration changes?")) return;
     const frcYears = configList
       .filter((config) => config.competitionType === "FRC")
       .map((config) => config.year);
@@ -197,12 +199,14 @@ export function GameConfigStudio() {
       if (!res.ok) throw new Error(data.error || "Failed to create configuration");
 
       setCurrentConfig(data.config);
+      setSavedConfig(JSON.stringify(data.config));
       setCurrentYear(createYear);
       setSelectedFile(data.filename);
       setSelectedComponent(null);
       setIsCreateDialogOpen(false);
       await fetchConfigs();
       toast.success(`Created ${data.filename}`);
+      notifyGameConfigUpdated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create configuration");
     } finally {
@@ -245,12 +249,14 @@ export function GameConfigStudio() {
       if (!res.ok) throw new Error(data.error || "Failed to rename configuration");
 
       setCurrentConfig(data.config);
+      setSavedConfig(JSON.stringify(data.config));
       setCurrentYear(renameYear);
       setSelectedFile(data.filename);
       setSelectedComponent(null);
       setIsRenameDialogOpen(false);
       await fetchConfigs();
       toast.success(`Renamed configuration to ${data.filename}`);
+      notifyGameConfigUpdated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to rename configuration");
     } finally {
@@ -260,7 +266,8 @@ export function GameConfigStudio() {
 
   // Duplicate current config
   const handleDuplicateCurrent = () => {
-    const nextYear = currentYear + 1;
+    let nextYear = currentYear + 1;
+    while (configList.some((config) => config.filename === `${currentConfig.competitionType}-${nextYear}.json`)) nextYear++;
     const cloned = JSON.parse(JSON.stringify(currentConfig)) as YearConfig;
     cloned.gameName = `${cloned.gameName || "GAME"}_COPY`;
     setCurrentConfig(cloned);
@@ -272,6 +279,7 @@ export function GameConfigStudio() {
 
   // Save config to server
   const handleSaveToServer = async () => {
+    if (isLoading || isSaving || !selectedFile) return;
     const compType = currentConfig.competitionType || "FRC";
     const filename = `${compType}-${currentYear}.json`;
 
@@ -285,16 +293,19 @@ export function GameConfigStudio() {
           year: currentYear,
           filename,
           config: currentConfig,
+          createOnly: !configList.some((config) => config.filename === filename),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || data.errors?.join(", ") || "Failed to save configuration");
+        throw new Error(data.errors?.join(", ") || data.error || "Failed to save configuration");
       }
 
       toast.success(`Saved configuration to ${filename}`);
-      fetchConfigs();
+      setSavedConfig(JSON.stringify(data.config));
+      notifyGameConfigUpdated();
+      void fetchConfigs();
       setSelectedFile(filename);
     } catch (err) {
       toast.error(getErrorMessage(err) || "Failed to save configuration");
@@ -544,8 +555,28 @@ export function GameConfigStudio() {
     toast.info(`Removed component`);
   };
 
+  if (isLoading) {
+    return <p role="status" className="p-6 text-muted-foreground">Loading saved configuration…</p>;
+  }
+
+  if (loadError && !selectedFile) {
+    return <div role="alert" className="space-y-3 rounded-lg border p-6">
+      <p>{loadError}</p>
+      <Button onClick={() => {
+        setIsLoading(true);
+        setLoadError(null);
+        void loadSelectedConfig();
+      }}>Retry loading configurations</Button>
+    </div>;
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" inert={isSaving || isCreating || isRenaming}>
+      {loadError && <p role="alert" className="text-destructive">{loadError}. Your previous configuration is still open.</p>}
+      <p role="status" className="text-sm text-muted-foreground">
+        {!selectedFile ? "No saved configurations. Choose New to create one." : isDirty ? "Unsaved changes" : "All changes saved"}
+        {" · Online scouting sessions refresh after saving, on focus, and every 30 seconds."}
+      </p>
       {/* Studio Master Header */}
       <div className="rounded-xl border border-border bg-card p-3 sm:px-5">
         <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
@@ -721,7 +752,7 @@ export function GameConfigStudio() {
             </Button>
 
             {/* Save to Server */}
-            <Button size="sm" onClick={handleSaveToServer} disabled={isSaving} className="h-9 text-xs">
+            <Button size="sm" onClick={handleSaveToServer} disabled={isSaving || !isDirty} className="h-9 text-xs">
               <Save className="h-3.5 w-3.5 mr-1.5" />
               {isSaving ? "Saving..." : "Save Config"}
             </Button>
@@ -897,6 +928,7 @@ export function GameConfigStudio() {
             config={currentConfig}
             year={currentYear}
             onUpdateConfig={setCurrentConfig}
+            onApplied={() => setIsJsonDialogOpen(false)}
           />
         </DialogContent>
       </Dialog>

@@ -2,15 +2,12 @@
 
 import * as React from "react";
 import {
-  ColumnDef,
-  ColumnFiltersState,
+  type ColumnDef,
+  type ColumnFiltersState,
+  type ColumnVisibilityState,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-  VisibilityState,
+  type SortingState,
+  useTable,
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronDown, Filter } from "lucide-react";
 
@@ -38,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AnalysisMetricDefinition } from "@/lib/types";
+import { epaTableFeatures, type EPATableFeatures } from "./table-features";
 
 interface AnalysisTableRow {
   team: string;
@@ -56,7 +54,7 @@ function formatToTenths(value: number): string {
   return Number.isFinite(value) ? value.toFixed(1) : "0.0";
 }
 
-export const columns: ColumnDef<AnalysisTableRow>[] = [
+export const columns: ColumnDef<EPATableFeatures, AnalysisTableRow>[] = [
   {
     accessorKey: "team",
     header: "Team",
@@ -75,7 +73,7 @@ export const columns: ColumnDef<AnalysisTableRow>[] = [
         </button>
       </div>
     ),
-    sortingFn: (rowA, rowB) => {
+    sortFn: (rowA, rowB) => {
       const a = rowA.original.selectedMetricValue ?? 0;
       const b = rowB.original.selectedMetricValue ?? 0;
       return a === b ? 0 : a > b ? 1 : -1;
@@ -180,7 +178,7 @@ export function EPATable({
     [],
   );
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+    React.useState<ColumnVisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
   const tableData = React.useMemo(() => data ?? [], [data]);
@@ -212,7 +210,8 @@ export function EPATable({
     });
   }, [tableData, selectedMetricKey, selectedMetricType]);
 
-  const table = useReactTable({
+  const table = useTable({
+    features: epaTableFeatures,
     data: tableDataWithMetric,
     columns,
     state: {
@@ -225,9 +224,6 @@ export function EPATable({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   return (

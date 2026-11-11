@@ -5,9 +5,9 @@ import { databaseManager } from "@/db/database-manager";
 import { getOrCreateAuthSecret } from "@/lib/server/env-file";
 import "./types";
 import { resolveGuestEventLink } from "@/lib/server/guest-link-service";
+import { loadSessionUser } from "@/lib/server/session-user-cache";
 
 export const authConfig: NextAuthConfig = {
-  secret: getOrCreateAuthSecret(),
   trustHost: true,
   providers: [
     Credentials({
@@ -84,7 +84,7 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       const guestToken = user ? user.guestToken : token.guestToken;
       if (guestToken) {
         const grant = await resolveGuestEventLink(guestToken);
@@ -108,14 +108,20 @@ export const authConfig: NextAuthConfig = {
         token.avatarUrl = user.avatarUrl || user.image || null;
       } else {
         // A valid JWT is not proof that the account still exists or has the
-        // same permissions. Refresh from the database on every session check.
+        // same permissions. Re-check it, served from a short per-instance cache
+        // so routine API calls do not each wake the database.
         const id = token.id || token.sub;
         if (!id) return null;
 
         try {
           const db = databaseManager.getService();
-          if (!db.users) return null;
-          const currentUser = await db.users.getById(String(id));
+          const users = db.users;
+          if (!users) return null;
+          const currentUser = await loadSessionUser(
+            String(id),
+            () => users.getById(String(id)),
+            trigger === "update",
+          );
           if (
             !currentUser ||
             currentUser.deactivatedAt ||
@@ -165,5 +171,5 @@ export const authConfig: NextAuthConfig = {
   },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+export const { handlers, auth, signIn, signOut } = NextAuth(() => ({ ...authConfig, secret: getOrCreateAuthSecret() }));
 export const authOptions = authConfig;

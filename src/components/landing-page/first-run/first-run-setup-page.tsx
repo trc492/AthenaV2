@@ -43,16 +43,16 @@ interface FirstRunSetupPageProps {
   redirectHref?: string;
   initialStep?: SetupStep;
   stepAfterAppUrl?: Exclude<SetupStep, "app-url">;
-  onSubmitAppUrl?: (appUrl: string) => Promise<SetupResult>;
-  onSubmitDatabase?: (data: DatabaseFormState) => Promise<SetupResult>;
-  onSubmitAdmin?: (data: AdminFormValues) => Promise<SetupResult>;
+  onSubmitAppUrl?: (appUrl: string, setupToken?: string) => Promise<SetupResult>;
+  onSubmitDatabase?: (data: DatabaseFormState, setupToken?: string) => Promise<SetupResult>;
+  onSubmitAdmin?: (data: AdminFormValues, setupToken?: string) => Promise<SetupResult>;
 }
 
-const defaultSubmitAppUrl = async (appUrl: string): Promise<SetupResult> => {
+const defaultSubmitAppUrl = async (appUrl: string, setupToken?: string): Promise<SetupResult> => {
   try {
     const res = await fetch("/api/setup/app-url", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken ?? "" },
       body: JSON.stringify({ appUrl }),
     });
     const body = await res.json().catch(() => ({}));
@@ -73,11 +73,12 @@ const defaultSubmitAppUrl = async (appUrl: string): Promise<SetupResult> => {
 
 const defaultSubmitDatabase = async (
   data: DatabaseFormState,
+  setupToken?: string,
 ): Promise<SetupResult> => {
   try {
     const res = await fetch("/api/setup/database", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken ?? "" },
       body: JSON.stringify(data),
     });
     const body = await res.json().catch(() => ({}));
@@ -101,11 +102,12 @@ const defaultSubmitDatabase = async (
 
 const defaultSubmitAdmin = async (
   data: AdminFormValues,
+  setupToken?: string,
 ): Promise<SetupResult> => {
   try {
     const res = await fetch("/api/setup/admin", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken ?? "" },
       body: JSON.stringify(data),
     });
     const body = await res.json().catch(() => ({}));
@@ -331,6 +333,7 @@ export function FirstRunSetupPage({
   onSubmitAdmin = defaultSubmitAdmin,
 }: FirstRunSetupPageProps) {
   const [step, setStep] = useState<SetupStep>(initialStep);
+  const [setupToken, setSetupToken] = useState("");
   const [appUrl, setAppUrl] = useState("");
   const [databaseForm, setDatabaseForm] =
     useState<DatabaseFormState>(defaultDatabaseFormState);
@@ -340,7 +343,7 @@ export function FirstRunSetupPage({
   const handleAppUrlSubmit = async () => {
     setIsSubmitting(true);
     setError(null);
-    const result = await onSubmitAppUrl(appUrl);
+    const result = await onSubmitAppUrl(appUrl, setupToken);
     setIsSubmitting(false);
     if (result.success) {
       setStep(stepAfterAppUrl);
@@ -352,7 +355,7 @@ export function FirstRunSetupPage({
   const handleDatabaseSubmit = async () => {
     setIsSubmitting(true);
     setError(null);
-    const result = await onSubmitDatabase(databaseForm);
+    const result = await onSubmitDatabase(databaseForm, setupToken);
     setIsSubmitting(false);
 
     if (result.success) {
@@ -362,10 +365,10 @@ export function FirstRunSetupPage({
     }
   };
 
-  const handleAdminSubmit = async (data: AdminFormValues) => {
+  const handleAdminSubmit = async (data: AdminFormValues, setupToken?: string) => {
     setIsSubmitting(true);
     setError(null);
-    const result = await onSubmitAdmin(data);
+    const result = await onSubmitAdmin(data, setupToken);
     setIsSubmitting(false);
 
     if (result.success) {
@@ -452,6 +455,15 @@ export function FirstRunSetupPage({
             <div className="w-full max-w-md mx-auto lg:mx-0">
               <div className="lg:hidden">
                 <StepIndicator current={step} />
+              </div>
+
+              <div className="mb-6 space-y-2">
+                <Label htmlFor="setup-token">Setup token</Label>
+                <Input id="setup-token" type="password" autoComplete="off"
+                  value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+                <p className="text-sm text-muted-foreground">
+                  Enter the setup token provided by the person hosting this app.
+                </p>
               </div>
 
               {step === "app-url" && (

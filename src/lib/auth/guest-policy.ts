@@ -15,6 +15,7 @@ export function isGuestPage(pathname: string, grant?: GuestEventGrant) {
 }
 
 const scoutingReads = new Set([
+  "/api/scouting/config",
   "/api/scouting/entries/match",
   "/api/scouting/entries/pit",
   "/api/scouting/entries/team",

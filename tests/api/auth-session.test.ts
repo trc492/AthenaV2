@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { encode } from "next-auth/jwt";
 import { handlers } from "@/lib/auth/config";
+import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 import {
   createGuestEventLink as signGuestEventLink,
   verifyGuestEventLink,
@@ -59,6 +60,7 @@ describe("existing account sessions", () => {
     vi.stubEnv("NEXTAUTH_URL", "http://localhost");
     query.mockReset();
     guestLinks.clear();
+    invalidateSessionUser();
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -83,6 +85,18 @@ describe("existing account sessions", () => {
       expect.stringContaining("WHERE id = @id"),
       { id: "user-1" },
     );
+  });
+
+  it("reuses a recent account check until the account changes", async () => {
+    query.mockResolvedValue({
+      recordset: [{ id: "user-1", name: "Scout", username: "scout", role: "scout" }],
+    });
+    await getSession();
+    await getSession();
+    expect(query).toHaveBeenCalledTimes(1);
+    invalidateSessionUser("user-1");
+    await getSession();
+    expect(query).toHaveBeenCalledTimes(2);
   });
 
   it("rejects a deleted account and clears its session cookie", async () => {

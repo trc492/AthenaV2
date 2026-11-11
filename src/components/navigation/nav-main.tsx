@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useOnboarding, useTourHighlight } from "@/components/onboarding/onboarding-provider";
 
 export function NavMain({
   items,
@@ -34,6 +35,9 @@ export function NavMain({
   }[];
 }) {
   const pathname = usePathname();
+  const { completeAction } = useOnboarding();
+  const competitionHighlight = useTourHighlight("competition");
+  const settingsHighlight = useTourHighlight("settings");
   const { isMobile, setOpenMobile, setOpen, state } = useSidebar();
   const closeMobileSidebar = () => {
     if (isMobile) setOpenMobile(false);
@@ -60,9 +64,12 @@ export function NavMain({
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton
+                      data-tour-target={item.title === "Competition" ? "competition" : undefined}
+                      className={item.title === "Competition" ? competitionHighlight : undefined}
                       tooltip={item.title}
                       isActive={sectionIsActive}
                       onClick={() => {
+                        if (item.title === "Competition") completeAction("competition");
                         if (!isMobile && state === "collapsed") setOpen(true);
                       }}
                     >
@@ -99,11 +106,13 @@ export function NavMain({
           return (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
+                data-tour-target={item.title === "Settings" ? "settings" : undefined}
+                className={item.title === "Settings" ? settingsHighlight : undefined}
                 asChild
                 tooltip={item.title}
                 isActive={routeIsActive(item.url!)}
               >
-                <Link href={item.url!} onClick={closeMobileSidebar}>
+                <Link href={item.url!} onClick={() => { if (item.title === "Settings") completeAction("settings"); closeMobileSidebar(); }}>
                   {item.icon && <item.icon className="size-4" />}
 
                   <span className="group-data-[collapsible=icon]:hidden">

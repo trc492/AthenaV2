@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+import { loadGameConfig } from "@/lib/server/game-config-store";
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -18,11 +20,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
+  const gameConfig = loadGameConfig();
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans">
@@ -35,7 +39,7 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              <GameConfigProvider>
+              <GameConfigProvider initialConfig={gameConfig}>
                 <EventProvider>{children}</EventProvider>
               </GameConfigProvider>
               <SonnerToaster />

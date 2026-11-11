@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { CompetitionType, PicklistEntry } from "@/lib/types";
 import { usePicklist } from "@/hooks/use-picklist";
+import { useGameConfig } from "@/hooks/use-game-config";
 import { useEventTeams } from "@/hooks/use-event-teams";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { toast } from "sonner";
@@ -278,7 +279,10 @@ export function DraggablePicklist({
   }, [eventCode, year, competitionType]);
 
   // Fetch EPA data from picklist API (uses local scouting data)
+  const { config } = useGameConfig();
+  const scoringConfigKey = JSON.stringify(config[competitionType]?.[year]);
   useEffect(() => {
+    let cancelled = false;
     const fetchEpaData = async () => {
       try {
         const params = new URLSearchParams({
@@ -301,7 +305,7 @@ export function DraggablePicklist({
               });
             });
           }
-          if (epaMap.size > 0) {
+          if (!cancelled) {
             setEpaData(epaMap);
           }
         }
@@ -310,7 +314,8 @@ export function DraggablePicklist({
       }
     };
     fetchEpaData();
-  }, [eventCode, year, competitionType]);
+    return () => { cancelled = true; };
+  }, [eventCode, year, competitionType, scoringConfigKey]);
 
   // Load notes from database when picklists are ready
   useEffect(() => {

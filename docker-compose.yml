@@ -1,10 +1,18 @@
 services:
   nextapp:
-    build: .
+    image: ${ATHENA_IMAGE:-ghcr.io/writerfrighter/athenav2:latest}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
-      - ./.runtime:/app/.runtime
+      - athena-runtime:/app/.runtime
     environment:
       - NODE_ENV=production
+      - AUTH_SECRET=${AUTH_SECRET:-}
+      - SETUP_TOKEN=${SETUP_TOKEN:-}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-}
+      - ATHENA_SETUP_ENABLED=${ATHENA_SETUP_ENABLED:-true}
+      - RATE_LIMIT_IP_HEADER=${RATE_LIMIT_IP_HEADER:-}
     restart: unless-stopped
+
+volumes:
+  athena-runtime:

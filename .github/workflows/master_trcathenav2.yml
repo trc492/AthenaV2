@@ -20,7 +20,7 @@ jobs:
       contents: read #This is required for actions/checkout
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -31,7 +31,7 @@ jobs:
           cache: pnpm
 
       - name: Restore Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .next/cache
           key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
@@ -43,6 +43,9 @@ jobs:
 
       - name: Build Next.js application
         run: pnpm build
+
+      - name: Check release artifact isolation
+        run: node scripts/check-release-artifact.mjs
 
       # Deploy only the standalone runtime and files read at request time.
       # Source, tests, node_modules, and build caches are not needed by Azure.
@@ -70,11 +73,11 @@ jobs:
 
     steps:
       - name: Download artifact from build job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: node-app
           path: deploy
-      
+
       - name: Login to Azure
         uses: azure/login@v2
         with:

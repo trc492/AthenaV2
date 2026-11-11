@@ -84,7 +84,12 @@ export interface ScoutingStore {
   ): Promise<PitEntry[]>;
   updatePitEntry(id: number, updates: Partial<PitEntry>): Promise<void>;
   deletePitEntry(id: number): Promise<void>;
-  checkPitScoutExists(teamNumber: number, eventCode: string): Promise<boolean>;
+  checkPitScoutExists(
+    teamNumber: number,
+    eventCode: string,
+    year: number,
+    competitionType: CompetitionType,
+  ): Promise<boolean>;
 
   addMatchEntry(entry: Omit<MatchEntry, "id">): Promise<number>;
   getMatchEntries(
@@ -103,6 +108,8 @@ export interface ScoutingStore {
     teamNumber: number,
     matchNumber: number,
     eventCode: string,
+    year: number,
+    competitionType: CompetitionType,
   ): Promise<boolean>;
 }
 

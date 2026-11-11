@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import type { DatabaseService, GuestLinkRecord } from "@/lib/types";
 import {
   activeGuestLinks,
+  GUEST_LINK_TTL_MS,
   issueGuestLink,
   resolveGuestEventLink,
 } from "@/lib/server/guest-link-service";
@@ -37,10 +38,14 @@ describe("persistent guest links", () => {
   });
 
   it("uses current stored access for existing tokens and sessions", async () => {
+    vi.useFakeTimers();
     const record = await issueGuestLink({ ...event, canAddScouting: true, canViewNotes: true }, "manager", service);
     records.set(record.id, { ...record, canAddScouting: false, canViewNotes: false });
     expect(await resolveGuestEventLink(record.token, service)).toMatchObject({ canAddScouting: false, canViewNotes: false });
     records.set(record.id, { ...record, canAddScouting: true, canViewNotes: false });
+    // Lookups within one request share a read; later checks see the change.
+    expect(await resolveGuestEventLink(record.token, service)).toMatchObject({ canAddScouting: false });
+    vi.advanceTimersByTime(GUEST_LINK_TTL_MS);
     expect(await resolveGuestEventLink(record.token, service)).toMatchObject({ canAddScouting: true, canViewNotes: false });
     expect((await activeGuestLinks(service))[0].path).toBe(`/guest/events/${record.token}`);
   });

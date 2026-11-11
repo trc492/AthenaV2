@@ -15,11 +15,11 @@ export function useTeamData(teamNumber: string) {
   const { data: session } = useSession();
   const isGuest = !!session?.guestEvent;
   const selectedEvent = useSelectedEvent();
-  const { currentYear, competitionType } = useGameConfig();
+  const { currentYear, competitionType, getCurrentYearConfig } = useGameConfig();
   const eventCode = selectedEvent?.eventCode;
   const { data, loading, error } = useAsyncData(
     teamNumber && currentYear
-      ? JSON.stringify([teamNumber, currentYear, eventCode, competitionType, session?.user?.id, isGuest])
+      ? JSON.stringify([teamNumber, currentYear, eventCode, competitionType, session?.user?.id, isGuest, getCurrentYearConfig()])
       : null,
     () => loadWithOfflineCache({
       isGuest,

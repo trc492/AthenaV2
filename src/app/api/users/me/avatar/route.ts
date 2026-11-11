@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { databaseManager } from "@/db/database-manager";
+import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 // GET /api/users/me/avatar
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -33,7 +34,11 @@ export async function GET() {
       status: 200,
       headers: {
         "Content-Type": avatarMimeType,
-        "Cache-Control": "no-store",
+        // Uploads get a new ?v= URL, so a versioned image never changes.
+        // Unversioned URLs are shared by every account on this browser.
+        "Cache-Control": request.nextUrl.searchParams.has("v")
+          ? "private, max-age=31536000, immutable"
+          : "private, no-cache",
       },
     });
   } catch (error) {
@@ -89,17 +94,18 @@ export async function POST(request: NextRequest) {
     // Persist avatar bytes and metadata directly in DB
     const db = databaseManager.getService();
 
-    const urlPath = "/api/users/me/avatar";
+    const urlPath = `/api/users/me/avatar?v=${Date.now().toString(36)}`;
 
     await db.updateUser(session.user.id, {
       avatarData: buffer,
       avatarMimeType: mime,
       avatarUrl: urlPath,
     });
+    invalidateSessionUser(session.user.id);
 
     return NextResponse.json({
       success: true,
-      avatarUrl: `${urlPath}?v=${Date.now()}`,
+      avatarUrl: urlPath,
     });
   } catch (error) {
     console.error("Upload avatar error:", error);

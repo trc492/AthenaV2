@@ -9,6 +9,7 @@ config/
 ├── years/
 │   ├── FRC-2026.json    # FRC 2026 REBUILT game config
 │   ├── FRC-2025.json    # FRC 2025 REEFSCAPE game config
+│   ├── FTC-2027.json    # FTC 2027 BIOBUZZ game config
 │   ├── FTC-2026.json    # FTC 2026 DECODE game config
 │   └── README.md        # This file
 └── game-config-loader.ts # Assembles all year configs

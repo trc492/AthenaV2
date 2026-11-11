@@ -58,8 +58,16 @@ describe("document database domain behavior", () => {
     expect(await service.getMatchEntries(254)).toMatchObject([{ id: matchId, notes: "changed" }]);
     await service.deleteMatchEntry(matchId);
     await service.deletePitEntry(pitId);
-    expect(await service.checkMatchScoutExists(254, 3, "2026test")).toBe(false);
+    expect(await service.checkMatchScoutExists(254, 3, "2026test", 2026, "FRC")).toBe(false);
     expect(await service.getAllPitEntries(2026, undefined, "FRC")).toEqual([]);
+  });
+  it("scopes duplicate checks to the season, since FTC event codes repeat across years", async () => {
+    await service.addPitEntry({ ...pit, competitionType: "FTC", eventCode: "USWAQ1", year: 2025 });
+    await service.addMatchEntry({ ...match, competitionType: "FTC", eventCode: "USWAQ1", year: 2025 });
+    expect(await service.checkPitScoutExists(254, "USWAQ1", 2025, "FTC")).toBe(true);
+    expect(await service.checkPitScoutExists(254, "USWAQ1", 2026, "FTC")).toBe(false);
+    expect(await service.checkMatchScoutExists(254, 3, "USWAQ1", 2025, "FTC")).toBe(true);
+    expect(await service.checkMatchScoutExists(254, 3, "USWAQ1", 2026, "FTC")).toBe(false);
   });
   it("does not generate duplicate IDs in rapid concurrent writes", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1000);

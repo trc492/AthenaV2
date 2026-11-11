@@ -3,6 +3,7 @@ import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 const state = vi.hoisted(() => ({ session: null as Session | null, db: {
   getAllMatchEntries: vi.fn(), getAllPitEntries: vi.fn(), addMatchEntry: vi.fn(), addPitEntry: vi.fn(),
+  checkMatchScoutExists: vi.fn(), checkPitScoutExists: vi.fn(),
 } }));
 vi.mock("@/lib/auth/config", () => ({ auth: async () => state.session }));
 vi.mock("@/lib/server/db-service", () => ({ getDbService: () => state.db }));
@@ -14,6 +15,8 @@ beforeEach(() => {
   state.session = { user: { id: "guest:link", role: "guest" }, guestEvent: { ...grant } } as Session;
   state.db.getAllMatchEntries.mockResolvedValue([]);
   state.db.getAllPitEntries.mockResolvedValue([]);
+  state.db.checkMatchScoutExists.mockResolvedValue(false);
+  state.db.checkPitScoutExists.mockResolvedValue(false);
   state.db.addMatchEntry.mockResolvedValue(1);
   state.db.addPitEntry.mockResolvedValue(2);
 });

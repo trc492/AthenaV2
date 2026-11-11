@@ -1,3 +1,4 @@
+import { getAuthSecret } from "./runtime-secrets";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
@@ -15,14 +16,9 @@ const grantSchema = guestEventSchema.extend({
 });
 export type GuestEventGrant = z.infer<typeof grantSchema>;
 
-function secret() {
-  const value = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
-  if (!value) throw new Error("Guest links require AUTH_SECRET");
-  return value;
-}
 
 function signature(payload: string) {
-  return createHmac("sha256", secret())
+  return createHmac("sha256", getAuthSecret())
     .update(`event-guest:v1:${payload}`)
     .digest();
 }

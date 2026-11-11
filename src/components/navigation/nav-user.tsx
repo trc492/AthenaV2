@@ -12,6 +12,7 @@ import { useAccountSettingsDialog } from "@/app/dashboard/dashboard-shell";
 import { useNotificationSettingsDialog } from "@/app/dashboard/dashboard-shell";
 import { signOut } from "next-auth/react";
 import { useGameConfig } from "@/hooks/use-game-config";
+import { useOnboarding, useTourHighlight } from "@/components/onboarding/onboarding-provider";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -40,6 +41,9 @@ export function NavUser({
   };
 }) {
   const { isMobile } = useSidebar();
+  const { step, completeAction } = useOnboarding();
+  const accountHighlight = useTourHighlight("account");
+  const programHighlight = useTourHighlight("program");
   const { competitionType, setCompetitionType } = useGameConfig();
 
   // Call the hook unconditionally at the top level
@@ -58,16 +62,18 @@ export function NavUser({
   const handleSwitchProgram = () => {
     const newType = competitionType === "FRC" ? "FTC" : "FRC";
     setCompetitionType(newType);
+    completeAction("program");
   };
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu modal={step === null} onOpenChange={(open) => { if (open) completeAction("account"); }}>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
+              data-tour-target="account"
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className={`data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground ${accountHighlight || programHighlight}`}
             >
               <Avatar className="h-8 w-8 rounded-lg bg-white">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -114,7 +120,7 @@ export function NavUser({
                 <Bell />
                 Notifications
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleSwitchProgram}>
+              <DropdownMenuItem data-tour-target="program" className={programHighlight} onClick={handleSwitchProgram}>
                 <Trophy
                   className={
                     competitionType === "FTC"

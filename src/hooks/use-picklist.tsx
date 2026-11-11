@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useGameConfig } from "./use-game-config";
 import {
   Picklist,
   PicklistEntry,
@@ -31,6 +32,8 @@ interface TeamPicklistData {
 }
 
 export function usePicklist(options: UsePicklistOptions) {
+  const { config } = useGameConfig();
+  const scoringConfigKey = JSON.stringify(config[options.competitionType]?.[options.year]);
   const [picklist, setPicklist] = useState<Picklist | null>(null);
   const currentPicklistId = picklist?.id;
   const [entries, setEntries] = useState<PicklistEntry[]>([]);
@@ -313,15 +316,20 @@ export function usePicklist(options: UsePicklistOptions) {
     }
   }, [currentPicklistId]);
 
-  // Load rankings and any saved picklist whenever the options change
+  // Refresh calculated rankings without replacing unsaved picklist ordering.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      loadInitialRanking(loadOptions),
-      loadExistingPicklist(loadOptions),
-    ]).then(([teams, existing]) => {
+    loadInitialRanking(loadOptions).then((teams) => {
+      if (!cancelled && teams) setInitialRanking(teams);
+    });
+    return () => { cancelled = true; };
+  }, [loadOptions, scoringConfigKey]);
+
+  // Load saved picklist ordering only when the event/options change.
+  useEffect(() => {
+    let cancelled = false;
+    loadExistingPicklist(loadOptions).then((existing) => {
       if (cancelled) return;
-      if (teams) setInitialRanking(teams);
       if (existing) {
         setPicklist(existing.picklist);
         setEntries(existing.entries);

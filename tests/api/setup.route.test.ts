@@ -3,6 +3,8 @@ import { asNextRequest } from "../helpers/test-doubles";
 
 const mockSavePersistedDatabaseConfig = vi.fn().mockResolvedValue(undefined);
 const mockConfigure = vi.fn();
+const setupToken = "test-setup-token-with-at-least-32-characters";
+vi.mock("@/lib/server/runtime-secrets", () => ({ getSetupToken: () => setupToken }));
 let mockQuery = vi.fn();
 let useDocumentCandidate = false;
 const mockConnectionCheck = vi.fn();
@@ -57,7 +59,7 @@ describe("/api/setup/database", () => {
     const route = await import("@/app/api/setup/database/route");
     const req = new Request("http://test/api/setup/database", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({}),
     });
 
@@ -69,7 +71,7 @@ describe("/api/setup/database", () => {
     useDocumentCandidate = true;
     const route = await import("@/app/api/setup/database/route");
     const response = await route.POST(asNextRequest(new Request("http://test/api/setup/database", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({ provider, firebase: { serviceAccountJson: {} }, cosmos: { endpoint: "https://cosmos.test", key: "key" } }),
     })));
     expect(response.status).toBe(200);
@@ -83,7 +85,7 @@ describe("/api/setup/database", () => {
     mockConnectionCheck.mockRejectedValue(new Error("Invalid credentials"));
     const route = await import("@/app/api/setup/database/route");
     const response = await route.POST(asNextRequest(new Request("http://test/api/setup/database", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({ provider: "cosmos", cosmos: { endpoint: "https://cosmos.test", key: "bad" } }),
     })));
     expect(response.status).toBe(500);
@@ -96,7 +98,7 @@ describe("/api/setup/database", () => {
     const route = await import("@/app/api/setup/database/route");
     const req = new Request("http://test/api/setup/database", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({
         provider: "mariadb",
         mariadb: {
@@ -127,7 +129,7 @@ describe("/api/setup/database", () => {
     const route = await import("@/app/api/setup/database/route");
     const req = new Request("http://test/api/setup/database", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({
         provider: "mariadb",
         mariadb: { host: "localhost", database: "athena" },
@@ -150,7 +152,7 @@ describe("/api/setup/database", () => {
     const route = await import("@/app/api/setup/database/route");
     const req = new Request("http://test/api/setup/database", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({
         provider: "mariadb",
         mariadb: {
@@ -185,7 +187,7 @@ describe("/api/setup/admin", () => {
     const route = await import("@/app/api/setup/admin/route");
     const req = new Request("http://test/api/setup/admin", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({
         name: "Ada Lovelace",
         username: "ada",
@@ -207,7 +209,7 @@ describe("/api/setup/admin", () => {
     const route = await import("@/app/api/setup/admin/route");
     const req = new Request("http://test/api/setup/admin", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({
         name: "Ada Lovelace",
         username: "admin",
@@ -237,7 +239,7 @@ describe("/api/auth/register", () => {
     const route = await import("@/app/api/auth/register/route");
     const req = new Request("http://test/api/auth/register", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({
         name: "Scout One",
         username: "scout1",
@@ -256,7 +258,7 @@ describe("/api/auth/register", () => {
     const route = await import("@/app/api/auth/register/route");
     const req = new Request("http://test/api/auth/register", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Athena-Setup-Token": setupToken },
       body: JSON.stringify({
         name: "Scout One",
         username: "bad username with spaces!",

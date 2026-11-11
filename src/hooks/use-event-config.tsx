@@ -187,10 +187,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
             console.warn("Failed to cache events:", cacheError);
           }
         }
-
-        if (allEvents.length === 0) {
-          setError("No events found for this year");
-        }
       } catch (err) {
         if (cancelled) return;
         console.error("Error fetching events:", err);

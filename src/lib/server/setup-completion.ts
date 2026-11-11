@@ -4,8 +4,8 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { DatabaseConfig } from "@/lib/types";
 
-const directory = join(process.cwd(), ".runtime");
-const path = join(directory, "setup-completion.json");
+const directory = join(/* turbopackIgnore: true */ process.cwd(), ".runtime");
+const path = join(/* turbopackIgnore: true */ directory, "setup-completion.json");
 let memory: { fingerprint: string; complete: boolean } | undefined;
 
 function fingerprint(config: DatabaseConfig): string {
@@ -17,7 +17,7 @@ export function hasSavedSetupCompletion(config: DatabaseConfig): boolean {
   const key = fingerprint(config);
   if (memory?.fingerprint === key) return memory.complete;
   try {
-    const saved = JSON.parse(readFileSync(path, "utf8"));
+    const saved = JSON.parse(readFileSync(/* turbopackIgnore: true */ path, "utf8"));
     return saved.fingerprint === key && saved.complete === true;
   } catch {
     return false;

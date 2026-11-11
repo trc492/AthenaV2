@@ -1,12 +1,10 @@
-import gameConfig from "../../../config/game-config-loader";
+import { loadGameConfig } from "./game-config-store";
 import type {
   YearConfig,
   CompetitionType,
   PitEntry,
   MatchEntry,
 } from "@/lib/types";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 
 export interface ImportValidationResult {
   valid: boolean;
@@ -15,46 +13,15 @@ export interface ImportValidationResult {
 
 /**
  * Retrieves the YearConfig for a given competition type and year.
- * Checks static game-config-loader first, then falls back to filesystem (config/years and .runtime/configs).
+ * Uses persistent overrides and deletions before bundled defaults.
  */
 export function getYearConfig(
   competitionType: string,
   year: number,
 ): YearConfig | null {
-  const compUpper = competitionType.toUpperCase();
-
-  // 1. Check static gameConfig
-  const typedConfig = gameConfig as unknown as Record<
-    string,
-    Record<string, YearConfig>
-  >;
-  if (typedConfig[compUpper]?.[year.toString()]) {
-    return typedConfig[compUpper][year.toString()];
-  }
-
-  // 2. Check filesystem directories
-  const candidateFiles = [
-    `${compUpper}-${year}.json`,
-    `${compUpper.toLowerCase()}-${year}.json`,
-    `${competitionType}-${year}.json`,
-  ];
-
-  const candidatePaths = candidateFiles.flatMap((filename) => [
-    join(process.cwd(), "config", "years", filename),
-    join(process.cwd(), ".runtime", "configs", filename),
-  ]);
-
-  for (const fullPath of candidatePaths) {
-    if (!existsSync(fullPath)) continue;
-    try {
-      const raw = readFileSync(fullPath, "utf-8");
-      return JSON.parse(raw) as YearConfig;
-    } catch {
-      // Try the next supported filename when a config is unreadable.
-    }
-  }
-
-  return null;
+  const program = competitionType.toUpperCase();
+  if (program !== "FRC" && program !== "FTC") return null;
+  return loadGameConfig()[program]?.[String(year)] ?? null;
 }
 
 /**

@@ -27,6 +27,7 @@ describe("service worker background sync lifecycle", () => {
     }) => void
   >();
   const register = vi.fn().mockResolvedValue(undefined);
+  const showNotification = vi.fn().mockResolvedValue(undefined);
 
   beforeEach(async () => {
     vi.resetModules();
@@ -41,7 +42,7 @@ describe("service worker background sync lifecycle", () => {
       ) => listeners.set(name, listener),
       registration: {
         sync: { register },
-        showNotification: vi.fn().mockResolvedValue(undefined),
+        showNotification,
       },
       clients: { matchAll: vi.fn().mockResolvedValue([]) },
     });
@@ -74,4 +75,16 @@ describe("service worker background sync lifecycle", () => {
     expect(register).toHaveBeenCalledWith("offline-data-sync");
     await expect(waitUntil.mock.calls[0][0]).resolves.toBeUndefined();
   });
+
+  it.each(["default", "denied", "granted"])(
+    "completes successful sync with notification permission %s",
+    async (permission) => {
+      vi.stubGlobal("Notification", { permission });
+      syncPendingEntries.mockResolvedValue({ success: true, syncedCount: 1, failedCount: 0, errors: [] });
+      const waitUntil = vi.fn();
+      listeners.get("sync")!({ tag: "offline-data-sync", waitUntil });
+      await expect(waitUntil.mock.calls[0][0]).resolves.toBeUndefined();
+      expect(showNotification).toHaveBeenCalledTimes(permission === "granted" ? 1 : 0);
+    },
+  );
 });

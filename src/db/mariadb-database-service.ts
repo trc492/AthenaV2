@@ -51,6 +51,9 @@ type SqlParam = string | number | boolean | Date | Buffer | null;
 /** A `SELECT` result row shaped by one of the schema row interfaces. */
 type Row<T> = T & RowDataPacket;
 
+/** Bump whenever initializeTables() changes so existing databases re-run it once. */
+const SCHEMA_VERSION = 2;
+
 /**
  * JSON requests and imports carry dates as ISO strings, while mysql2 expects a
  * Date (or a MariaDB-formatted DATETIME string). Normalize at the provider
@@ -90,8 +93,19 @@ export class MariaDbDatabaseService implements DatabaseService {
   public async getPool(): Promise<Pool> {
     if (this.pool) return this.pool;
     const mysql = await import("mysql2/promise");
+    // mysql2 only closes idle connections when maxIdle < connectionLimit; open
+    // connections would otherwise keep a serverless database awake.
+    const poolOptions = {
+      connectionLimit: 10,
+      maxIdle: 2,
+      idleTimeout: 30_000,
+      namedPlaceholders: false,
+    };
     if (this.config.connectionString) {
-      this.pool = mysql.createPool(this.config.connectionString);
+      this.pool = mysql.createPool({
+        uri: this.config.connectionString,
+        ...poolOptions,
+      });
     } else {
       this.pool = mysql.createPool({
         host: this.config.host || "localhost",
@@ -99,13 +113,33 @@ export class MariaDbDatabaseService implements DatabaseService {
         user: this.config.user,
         password: this.config.password,
         database: this.config.database,
-        connectionLimit: 10,
-        namedPlaceholders: false,
+        ...poolOptions,
       });
     }
 
-    await this.initializeTables();
+    await this.ensureSchema();
     return this.pool;
+  }
+
+  /** One version read per cold start instead of re-running every DDL statement. */
+  private async ensureSchema(): Promise<void> {
+    const pool = this.pool!;
+    try {
+      const [rows] = await pool.query<Row<{ version: number }>[]>(
+        `SELECT MAX(version) AS version FROM athenaSchema`,
+      );
+      if ((rows[0]?.version ?? 0) >= SCHEMA_VERSION) return;
+    } catch {
+      // The marker table predates this check or the database is new.
+    }
+    await this.initializeTables();
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS athenaSchema (version INT NOT NULL) ENGINE=InnoDB`,
+    );
+    await pool.query(`DELETE FROM athenaSchema`);
+    await pool.query(`INSERT INTO athenaSchema (version) VALUES (?)`, [
+      SCHEMA_VERSION,
+    ]);
   }
 
   public async query<T = unknown>(
@@ -304,9 +338,9 @@ export class MariaDbDatabaseService implements DatabaseService {
         year INT NOT NULL,
         competitionType VARCHAR(10) DEFAULT 'FRC' NOT NULL,
         driveTrain VARCHAR(50) NOT NULL,
-        weight DECIMAL(10,2) NOT NULL,
-        length DECIMAL(10,2) NOT NULL,
-        width DECIMAL(10,2) NOT NULL,
+        weight DECIMAL(10,2) NULL,
+        length DECIMAL(10,2) NULL,
+        width DECIMAL(10,2) NULL,
         eventName VARCHAR(255),
         eventCode VARCHAR(50),
         userId VARCHAR(255),
@@ -320,6 +354,12 @@ export class MariaDbDatabaseService implements DatabaseService {
         INDEX idx_pit_event (eventCode)
       ) ENGINE=InnoDB;
     `);
+
+    // Measurements are optional in scouting forms, including on existing databases.
+    await pool.query(`ALTER TABLE pitEntries
+      MODIFY COLUMN weight DECIMAL(10,2) NULL,
+      MODIFY COLUMN length DECIMAL(10,2) NULL,
+      MODIFY COLUMN width DECIMAL(10,2) NULL`);
 
     // matchEntries
     await pool.query(`
@@ -597,11 +637,13 @@ export class MariaDbDatabaseService implements DatabaseService {
   async checkPitScoutExists(
     teamNumber: number,
     eventCode: string,
+    year: number,
+    competitionType: CompetitionType,
   ): Promise<boolean> {
     const pool = await this.getPool();
     const [rows] = await pool.execute<Row<{ count: number }>[]>(
-      `SELECT COUNT(*) as count FROM pitEntries WHERE teamNumber = ? AND eventCode = ?`,
-      [teamNumber, eventCode],
+      `SELECT COUNT(*) as count FROM pitEntries WHERE teamNumber = ? AND eventCode = ? AND year = ? AND competitionType = ?`,
+      [teamNumber, eventCode, year, competitionType],
     );
     return rows[0].count > 0;
   }
@@ -748,11 +790,13 @@ export class MariaDbDatabaseService implements DatabaseService {
     teamNumber: number,
     matchNumber: number,
     eventCode: string,
+    year: number,
+    competitionType: CompetitionType,
   ): Promise<boolean> {
     const pool = await this.getPool();
     const [rows] = await pool.execute<Row<{ count: number }>[]>(
-      `SELECT COUNT(*) as count FROM matchEntries WHERE teamNumber = ? AND matchNumber = ? AND eventCode = ?`,
-      [teamNumber, matchNumber, eventCode],
+      `SELECT COUNT(*) as count FROM matchEntries WHERE teamNumber = ? AND matchNumber = ? AND eventCode = ? AND year = ? AND competitionType = ?`,
+      [teamNumber, matchNumber, eventCode, year, competitionType],
     );
     return rows[0].count > 0;
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { databaseManager } from "@/db/database-manager";
 import { USERNAME_REGEX } from "@/lib/server/user-service";
+import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 
 export async function GET() {
   try {
@@ -86,6 +87,7 @@ export async function PUT(request: NextRequest) {
       name: name.trim(),
       username: username.trim(),
     });
+    invalidateSessionUser(session.user.id);
 
     return NextResponse.json({
       success: true,

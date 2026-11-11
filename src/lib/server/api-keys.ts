@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const RUNTIME_DIR = join(process.cwd(), ".runtime");
-const API_KEYS_PATH = join(RUNTIME_DIR, "api-keys.json");
+const RUNTIME_DIR = join(/* turbopackIgnore: true */ process.cwd(), ".runtime");
+const API_KEYS_PATH = join(/* turbopackIgnore: true */ RUNTIME_DIR, "api-keys.json");
 
 export interface ApiKeys {
   tbaApiKey: string;
@@ -21,10 +21,10 @@ export interface ApiKeys {
 export function loadApiKeys(): ApiKeys {
   // Start from persisted file
   let persisted: Partial<ApiKeys> = {};
-  if (existsSync(API_KEYS_PATH)) {
+  if (existsSync(/* turbopackIgnore: true */ API_KEYS_PATH)) {
     try {
       persisted = JSON.parse(
-        readFileSync(API_KEYS_PATH, "utf8"),
+        readFileSync(/* turbopackIgnore: true */ API_KEYS_PATH, "utf8"),
       ) as Partial<ApiKeys>;
     } catch {
       // ignore parse errors
@@ -60,10 +60,10 @@ export function getApiKeyStatus(): Record<
   { configured: boolean; source: "env" | "persisted" | "none" }
 > {
   let persisted: Partial<ApiKeys> = {};
-  if (existsSync(API_KEYS_PATH)) {
+  if (existsSync(/* turbopackIgnore: true */ API_KEYS_PATH)) {
     try {
       persisted = JSON.parse(
-        readFileSync(API_KEYS_PATH, "utf8"),
+        readFileSync(/* turbopackIgnore: true */ API_KEYS_PATH, "utf8"),
       ) as Partial<ApiKeys>;
     } catch {
       // ignore
@@ -95,10 +95,10 @@ export function getApiKeyStatus(): Record<
 export async function saveApiKeys(keys: Partial<ApiKeys>): Promise<void> {
   // Merge with any existing persisted keys so we don't wipe unset fields
   let existing: Partial<ApiKeys> = {};
-  if (existsSync(API_KEYS_PATH)) {
+  if (existsSync(/* turbopackIgnore: true */ API_KEYS_PATH)) {
     try {
       existing = JSON.parse(
-        readFileSync(API_KEYS_PATH, "utf8"),
+        readFileSync(/* turbopackIgnore: true */ API_KEYS_PATH, "utf8"),
       ) as Partial<ApiKeys>;
     } catch {
       // ignore

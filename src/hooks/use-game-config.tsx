@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, useContext, useSyncExternalStore, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, ReactNode } from "react";
+import { GAME_CONFIG_UPDATED } from "@/lib/game-config/updates";
+import { startActivePolling } from "@/lib/active-polling";
 import gameConfig from "../../config/game-config-loader";
 import type { YearConfig, GameConfig, CompetitionType } from "@/lib/types";
 import { useSession } from "next-auth/react";
@@ -52,10 +54,52 @@ const GameConfigContext = createContext<GameConfigContextType | undefined>(
   undefined,
 );
 
-export function GameConfigProvider({ children }: { children: ReactNode }) {
-  const { data: session } = useSession();
+export function GameConfigProvider({ children, initialConfig }: { children: ReactNode; initialConfig?: GameConfig }) {
+  const { data: session, status } = useSession();
   const guest = session?.guestEvent;
-  const config = gameConfig as unknown as GameConfig;
+  const [liveConfig, setLiveConfig] = useState<GameConfig | null>(null);
+  const config = liveConfig ?? initialConfig ?? gameConfig as unknown as GameConfig;
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    let disposed = false;
+    let controller: AbortController | undefined;
+    const refresh = async () => {
+      if (!navigator.onLine || document.visibilityState === "hidden") return;
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      const timeout = window.setTimeout(() => request.abort(), 10_000);
+      try {
+        const response = await fetch("/api/scouting/config", { cache: "no-store", signal: request.signal });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!disposed && !request.signal.aborted && data.config?.FRC && data.config?.FTC) {
+          setLiveConfig((previous) => JSON.stringify(previous) === JSON.stringify(data.config) ? previous : data.config);
+        }
+      } catch {
+        // Keep the last usable configuration while offline or on server failure.
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === GAME_CONFIG_UPDATED) void refresh();
+    };
+    void refresh();
+    // Same-browser edits arrive by event; other devices only need occasional
+    // checks while someone is actually using this tab.
+    const stopPolling = startActivePolling(() => void refresh(), 2 * 60_000);
+    window.addEventListener(GAME_CONFIG_UPDATED, refresh);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      stopPolling();
+      window.removeEventListener(GAME_CONFIG_UPDATED, refresh);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [status, session?.user?.id]);
   // True once rendering on the client, where the stored selections are readable
   const isInitialized = useSyncExternalStore(
     subscribeToNothing,
@@ -70,7 +114,10 @@ export function GameConfigProvider({ children }: { children: ReactNode }) {
       : DEFAULT_COMPETITION_TYPE;
 
   const savedYear = parseInt(useStoredSelection(GAME_YEAR_KEY) ?? "");
-  const currentYear = guest?.year ?? (Number.isNaN(savedYear) ? DEFAULT_YEAR : savedYear);
+  const availableYears = Object.keys(config[competitionType] ?? {}).map(Number);
+  const preferredYear = Number.isNaN(savedYear) ? DEFAULT_YEAR : savedYear;
+  const currentYear = guest?.year ?? (availableYears.includes(preferredYear)
+    ? preferredYear : availableYears.length ? Math.max(...availableYears) : preferredYear);
 
   const setCurrentYear = (year: number) => {
     if (guest) return;

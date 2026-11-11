@@ -32,6 +32,31 @@ export async function issueGuestLink(
   return record;
 }
 
+// One guest request checks its link in the proxy and both auth callbacks.
+// Revocations through this instance apply at once, elsewhere within the TTL.
+export const GUEST_LINK_TTL_MS = 5_000;
+const guestLinkCache = new Map<
+  string,
+  { expiresAt: number; record: Promise<GuestLinkRecord | undefined> }
+>();
+
+function loadGuestLink(id: string, service?: DatabaseService) {
+  const now = Date.now();
+  const hit = guestLinkCache.get(id);
+  if (hit && hit.expiresAt > now) return hit.record;
+  if (guestLinkCache.size >= 500) guestLinkCache.clear();
+  const record = database(service).then((db) => db.getGuestLink(id));
+  guestLinkCache.set(id, { expiresAt: now + GUEST_LINK_TTL_MS, record });
+  record.catch(() => {
+    if (guestLinkCache.get(id)?.record === record) guestLinkCache.delete(id);
+  });
+  return record;
+}
+
+export function forgetGuestLink(id: string) {
+  guestLinkCache.delete(id);
+}
+
 export async function resolveGuestEventLink(
   token: string,
   service?: DatabaseService,
@@ -39,8 +64,7 @@ export async function resolveGuestEventLink(
   const grant = verifyGuestEventLink(token);
   if (!grant) return null;
   try {
-    const db = await database(service);
-    const record = await db.getGuestLink(grant.nonce);
+    const record = await loadGuestLink(grant.nonce, service);
     return record && record.token === token && record.revokedAt === null
       ? { ...grant, canAddScouting: record.canAddScouting ?? false, canViewNotes: record.canViewNotes ?? false }
       : null;

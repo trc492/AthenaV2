@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { databaseManager } from "@/db/database-manager";
-import { sendPushNotificationToUser } from "@/lib/notifications";
+import {
+  isPushConfigured,
+  loadSubscriptionsByUser,
+  sendPushNotificationToSubscriptions,
+} from "@/lib/notifications";
 
 type VerificationPayload = {
   message_type: "verification";
@@ -99,6 +103,16 @@ export async function POST(req: NextRequest) {
   const notifyMatch = matchNumber;
 
   try {
+    // TBA sends this for every match at every subscribed event. Without push
+    // recipients there is nothing to do, so check that before the schedule.
+    if (!isPushConfigured()) {
+      return NextResponse.json({ ok: true }, { status: 200 });
+    }
+    const subscribers = await loadSubscriptionsByUser();
+    if (subscribers.size === 0) {
+      return NextResponse.json({ ok: true }, { status: 200 });
+    }
+
     const service = databaseManager.getService();
     if (!service.query && !service.getScheduleAssignments) {
       return NextResponse.json({ ok: true }, { status: 200 });
@@ -122,19 +136,15 @@ export async function POST(req: NextRequest) {
     const userIds: string[] =
       [...new Set(result.recordset?.map((r) => r.userId).filter(Boolean) ?? [])];
 
-    await Promise.all(
-      userIds.map((userId) =>
-        sendPushNotificationToUser({
-          userId,
-          payload: {
-            title: "Scouting Match Coming Up",
-            body: `${data.event_name}: Get ready for match ${notifyMatch}.`,
-            url: `/scout/matchscout?match=${notifyMatch}`,
-            data: { timestamp: new Date().toISOString() },
-          },
-        }),
-      ),
-    );
+    await sendPushNotificationToSubscriptions({
+      subscriptions: userIds.flatMap((userId) => subscribers.get(userId) ?? []),
+      payload: {
+        title: "Scouting Match Coming Up",
+        body: `${data.event_name}: Get ready for match ${notifyMatch}.`,
+        url: `/scout/matchscout?match=${notifyMatch}`,
+        data: { timestamp: new Date().toISOString() },
+      },
+    });
   } catch (err) {
     console.error("Error handling TBA upcoming_match webhook:", err);
   }

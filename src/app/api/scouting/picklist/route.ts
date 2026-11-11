@@ -5,7 +5,7 @@ import { getDbService } from "@/lib/server/db-service";
 import { calculateEPA } from "@/lib/statistics";
 import { CompetitionType } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
-import gameConfig from "../../../../../config/game-config-loader";
+import { loadGameConfig } from "@/lib/server/game-config-store";
 
 
 interface TeamPicklistData {
@@ -24,6 +24,7 @@ interface TeamPicklistData {
 // GET /api/scouting/picklist - Get ranked team list for picklist
 export async function GET(request: NextRequest) {
   try {
+    const gameConfig = loadGameConfig();
     const session = await auth();
     if (
       !session?.user?.role ||

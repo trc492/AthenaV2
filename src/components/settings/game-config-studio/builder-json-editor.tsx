@@ -23,12 +23,14 @@ interface BuilderJsonEditorProps {
   config: YearConfig;
   year: number;
   onUpdateConfig: (newConfig: YearConfig) => void;
+  onApplied: () => void;
 }
 
 export function BuilderJsonEditor({
   config,
   year,
   onUpdateConfig,
+  onApplied,
 }: BuilderJsonEditorProps) {
   const [jsonText, setJsonText] = useState("");
   const [copied, setCopied] = useState(false);
@@ -63,11 +65,21 @@ export function BuilderJsonEditor({
       setValidationErrors(valRes.errors);
       setValidationWarnings(valRes.warnings);
 
-      if (valRes.valid) {
-        onUpdateConfig(parsed);
-      }
     } catch (err) {
       setParseError(getErrorMessage(err));
+    }
+  };
+
+  const handleApply = () => {
+    try {
+      const parsed = JSON.parse(jsonText);
+      const validation = validateYearConfig(parsed);
+      if (!validation.valid) return;
+      onUpdateConfig(parsed);
+      onApplied();
+      toast.info("JSON applied. Choose Save Config to publish your changes.");
+    } catch (error) {
+      setParseError(getErrorMessage(error));
     }
   };
 
@@ -118,8 +130,7 @@ export function BuilderJsonEditor({
             description: valRes.errors.join(", "),
           });
         }
-        setJsonText(JSON.stringify(parsed, null, 2));
-        onUpdateConfig(parsed);
+        handleTextChange(JSON.stringify(parsed, null, 2));
         toast.success(`Imported ${file.name}`);
       } catch (err) {
         toast.error(`Failed to parse file: ${getErrorMessage(err)}`);
@@ -140,7 +151,7 @@ export function BuilderJsonEditor({
                 Raw JSON Schema Inspector & Editor
               </CardTitle>
               <CardDescription>
-                Directly inspect, edit, export, or import the game YearConfig JSON structure.
+                Edit or import JSON, apply it to the editor, then choose Save Config to publish.
               </CardDescription>
             </div>
 
@@ -212,6 +223,7 @@ export function BuilderJsonEditor({
 
           <div className="relative">
             <Textarea
+              aria-label="Configuration JSON"
               value={jsonText}
               onChange={(e) => handleTextChange(e.target.value)}
               className="font-mono text-xs h-[500px] leading-relaxed p-4 bg-muted/30 resize-y border-border"
@@ -219,6 +231,9 @@ export function BuilderJsonEditor({
               spellCheck={false}
             />
           </div>
+          <Button onClick={handleApply} disabled={!!parseError || validationErrors.length > 0}>
+            Apply JSON to editor
+          </Button>
         </CardContent>
       </Card>
     </div>

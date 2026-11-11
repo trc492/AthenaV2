@@ -4,6 +4,7 @@ import { FirebaseDatabaseService } from "./firebase-database-service";
 import { CosmosDatabaseService } from "./cosmos-database-service";
 import { MariaDbDatabaseService } from "./mariadb-database-service";
 import { loadPersistedDatabaseConfig } from "@/lib/server/env-file";
+import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 
 class DatabaseManager {
   private static instance: DatabaseManager;
@@ -192,6 +193,7 @@ class DatabaseManager {
   configure(config: DatabaseConfig): void {
     this.config = config;
     this.currentService = this.createService(config);
+    invalidateSessionUser();
   }
 
   /** Creates a candidate service without replacing the active connection. */

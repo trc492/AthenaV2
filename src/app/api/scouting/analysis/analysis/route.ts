@@ -6,7 +6,7 @@ import { guestDatabase } from "@/lib/server/guest-database";
 import { calculateEPA } from "@/lib/statistics";
 import { AnalysisMetricDefinition, CompetitionType, EPABreakdown, MatchEntry, YearConfig } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
-import gameConfig from "../../../../../../config/game-config-loader";
+import { loadGameConfig } from "@/lib/server/game-config-store";
 
 
 type MetricValueType = AnalysisMetricDefinition["valueType"];
@@ -162,6 +162,7 @@ function quantile(sortedValues: number[], q: number) {
 // GET /api/scouting/analysis/analysis - Get analysis data for charts
 export async function GET(request: NextRequest) {
   try {
+    const gameConfig = loadGameConfig();
     const session = await auth();
     if (
       !session?.user?.role ||

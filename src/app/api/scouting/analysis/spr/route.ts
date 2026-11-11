@@ -8,7 +8,7 @@ import { getDbService } from "@/lib/server/db-service";
 import { computeScouterAccuracy } from "@/lib/statistics";
 import { CompetitionType } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
-import gameConfig from "../../../../../../config/game-config-loader";
+import { loadGameConfig } from "@/lib/server/game-config-store";
 
 
 /**
@@ -34,6 +34,7 @@ import gameConfig from "../../../../../../config/game-config-loader";
  */
 export async function GET(request: NextRequest) {
   try {
+    const gameConfig = loadGameConfig();
     const session = await auth();
     if (
       !session?.user?.role ||

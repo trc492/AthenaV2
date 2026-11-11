@@ -1,7 +1,14 @@
+import { requireSetupToken, withSetupLock } from "@/lib/server/setup-access";
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, hasAnyAdmin } from "@/lib/server/user-service";
 
 export async function POST(request: NextRequest) {
+  const denied = requireSetupToken(request);
+  if (denied) return denied;
+  return withSetupLock(() => handlePost(request));
+}
+
+async function handlePost(request: NextRequest) {
   try {
     // Security check: If an admin already exists, do not allow arbitrary setup admin creation
     const adminExists = await hasAnyAdmin();

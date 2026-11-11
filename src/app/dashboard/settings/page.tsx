@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 
 import { OfflinePrecache } from "@/components/sync/offline-precache";
+import { SettingsDirectory } from "@/components/settings/settings-directory";
+import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 
 import { Info, Layers } from "lucide-react";
 
@@ -14,21 +16,24 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight">Settings & System</h1>
         <p className="text-muted-foreground">
-          System configuration, offline capabilities, and administration tools.
+          Find your account preferences, offline tools, and team administration in one place.
         </p>
       </div>
 
+      <SettingsDirectory />
+      <OnboardingChecklist settings />
+
       {/* Offline Pre-cache (Available to all scouts) */}
-      <div className="space-y-3">
+      <section id="offline-data" aria-labelledby="offline-data-heading" className="scroll-mt-6 space-y-3 border-t pt-6">
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-primary" />
-          <h2 className="text-lg font-semibold tracking-tight">Offline Data Cache</h2>
+          <h2 id="offline-data-heading" className="text-lg font-semibold tracking-tight">Offline Data Cache</h2>
         </div>
         <OfflinePrecache />
-      </div>
+      </section>
 
       {/* About Athena V2 */}
-      <Card>
+      <Card id="about-athena" className="scroll-mt-6">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Info className="h-5 w-5 text-primary" />
@@ -64,6 +69,9 @@ export default function SettingsPage() {
               </span>
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
                 FTC 2026 (DECODE)
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                FTC 2027 (BIOBUZZ)
               </span>
             </div>
           </div>

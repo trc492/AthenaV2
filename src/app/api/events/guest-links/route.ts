@@ -8,6 +8,7 @@ import {
 import { guestEventSchema } from "@/lib/server/event-guest";
 import {
   activeGuestLinks,
+  forgetGuestLink,
   issueGuestLink,
 } from "@/lib/server/guest-link-service";
 import { getDbService } from "@/lib/server/db-service";
@@ -44,6 +45,7 @@ export async function DELETE(request: NextRequest) {
         { status: 404, headers },
       );
     await service.revokeGuestLink(id, Date.now());
+    forgetGuestLink(id);
     return NextResponse.json({ success: true }, { headers });
   } catch {
     return NextResponse.json(

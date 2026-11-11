@@ -3,11 +3,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseConfig } from "@/lib/types";
 
-const RUNTIME_DIR = join(process.cwd(), ".runtime");
-const DATABASE_CONFIG_PATH = join(RUNTIME_DIR, "database-config.json");
-const AUTH_SECRET_PATH = join(RUNTIME_DIR, "auth-secret.json");
-const SYSTEM_SETTINGS_PATH = join(RUNTIME_DIR, "system-settings.json");
-const APP_CONFIG_PATH = join(RUNTIME_DIR, "app-config.json");
+const RUNTIME_DIR = join(/* turbopackIgnore: true */ process.cwd(), ".runtime");
+const DATABASE_CONFIG_PATH = join(/* turbopackIgnore: true */ RUNTIME_DIR, "database-config.json");
+const AUTH_SECRET_PATH = join(/* turbopackIgnore: true */ RUNTIME_DIR, "auth-secret.json");
+const SYSTEM_SETTINGS_PATH = join(/* turbopackIgnore: true */ RUNTIME_DIR, "system-settings.json");
+const APP_CONFIG_PATH = join(/* turbopackIgnore: true */ RUNTIME_DIR, "app-config.json");
 
 export interface SystemSettings {
   /** When false, the public /signup page and POST /api/auth/register are disabled. */
@@ -15,12 +15,12 @@ export interface SystemSettings {
 }
 
 const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
-  signupEnabled: true,
+  signupEnabled: false,
 };
 
 export function loadSystemSettings(): SystemSettings {
   try {
-    const raw = readFileSync(SYSTEM_SETTINGS_PATH, "utf8");
+    const raw = readFileSync(/* turbopackIgnore: true */ SYSTEM_SETTINGS_PATH, "utf8");
     const parsed = JSON.parse(raw) as Partial<SystemSettings>;
     return { ...DEFAULT_SYSTEM_SETTINGS, ...parsed };
   } catch {
@@ -44,7 +44,7 @@ export async function saveSystemSettings(
 
 export function loadPersistedDatabaseConfig(): DatabaseConfig | null {
   try {
-    const raw = readFileSync(DATABASE_CONFIG_PATH, "utf8");
+    const raw = readFileSync(/* turbopackIgnore: true */ DATABASE_CONFIG_PATH, "utf8");
     const parsed = JSON.parse(raw) as DatabaseConfig;
     return parsed;
   } catch {
@@ -61,23 +61,7 @@ export async function savePersistedDatabaseConfig(config: DatabaseConfig) {
   );
 }
 
-/**
- * Returns the NEXTAUTH_SECRET.
- * next.config.ts handles the generate/persist/inject cycle, so by the time
- * any server-side code runs, process.env.NEXTAUTH_SECRET is always populated.
- * This function is kept for backwards compatibility with callers.
- */
-export function getOrCreateAuthSecret(): string {
-  // next.config.ts injects this for every runtime (Node + Edge).
-  // Fall back to AUTH_SECRET in case someone sets only that.
-  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
-  if (secret) return secret;
-
-  // Should never reach here in practice, but guard defensively.
-  throw new Error(
-    "NEXTAUTH_SECRET is not available. This is a bug – next.config.ts should have injected it.",
-  );
-}
+export { getAuthSecret as getOrCreateAuthSecret } from "./runtime-secrets";
 
 export {
   DATABASE_CONFIG_PATH,
@@ -99,7 +83,7 @@ export interface AppConfig {
 
 export function loadAppConfig(): AppConfig | null {
   try {
-    const raw = readFileSync(APP_CONFIG_PATH, "utf8");
+    const raw = readFileSync(/* turbopackIgnore: true */ APP_CONFIG_PATH, "utf8");
     const parsed = JSON.parse(raw) as Partial<AppConfig>;
     if (parsed?.appUrl) return parsed as AppConfig;
     return null;

@@ -49,6 +49,7 @@ import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { PERMISSIONS } from "@/lib/auth/roles";
 import type { Event, CustomEvent } from "@/lib/types/events/events";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
+import { useOnboarding, useTourHighlight } from "@/components/onboarding/onboarding-provider";
 
 function formatDate(date: Date | undefined) {
   if (!date) {
@@ -63,6 +64,8 @@ function formatDate(date: Date | undefined) {
 }
 
 export function EventSwitcher() {
+  const { step: tourStep, completeAction } = useOnboarding();
+  const seasonHighlight = useTourHighlight("season");
   const { isMobile } = useSidebar();
   const {
     events,
@@ -378,15 +381,11 @@ export function EventSwitcher() {
     );
   }
 
-  if (!selectedEvent) {
-    return null;
-  }
-
   return (
     <>
       <SidebarMenu>
         <SidebarMenuItem>
-          <DropdownMenu>
+          <DropdownMenu modal={tourStep === null} onOpenChange={(open) => { if (open) completeAction("event-open"); }}>
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 size="lg"
@@ -400,16 +399,17 @@ export function EventSwitcher() {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">
-                    {selectedEvent.name}
+                    {selectedEvent?.name ?? "Choose an event"}
                   </span>
                   <span className="truncate text-xs">
-                    {selectedEvent.region}
+                    {competitionType} {currentYear} · Change event / season
                   </span>
                 </div>
                 <ChevronsUpDown className="ml-auto" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
+              data-tour-target="event-options"
               className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
               align="start"
               side={isMobile ? "bottom" : "right"}
@@ -421,9 +421,9 @@ export function EventSwitcher() {
               <div className="px-2 py-2">
                 <Select
                   value={currentYear.toString()}
-                  onValueChange={(value) => setCurrentYear(parseInt(value))}
+                  onValueChange={(value) => { setCurrentYear(parseInt(value)); completeAction("season"); }}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger data-tour-target="season" aria-label="Season" className={`w-full ${seasonHighlight}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -447,8 +447,8 @@ export function EventSwitcher() {
               {events.map((event) => (
                 <div key={event.name} className="relative">
                   <DropdownMenuItem
-                    onClick={() => setSelectedEvent(event)}
-                    className={`gap-2 p-2 pr-16 ${event.name == selectedEvent.name && "bg-sidebar-accent"}`}
+                    onClick={() => { setSelectedEvent(event); completeAction("event"); }}
+                    className={`gap-2 p-2 pr-16 ${event.eventCode === selectedEvent?.eventCode ? "bg-sidebar-accent" : ""}`}
                   >
                     {event.name}
                   </DropdownMenuItem>

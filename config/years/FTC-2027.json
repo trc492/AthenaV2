@@ -1,0 +1,493 @@
+{
+  "competitionType": "FTC",
+  "gameName": "BIOBUZZ",
+  "startPositions": [
+    "Alliance Wall - Audience Side",
+    "Alliance Wall - Rear Side",
+    "Audience Wall",
+    "Rear Wall"
+  ],
+  "scoring": {
+    "autonomous": {
+      "leave": {
+        "label": "Leave",
+        "points": 3,
+        "description": "Robot is no longer contacting the perimeter wall at the end of autonomous",
+        "type": "boolean"
+      },
+      "pollen_launched": {
+        "label": "Pollen Launched into Cell (Auto)",
+        "points": 4,
+        "description": "Pollen this robot landed in its alliance's upward-facing cell. Hive tips are alliance-wide, so points are an estimated share of the 20-point tip",
+        "increments": [1, 4]
+      },
+      "pollen_missed": {
+        "label": "Pollen Missed (Auto)",
+        "points": 0,
+        "description": "Pollen launched at the hive that did not land in the cell",
+        "increments": [1, 4]
+      },
+      "nectar_launched": {
+        "label": "Nectar Launched into Cell (Auto)",
+        "points": 4,
+        "description": "Nectar this robot landed in its alliance's upward-facing cell",
+        "increments": [1]
+      },
+      "nectar_missed": {
+        "label": "Nectar Missed (Auto)",
+        "points": 0,
+        "description": "Nectar launched at the hive that did not land in the cell",
+        "increments": [1]
+      },
+      "park": {
+        "label": "Auto Park",
+        "points": 5,
+        "description": "Robot is at least partially in the loading zone at the end of autonomous",
+        "type": "boolean"
+      }
+    },
+    "teleop": {
+      "pollen_launched": {
+        "label": "Pollen Launched into Cell (Teleop)",
+        "points": 4,
+        "description": "Pollen this robot landed in its alliance's upward-facing cell. Hive tips are alliance-wide, so points are an estimated share of the 20-point tip",
+        "increments": [1, 4]
+      },
+      "pollen_missed": {
+        "label": "Pollen Missed (Teleop)",
+        "points": 0,
+        "description": "Pollen launched at the hive that did not land in the cell",
+        "increments": [1, 4]
+      },
+      "nectar_launched": {
+        "label": "Nectar Launched into Cell (Teleop)",
+        "points": 4,
+        "description": "Nectar this robot landed in its alliance's upward-facing cell",
+        "increments": [1]
+      },
+      "nectar_missed": {
+        "label": "Nectar Missed (Teleop)",
+        "points": 0,
+        "description": "Nectar launched at the hive that did not land in the cell",
+        "increments": [1]
+      },
+      "garden_elements": {
+        "label": "Elements Delivered to Garden",
+        "points": 1,
+        "description": "Pollen or nectar this robot moved into its alliance's garden",
+        "increments": [1, 4]
+      }
+    },
+    "endgame": {
+      "flower_pollen": {
+        "label": "Pollen Placed in Flower",
+        "points": 2,
+        "description": "Pollen this robot placed into the top of a flower (scores only if the alliance owns that flower)",
+        "increments": [1]
+      },
+      "flower_nectar": {
+        "label": "Nectar Placed in Flower",
+        "points": 2,
+        "description": "Nectar this robot placed into the top of a flower in the last 60 seconds",
+        "increments": [1]
+      },
+      "flowers_claimed": {
+        "label": "Flowers Claimed",
+        "points": 0,
+        "description": "Flowers where this robot's nectar is the top-most at the end of the match (ownership)",
+        "increments": [1]
+      },
+      "ending_position": {
+        "label": "Ending Position",
+        "description": "Robot's position at the end of the match",
+        "pointValues": {
+          "none": 0,
+          "loading_zone": 5
+        }
+      },
+      "robot_broke_down": {
+        "label": "Robot Broke Down",
+        "description": "Robot stopped moving and/or had issues",
+        "type": "boolean"
+      },
+      "robot_playstyle": {
+        "label": "Robot Playstyle",
+        "description": "General playstyle of the robot",
+        "type": "select",
+        "pointValues": {
+          "offensive": 0,
+          "defensive": 0,
+          "balanced": 0
+        }
+      }
+    },
+    "fouls": {
+      "minor_fouls": {
+        "label": "Minor Fouls",
+        "points": -5,
+        "description": "Minor fouls committed"
+      },
+      "major_fouls": {
+        "label": "Major Fouls",
+        "points": -20,
+        "description": "Major fouls committed (e.g. nectar in a flower before 60 seconds remain)"
+      }
+    }
+  },
+  "pitScouting": {
+    "autonomous": {
+      "startingPosition": {
+        "label": "Starting Position",
+        "type": "multiselect",
+        "options": [
+          "Alliance Wall - Audience Side",
+          "Alliance Wall - Rear Side",
+          "Audience Wall",
+          "Rear Wall"
+        ]
+      },
+      "autoPollenLaunched": {
+        "label": "Auto Pollen Launched into Cell",
+        "type": "number"
+      },
+      "autoPark": {
+        "label": "Parks in Loading Zone in Auto",
+        "type": "boolean"
+      },
+      "autoRoutineCount": {
+        "label": "Number of Auto Routines",
+        "type": "number"
+      }
+    },
+    "teleoperated": {
+      "intakeSources": {
+        "label": "Intake Sources",
+        "type": "multiselect",
+        "options": ["Ground", "Flower retrieval opening", "Garden", "No Intake"]
+      },
+      "elementCapacity": {
+        "label": "Max Elements Held",
+        "type": "number"
+      },
+      "canLaunchNectar": {
+        "label": "Can Launch Nectar",
+        "type": "boolean"
+      },
+      "launchRange": {
+        "label": "Launch Range",
+        "type": "select",
+        "options": ["Under the hive only", "Close range", "Mid-field", "Anywhere on our side"]
+      },
+      "shootOnTheMove": {
+        "label": "Can Launch on the Move",
+        "type": "boolean"
+      },
+      "rejectsOpponentNectar": {
+        "label": "Rejects Opponent Nectar on Intake",
+        "type": "boolean"
+      },
+      "cycleTime": {
+        "label": "Estimated Cycle Time (seconds)",
+        "type": "number"
+      }
+    },
+    "driveTeam": {
+      "driveTeamExperience": {
+        "label": "Hours Practiced with Current Robot",
+        "type": "select",
+        "options": ["<10 Hours", "10-20 Hours", "20-30 Hours", "30+ Hours"]
+      }
+    },
+    "endgame": {
+      "canScoreFlower": {
+        "label": "Can Place in Flowers",
+        "type": "boolean"
+      },
+      "flowerElements": {
+        "label": "Flower Elements",
+        "type": "multiselect",
+        "options": ["Pollen", "Nectar"],
+        "dependsOn": "canScoreFlower"
+      },
+      "maxFlowersClaimed": {
+        "label": "Flowers Typically Claimed",
+        "type": "number",
+        "dependsOn": "canScoreFlower"
+      },
+      "endgameStrategy": {
+        "label": "Endgame Strategy",
+        "type": "select",
+        "options": ["Claim flowers", "Keep launching", "Fill garden", "Park only"]
+      }
+    }
+  },
+  "analysisInsights": {
+    "insights": [
+      {
+        "id": "reliability",
+        "title": "Reliability (Breakdown Rate)",
+        "description": "Robot breakdowns per match",
+        "ranking": "lower",
+        "valueFormat": "percent",
+        "rawLabel": "Breakdowns/Matches",
+        "calculation": {
+          "type": "booleanRate",
+          "key": "endgame.robot_broke_down"
+        }
+      },
+      {
+        "id": "accuracy",
+        "title": "Accuracy (Launch Miss Rate)",
+        "description": "Pollen and nectar missed divided by total launches",
+        "ranking": "lower",
+        "valueFormat": "percent",
+        "rawLabel": "Missed/Attempts",
+        "calculation": {
+          "type": "ratio",
+          "numeratorKeys": [
+            "autonomous.pollen_missed",
+            "autonomous.nectar_missed",
+            "teleop.pollen_missed",
+            "teleop.nectar_missed"
+          ],
+          "denominatorKeys": [
+            "autonomous.pollen_launched",
+            "autonomous.nectar_launched",
+            "teleop.pollen_launched",
+            "teleop.nectar_launched",
+            "autonomous.pollen_missed",
+            "autonomous.nectar_missed",
+            "teleop.pollen_missed",
+            "teleop.nectar_missed"
+          ]
+        }
+      },
+      {
+        "id": "flower-control",
+        "title": "Flower Control (Flowers Claimed)",
+        "description": "Total flowers claimed at the end of the match",
+        "ranking": "higher",
+        "valueFormat": "number",
+        "rawLabel": "Flowers Claimed",
+        "calculation": {
+          "type": "sum",
+          "keys": ["endgame.flowers_claimed"]
+        }
+      }
+    ]
+  },
+  "derivedMetrics": [
+    {
+      "key": "calculated.auto_launched",
+      "label": "Auto Elements Launched",
+      "op": "sum",
+      "inputs": ["autonomous.pollen_launched", "autonomous.nectar_launched"]
+    },
+    {
+      "key": "calculated.teleop_launched",
+      "label": "Teleop Elements Launched",
+      "op": "sum",
+      "inputs": ["teleop.pollen_launched", "teleop.nectar_launched"]
+    },
+    {
+      "key": "autonomous.launch_accuracy",
+      "label": "Auto Launch Accuracy",
+      "op": "ratio",
+      "inputs": ["autonomous.pollen_launched", "autonomous.nectar_launched"],
+      "denominator": [
+        "autonomous.pollen_launched",
+        "autonomous.nectar_launched",
+        "autonomous.pollen_missed",
+        "autonomous.nectar_missed"
+      ],
+      "asPercent": true
+    },
+    {
+      "key": "teleop.launch_accuracy",
+      "label": "Teleop Launch Accuracy",
+      "op": "ratio",
+      "inputs": ["teleop.pollen_launched", "teleop.nectar_launched"],
+      "denominator": [
+        "teleop.pollen_launched",
+        "teleop.nectar_launched",
+        "teleop.pollen_missed",
+        "teleop.nectar_missed"
+      ],
+      "asPercent": true
+    },
+    {
+      "key": "calculated.flower_elements",
+      "label": "Flower Elements Placed",
+      "op": "sum",
+      "inputs": ["endgame.flower_pollen", "endgame.flower_nectar"]
+    }
+  ],
+  "matchupCardConfig": {
+    "autoIcon": "Zap",
+    "autoMetrics": [
+      { "key": "calculated.auto_launched", "label": "Launched" },
+      { "key": "autonomous.launch_accuracy", "label": "Accuracy", "type": "badge", "threshold": 60, "unit": "%" },
+      { "key": "autonomous.leave", "label": "Leave Rate", "type": "badge", "threshold": 80, "unit": "%" },
+      { "key": "autonomous.park", "label": "Park Rate", "type": "badge", "threshold": 50, "unit": "%" }
+    ],
+    "teleopIcon": "Flame",
+    "teleopMetrics": [
+      { "key": "teleop.pollen_launched", "label": "Pollen" },
+      { "key": "teleop.nectar_launched", "label": "Nectar", "hideIfZero": true },
+      { "key": "teleop.launch_accuracy", "label": "Accuracy", "type": "badge", "threshold": 60, "unit": "%" },
+      { "key": "teleop.garden_elements", "label": "Garden", "hideIfZero": true }
+    ],
+    "endgame": {
+      "stateKey": "endgame.ending_position",
+      "states": [
+        { "key": "loading_zone", "label": "Park Rate", "threshold": 80 }
+      ]
+    },
+    "warnings": {
+      "breakdownThreshold": 15,
+      "majorPenaltyThreshold": 0.3,
+      "minorPenaltyThreshold": 1.0
+    },
+    "playstyleKey": "endgame.robot_playstyle",
+    "pitHighlights": [
+      { "section": "teleoperated", "field": "launchRange", "label": "Range" },
+      { "section": "teleoperated", "field": "elementCapacity", "label": "Capacity" },
+      { "section": "teleoperated", "field": "cycleTime", "label": "Cycle", "unit": "s" },
+      { "section": "endgame", "field": "endgameStrategy", "label": "Endgame" }
+    ]
+  },
+  "teamPageConfig": {
+    "kpis": {
+      "auto": {
+        "key": "calculated.auto_launched",
+        "label": "Avg Launched (Auto)",
+        "format": "number",
+        "subKey": "autonomous.leave",
+        "subLabel": "Leave rate",
+        "subFormat": "percent",
+        "icon": "Activity"
+      },
+      "teleop": {
+        "key": "calculated.teleop_launched",
+        "label": "Avg Launched (Teleop)",
+        "format": "number",
+        "subKey": "teleop.launch_accuracy",
+        "subLabel": "Accuracy",
+        "subFormat": "percent",
+        "icon": "Flame"
+      }
+    },
+    "autoPerformance": {
+      "metrics": [
+        { "key": "autonomous.pollen_launched", "label": "Avg Pollen Launched" },
+        { "key": "autonomous.pollen_missed", "label": "Avg Pollen Missed" },
+        { "key": "autonomous.nectar_launched", "label": "Avg Nectar Launched" },
+        { "key": "autonomous.launch_accuracy", "label": "Accuracy", "type": "badge", "unit": "%" },
+        { "key": "autonomous.leave", "label": "Leave Rate", "type": "badge", "unit": "%" },
+        { "key": "autonomous.park", "label": "Auto Park Rate", "type": "badge", "unit": "%" }
+      ],
+      "showPointsEstimate": true,
+      "pointsFormula": [
+        { "key": "autonomous.pollen_launched", "points": 4 },
+        { "key": "autonomous.nectar_launched", "points": 4 },
+        { "key": "autonomous.leave", "points": 3 },
+        { "key": "autonomous.park", "points": 5 }
+      ]
+    },
+    "teleopPerformance": {
+      "metrics": [
+        { "key": "teleop.pollen_launched", "label": "Pollen Launched" },
+        { "key": "teleop.pollen_missed", "label": "Pollen Missed" },
+        { "key": "teleop.nectar_launched", "label": "Nectar Launched" },
+        { "key": "teleop.nectar_missed", "label": "Nectar Missed" },
+        { "key": "teleop.garden_elements", "label": "Garden Elements" },
+        { "key": "teleop.launch_accuracy", "label": "Accuracy", "type": "badge", "unit": "%" }
+      ],
+      "showPointsEstimate": true,
+      "pointsFormula": [
+        { "key": "teleop.pollen_launched", "points": 4 },
+        { "key": "teleop.nectar_launched", "points": 4 },
+        { "key": "teleop.garden_elements", "points": 1 }
+      ]
+    },
+    "scoringBreakdownChart": {
+      "title": "Element Scoring Breakdown",
+      "description": "Average pollen and nectar actions per match",
+      "items": [
+        { "name": "Auto Pollen Launched", "key": "autonomous.pollen_launched", "fill": "#eab308" },
+        { "name": "Auto Pollen Missed", "key": "autonomous.pollen_missed", "fill": "#fde68a" },
+        { "name": "Auto Nectar Launched", "key": "autonomous.nectar_launched", "fill": "#8b5cf6" },
+        { "name": "Teleop Pollen Launched", "key": "teleop.pollen_launched", "fill": "#f59e0b" },
+        { "name": "Teleop Pollen Missed", "key": "teleop.pollen_missed", "fill": "#94a3b8" },
+        { "name": "Teleop Nectar Launched", "key": "teleop.nectar_launched", "fill": "#a78bfa" },
+        { "name": "Teleop Nectar Missed", "key": "teleop.nectar_missed", "fill": "#cbd5e1" },
+        { "name": "Garden", "key": "teleop.garden_elements", "fill": "#22c55e" },
+        { "name": "Flower Pollen", "key": "endgame.flower_pollen", "fill": "#ec4899" },
+        { "name": "Flower Nectar", "key": "endgame.flower_nectar", "fill": "#f472b6" }
+      ]
+    },
+    "endgame": {
+      "title": "Endgame Park Distribution",
+      "description": "Percentage of matches parked in the loading zone",
+      "displayType": "both",
+      "summaryTitle": "Endgame Park Performance",
+      "summaryDescription": "Loading zone park rate across matches",
+      "stateKey": "endgame.ending_position",
+      "breakdownKey": "endgame.robot_broke_down",
+      "states": [
+        { "value": "none", "label": "None", "points": 0 },
+        { "value": "loading_zone", "label": "Loading Zone", "points": 5, "highlightThreshold": 80 }
+      ]
+    },
+    "penalties": {
+      "title": "Reliability & Penalties",
+      "description": "Robot reliability and penalty averages",
+      "minorKey": "fouls.minor_fouls",
+      "minorLabel": "Avg Minor Fouls per Match",
+      "minorPoints": -5,
+      "majorKey": "fouls.major_fouls",
+      "majorLabel": "Avg Major Fouls per Match",
+      "majorPoints": -20,
+      "techFoulAlertThreshold": 0.3,
+      "breakdownAlertThreshold": 20
+    },
+    "customSections": [
+      {
+        "id": "flowers",
+        "title": "Flower Performance",
+        "description": "Endgame flower placement and ownership",
+        "type": "summaryCards",
+        "items": [
+          {
+            "key": "endgame.flower_pollen",
+            "label": "Pollen in Flowers",
+            "pointsMultiplier": 2,
+            "pointsLabel": "Points Contribution"
+          },
+          {
+            "key": "endgame.flower_nectar",
+            "label": "Nectar in Flowers",
+            "pointsMultiplier": 2,
+            "pointsLabel": "Points Contribution"
+          },
+          {
+            "key": "endgame.flowers_claimed",
+            "label": "Flowers Claimed"
+          }
+        ]
+      },
+      {
+        "id": "playstyle",
+        "title": "Robot Playstyle",
+        "description": "Scouted playstyle distribution across matches",
+        "type": "distribution",
+        "fieldKey": "endgame.robot_playstyle",
+        "items": [
+          { "key": "defensive", "label": "Defensive" },
+          { "key": "balanced", "label": "Balanced" },
+          { "key": "offensive", "label": "Offensive" }
+        ]
+      }
+    ]
+  }
+}

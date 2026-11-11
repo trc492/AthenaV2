@@ -195,8 +195,31 @@ export async function sendPushNotification(params: {
   };
 }
 
-export async function sendPushNotificationToUser(params: {
-  userId: string;
+/** Push subscriptions keyed by user ID, from a single database read. */
+export async function loadSubscriptionsByUser(): Promise<
+  Map<string, StoredSubscription[]>
+> {
+  const db = databaseManager.getService();
+  const byUser = new Map<string, StoredSubscription[]>();
+  if (!db.users) return byUser;
+  for (const user of await db.users.getSubscriptions()) {
+    if (!user.push_subscriptions) continue;
+    try {
+      const parsed = JSON.parse(user.push_subscriptions);
+      if (Array.isArray(parsed) && parsed.length > 0) byUser.set(user.id, parsed);
+    } catch {
+      // Ignore one unreadable record rather than failing every recipient.
+    }
+  }
+  return byUser;
+}
+
+export function isPushConfigured(): boolean {
+  return ensureVapidConfigured();
+}
+
+export async function sendPushNotificationToSubscriptions(params: {
+  subscriptions: StoredSubscription[];
   payload: NotificationPayload;
 }): Promise<{
   results: SendResult[];
@@ -209,7 +232,7 @@ export async function sendPushNotificationToUser(params: {
     return { results: [], successful: 0, failed: 0, skipped: true };
   }
 
-  const subs = await loadSubscriptionsForUser(params.userId);
+  const subs = params.subscriptions;
   if (subs.length === 0) {
     return { results: [], successful: 0, failed: 0, skipped: false };
   }

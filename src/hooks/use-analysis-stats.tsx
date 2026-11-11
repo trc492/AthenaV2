@@ -96,7 +96,7 @@ export function useAnalysisStats() {
   const isGuest = !!session?.guestEvent;
   const { data, loading, error } = useAsyncData(
     eventCode && gameConfig
-      ? JSON.stringify([eventCode, currentYear, competitionType, session?.user?.id, isGuest])
+      ? JSON.stringify([eventCode, currentYear, competitionType, session?.user?.id, isGuest, gameConfig])
       : null,
     () => loadWithOfflineCache({
       isGuest,

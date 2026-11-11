@@ -18,6 +18,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeSelector } from "@/components/settings/theme-selector";
 import { useSession } from "next-auth/react";
 import DashboardLoading from "./loading";
+import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
+import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
+import { usePathname } from "next/navigation";
 
 const AccountSettingsDialog = dynamic(
   () => import("./account-settings").then((mod) => mod.AccountSettingsDialog),
@@ -64,6 +67,7 @@ export default function DashboardShell({
   children: React.ReactNode;
 }) {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   // Session revalidation keeps the existing session while status is loading.
   // Only replace the dashboard during the initial session load.
   const isInitialLoading = status === "loading" && !session;
@@ -79,6 +83,7 @@ export default function DashboardShell({
         value={{ openNotificationSettings }}
       >
         <SidebarProvider>
+          <OnboardingProvider>
           {isInitialLoading ? <DashboardSidebarLoading /> : <AppSidebar />}
           <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -94,6 +99,7 @@ export default function DashboardShell({
               </div>
             </header>
             <div className="flex flex-1 flex-col gap-4 p-4">
+              {!isInitialLoading && pathname === "/dashboard" && <OnboardingChecklist />}
               {isInitialLoading ? <DashboardLoading /> : children}
             </div>
           </SidebarInset>
@@ -109,6 +115,7 @@ export default function DashboardShell({
               onOpenChange={setNotificationOpen}
             />
           )}
+          </OnboardingProvider>
         </SidebarProvider>
       </NotificationSettingsContext.Provider>
     </AccountSettingsContext.Provider>

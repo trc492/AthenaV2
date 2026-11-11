@@ -1,3 +1,4 @@
+import { getAuthSecret } from "@/lib/server/runtime-secrets";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { withAuthOrigin } from "@/lib/server/auth-request";
@@ -17,10 +18,11 @@ export default async function middleware(req: NextRequest) {
     response.headers.set("X-Athena-Guest", "1");
     return response;
   }
+  if (req.nextUrl.pathname === "/api/health") return NextResponse.next();
   const publicRequest = withAuthOrigin(req);
   const token = await getToken({
     req,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    secret: getAuthSecret(),
     secureCookie: publicRequest.nextUrl.protocol === "https:",
   });
   if (token?.guestToken || token?.role === "guest") {

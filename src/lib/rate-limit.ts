@@ -23,17 +23,6 @@ const CLEANUP_INTERVAL = 100;
 
 let requestsSinceCleanup = 0;
 
-function simpleStringHash(input: string): string {
-  let hash = 0;
-
-  for (let i = 0; i < input.length; i += 1) {
-    hash = (hash << 5) - hash + input.charCodeAt(i);
-    hash |= 0;
-  }
-
-  return Math.abs(hash).toString(36);
-}
-
 function cleanupExpiredEntries(now: number): void {
   requestsSinceCleanup += 1;
 
@@ -51,38 +40,16 @@ function cleanupExpiredEntries(now: number): void {
 }
 
 function getClientIp(request: NextRequest): string {
-  const cfConnectingIp = request.headers.get("cf-connecting-ip");
-  const vercelForwardedFor = request.headers.get("x-vercel-forwarded-for");
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  const clientIp = request.headers.get("x-client-ip");
-  const realIp = request.headers.get("x-real-ip");
-
-  if (cfConnectingIp) {
-    return cfConnectingIp.trim();
+  // Only trust a header explicitly selected by the deployment operator. The
+  // reverse proxy must overwrite it and block direct access to the application.
+  const header = process.env.RATE_LIMIT_IP_HEADER?.trim().toLowerCase();
+  if (header) {
+    const value = request.headers.get(header)?.split(",")[0].trim();
+    if (value) return value;
   }
-
-  if (vercelForwardedFor) {
-    return vercelForwardedFor.split(",")[0].trim();
-  }
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0].trim();
-  }
-
-  if (clientIp) {
-    return clientIp.trim();
-  }
-
-  if (realIp) {
-    return realIp.trim();
-  }
-
-  const userAgent = request.headers.get("user-agent") ?? "unknown-user-agent";
-  const acceptLanguage =
-    request.headers.get("accept-language") ?? "unknown-language";
-
-  // Fallback fingerprint avoids turning all users into one shared "unknown" bucket.
-  return `fp:${simpleStringHash(`${userAgent}|${acceptLanguage}`)}`;
+  // Client-controlled fingerprints would let callers bypass limits by changing
+  // headers. Without a trusted proxy, use one conservative shared bucket.
+  return "unverified-client";
 }
 
 export function checkRateLimit(

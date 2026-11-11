@@ -5,12 +5,13 @@ import { guestDatabase } from "@/lib/server/guest-database";
 import { calculateEPA, calculateTeamStats } from "@/lib/statistics";
 import { CompetitionType, MatchEntry } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
-import gameConfig from "../../../../../../config/game-config-loader";
+import { loadGameConfig } from "@/lib/server/game-config-store";
 
 
 // GET /api/scouting/entries/team - Get team data for a specific team
 export async function GET(request: NextRequest) {
   try {
+    const gameConfig = loadGameConfig();
     const session = await auth();
     if (
       !session?.user?.role ||

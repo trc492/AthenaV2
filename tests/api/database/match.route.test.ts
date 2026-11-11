@@ -36,6 +36,7 @@ describe("/api/scouting/entries/match", () => {
     service = {
       getAllMatchEntries: vi.fn().mockResolvedValue([]),
       getMatchEntries: vi.fn().mockResolvedValue([]),
+      checkMatchScoutExists: vi.fn().mockResolvedValue(false),
       addMatchEntry: vi.fn().mockResolvedValue(202),
       updateMatchEntry: vi.fn().mockResolvedValue(undefined),
       deleteMatchEntry: vi.fn().mockResolvedValue(undefined),
@@ -46,12 +47,13 @@ describe("/api/scouting/entries/match", () => {
     }));
   });
 
-  it("returns 403 when unauthorized", async () => {
+  it.each(["GET", "POST", "PUT", "DELETE"] as const)("%s denies missing permissions before accessing persistence", async (method) => {
     permissionResult = false;
     const route = await import("@/app/api/scouting/entries/match/route");
     const req = new Request("http://test/api/scouting/entries/match");
-    const res = await route.GET(asNextRequest(req));
+    const res = await route[method](asNextRequest(req));
     expect(res.status).toBe(403);
+    for (const operation of Object.values(service)) expect(operation).not.toHaveBeenCalled();
   });
 
   it("returns 404 when ID not found", async () => {
@@ -72,16 +74,7 @@ describe("/api/scouting/entries/match", () => {
   });
 
   it("rejects duplicate match entry", async () => {
-    service.getAllMatchEntries.mockResolvedValue([
-      {
-        id: 1,
-        teamNumber: 111,
-        matchNumber: 2,
-        year: 2025,
-        eventCode: "EVT",
-        competitionType: "FRC",
-      },
-    ]);
+    service.checkMatchScoutExists.mockResolvedValue(true);
 
     const route = await import("@/app/api/scouting/entries/match/route");
     const req = new Request("http://test/api/scouting/entries/match", {
@@ -102,6 +95,8 @@ describe("/api/scouting/entries/match", () => {
 
     const res = await route.POST(asNextRequest(req));
     expect(res.status).toBe(409);
+    expect(service.checkMatchScoutExists).toHaveBeenCalledWith(111, 2, "EVT", 2025, "FRC");
+    expect(service.addMatchEntry).not.toHaveBeenCalled();
   });
 
   it("returns 400 when delete lacks id", async () => {
@@ -157,10 +152,19 @@ describe("/api/scouting/entries/match", () => {
     expect(service.updateMatchEntry).not.toHaveBeenCalled();
   });
 
-  it("returns 401 for an unauthenticated read", async () => {
+  it.each(["GET", "POST", "PUT", "DELETE"] as const)("%s requires authentication", async (method) => {
     authSession = null;
     const route = await import("@/app/api/scouting/entries/match/route");
-    const response = await route.GET(asNextRequest(new Request("http://test/api/scouting/entries/match")));
+    const response = await route[method](asNextRequest(new Request("http://test/api/scouting/entries/match")));
     expect(response.status).toBe(401);
+  });
+
+  it("returns a safe error when persistence fails asynchronously", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    service.getAllMatchEntries.mockRejectedValue(new Error("private database details"));
+    const route = await import("@/app/api/scouting/entries/match/route");
+    const response = await route.GET(asNextRequest(new Request("http://test/api/scouting/entries/match")));
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Failed to fetch match entries" });
   });
 });

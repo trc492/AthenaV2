@@ -15,14 +15,19 @@ export default defineConfig({
     serviceWorkers: "block",
   },
   webServer: {
-    command: `node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`,
+    // Production assets are required to exercise service-worker caching offline.
+    command: "pnpm build && node scripts/start-e2e.mjs",
     url: baseURL,
     reuseExistingServer: false,
     env: {
       AUTH_SECRET: "athena-e2e-only-secret-do-not-use-in-production",
       NEXTAUTH_SECRET: "athena-e2e-only-secret-do-not-use-in-production",
+      RELEASE_SECRET_SENTINEL: "athena-e2e-only-secret-do-not-use-in-production",
+      SETUP_TOKEN: "athena-e2e-only-setup-token-do-not-use-in-production",
       AUTH_URL: baseURL,
+      HOSTNAME: "127.0.0.1",
+      PORT: port,
     },
-    timeout: 120_000,
+    timeout: 240_000,
   },
 });
