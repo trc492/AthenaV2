@@ -7,6 +7,7 @@ const { storage } = vi.hoisted(() => ({
     getSyncConfig: vi.fn(),
     setSyncConfig: vi.fn(),
     getPendingEntries: vi.fn(),
+    getAllQueuedEntries: vi.fn(async () => []),
     updateEntryStatus: vi.fn(),
     logSyncResult: vi.fn(),
     queuePitEntry: vi.fn(),

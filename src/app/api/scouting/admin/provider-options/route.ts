@@ -51,7 +51,6 @@ function summarizeConfig(config: DatabaseConfig) {
       : undefined,
     mariadb: config.mariadb
       ? {
-          connectionString: config.mariadb.connectionString ?? "",
           host: config.mariadb.host ?? "",
           port: config.mariadb.port ?? null,
           database: config.mariadb.database ?? "",
@@ -198,6 +197,14 @@ function validateConfig(config: DatabaseConfig): string | null {
 }
 
 export async function GET() {
+  const session = await auth();
+  if (
+    !session?.user?.role ||
+    !hasPermission(session.user.role, PERMISSIONS.MANAGE_SYSTEM_CONFIG)
+  ) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   const manager = DatabaseManager.getInstance();
   const config = manager.getConfig();
 

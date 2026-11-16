@@ -72,11 +72,16 @@ export interface UserStore {
 
 export interface ScoutingStore {
   addPitEntry(entry: Omit<PitEntry, "id">): Promise<number>;
+  /** Pass eventCode whenever it is known: teams attend several events a year. */
   getPitEntry(
     teamNumber: number,
     year: number,
     competitionType?: CompetitionType,
+    eventCode?: string,
   ): Promise<PitEntry | undefined>;
+  /** Single-row lookups; callers fall back to scanning when absent. */
+  getPitEntryById?(id: number): Promise<PitEntry | undefined>;
+  getMatchEntryById?(id: number): Promise<MatchEntry | undefined>;
   getAllPitEntries(
     year?: number,
     eventCode?: string,

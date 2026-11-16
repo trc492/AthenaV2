@@ -48,13 +48,17 @@ export class ScoutingService {
   }
 
   async updatePit(id: number, updates: Partial<PitEntry>, actor: { userId: string; canEditAny: boolean }): Promise<void> {
-    const entry = (await this.db.getAllPitEntries()).find((entry) => entry.id === id);
+    const entry = this.db.getPitEntryById
+      ? await this.db.getPitEntryById(id)
+      : (await this.db.getAllPitEntries()).find((entry) => entry.id === id);
     requireOwnership(entry, actor);
     await this.db.updatePitEntry(id, updates);
   }
 
   async updateMatch(id: number, updates: Partial<MatchEntry>, actor: { userId: string; canEditAny: boolean }): Promise<void> {
-    const entry = (await this.db.getAllMatchEntries()).find((entry) => entry.id === id);
+    const entry = this.db.getMatchEntryById
+      ? await this.db.getMatchEntryById(id)
+      : (await this.db.getAllMatchEntries()).find((entry) => entry.id === id);
     requireOwnership(entry, actor);
     await this.db.updateMatchEntry(id, updates);
   }

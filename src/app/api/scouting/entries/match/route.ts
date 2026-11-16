@@ -17,8 +17,12 @@ export const GET = scoutingRoute(
 
     // If ID is provided, fetch single entry by ID
     if (id) {
-      const entries = await service.getAllMatchEntries();
-      const entry = entries.find((e) => e.id === id);
+      // Guests go through their event-scoped view; everyone else reads one row.
+      const database = getDbService();
+      const entry =
+        session.user.role !== "guest" && database.getMatchEntryById
+          ? await database.getMatchEntryById(id)
+          : (await service.getAllMatchEntries()).find((e) => e.id === id);
       if (!entry) {
         return NextResponse.json({ error: "Entry not found" }, { status: 404 });
       }

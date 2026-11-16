@@ -62,7 +62,11 @@ describe("changing your own password", () => {
       currentPassword: "old-password", newPassword: "12345678", userId: "someone-else",
     }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true });
+    // The caller also gets proof that lets its own session survive the change.
+    expect(await response.json()).toEqual({
+      success: true,
+      sessionRefresh: expect.any(String),
+    });
     expect(getById).toHaveBeenCalledWith("scout-1");
     expect(updateUser).toHaveBeenCalledTimes(1);
     const [id, updates] = updateUser.mock.calls[0];

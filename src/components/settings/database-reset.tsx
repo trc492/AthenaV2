@@ -78,8 +78,9 @@ export function DatabaseResetComponent() {
             </div>
           )}
           <p className="text-sm text-muted-foreground">
-            Permanently delete all scouting data including pit entries, match
-            entries, and user data. This action cannot be undone.
+            Permanently delete all pit and match scouting entries. Accounts,
+            events, schedules and picklists are kept. This action cannot be
+            undone.
           </p>
         </div>
 

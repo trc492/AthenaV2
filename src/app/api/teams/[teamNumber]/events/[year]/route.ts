@@ -1,3 +1,5 @@
+import { PERMISSIONS } from "@/lib/auth/roles";
+import { requirePermission } from "@/lib/server/require-permission";
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamEvents } from "@/lib/api/tba";
 import { getSeasonEvents } from "@/lib/api/ftcevents";
@@ -29,6 +31,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ teamNumber: string; year: string }> },
 ) {
+  const denied = await requirePermission(PERMISSIONS.VIEW_DASHBOARD);
+  if (denied) return denied;
   try {
     const { teamNumber, year } = await params;
     const { searchParams } = new URL(request.url);

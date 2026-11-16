@@ -10,7 +10,7 @@ vi.mock("@/db/database-manager", async () => {
   };
 });
 vi.mock("@/lib/auth/config", () => ({ auth }));
-import { PATCH, DELETE } from "@/app/api/users/[id]/route";
+import { PATCH, DELETE, PUT } from "@/app/api/users/[id]/route";
 import { GET } from "@/app/api/users/route";
 const context = (id = "scout-1") => ({ params: Promise.resolve({ id }) });
 const request = (active: unknown) =>
@@ -51,6 +51,34 @@ describe("user deactivation", () => {
     auth.mockResolvedValue({ user: { id: "lead-1", role: "lead_scout" } });
     expect((await PATCH(request(false), context())).status).toBe(403);
     expect((await PATCH(request(true), context())).status).toBe(403);
+    expect(query).not.toHaveBeenCalled();
+  });
+  it("does not let lead scouts change roles, passwords or profiles", async () => {
+    auth.mockResolvedValue({ user: { id: "lead-1", role: "lead_scout" } });
+    const put = (body: unknown, id: string) =>
+      PUT(
+        new NextRequest("http://localhost/api/users/x", {
+          method: "PUT",
+          body: JSON.stringify(body),
+        }),
+        context(id),
+      );
+    expect((await put({ role: "admin" }, "lead-1")).status).toBe(403);
+    expect((await put({ password: "new-password" }, "admin-1")).status).toBe(403);
+    expect((await put({ name: "Renamed" }, "scout-1")).status).toBe(403);
+    expect(query).not.toHaveBeenCalled();
+  });
+  it("rejects the guest role and an admin changing their own role", async () => {
+    const put = (body: unknown, id: string) =>
+      PUT(
+        new NextRequest("http://localhost/api/users/x", {
+          method: "PUT",
+          body: JSON.stringify(body),
+        }),
+        context(id),
+      );
+    expect((await put({ role: "guest" }, "scout-1")).status).toBe(400);
+    expect((await put({ role: "scout" }, "admin-1")).status).toBe(400);
     expect(query).not.toHaveBeenCalled();
   });
   it("rejects invalid status and missing users", async () => {

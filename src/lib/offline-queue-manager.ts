@@ -5,7 +5,6 @@ import { indexedDBService } from "@/lib/indexeddb-service";
 import type { PitEntry, MatchEntry } from "@/lib/types";
 import type {
   QueuedEntry,
-  QueuedPitEntry,
   QueuedMatchEntry,
   SyncResult,
   SyncConfig,
@@ -20,6 +19,17 @@ const DEFAULT_SYNC_CONFIG: SyncConfig = {
   batchSize: 10,
   autoSyncEnabled: false,
 };
+
+/** The session expired; the entry is fine and must wait for a sign-in. */
+class SignInRequiredError extends Error {
+  constructor() {
+    super("Sign in again to upload queued entries");
+    this.name = "SignInRequiredError";
+  }
+}
+
+/** Upload requests are aborted after this long. */
+const SUBMIT_TIMEOUT_MS = 8000;
 
 class OfflineQueueManager {
   private syncInProgress = false;
@@ -117,6 +127,7 @@ class OfflineQueueManager {
     try {
       await this.ensureInitialized();
       const config = await this.getSyncConfig();
+      await this.recoverInterruptedEntries();
       const pendingEntries = await indexedDBService.getPendingEntries();
 
       // Process entries in batches
@@ -165,6 +176,22 @@ class OfflineQueueManager {
     }
   }
 
+  // A closed tab or stopped worker leaves its entry "syncing", which no sync
+  // or retry pass selects. Requests abort after SUBMIT_TIMEOUT_MS, so an older
+  // attempt can no longer be in flight and is safe to send again.
+  private async recoverInterruptedEntries(): Promise<void> {
+    const cutoff = Date.now() - 2 * SUBMIT_TIMEOUT_MS;
+    for (const entry of await indexedDBService.getAllQueuedEntries()) {
+      if (entry.status !== "syncing") continue;
+      const lastAttempt = entry.lastAttempt
+        ? new Date(entry.lastAttempt).getTime()
+        : 0;
+      if (lastAttempt <= cutoff) {
+        await indexedDBService.updateEntryStatus(entry.id, "pending");
+      }
+    }
+  }
+
   // Sync a batch of entries
   private async syncBatch(
     entries: QueuedEntry[],
@@ -182,17 +209,8 @@ class OfflineQueueManager {
         failedCount++;
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
+        // syncSingleEntry has already recorded pending/error for this entry.
         errors.push(`Entry ${entry.id}: ${errorMessage}`);
-
-        // Update entry status to error if max retries exceeded
-        if (entry.attempts >= config.maxRetries) {
-          await indexedDBService.updateEntryStatus(
-            entry.id,
-            "error",
-            undefined,
-            errorMessage,
-          );
-        }
       }
     }
 
@@ -214,28 +232,29 @@ class OfflineQueueManager {
     await indexedDBService.updateEntryStatus(entry.id, "syncing");
 
     try {
-      let remoteId: number;
-
-      if (entry.type === "pit") {
-        const pitEntry = entry as QueuedPitEntry;
-        const result = await this.submitEntry("pit", pitEntry.data);
-        if (!result.id) {
-          throw new Error("Sync response did not include an entry ID");
-        }
-        remoteId = result.id;
-      } else if (entry.type === "match") {
-        const matchEntry = entry as QueuedMatchEntry;
-        const result = await this.submitEntry("match", matchEntry.data);
-        if (!result.id) {
-          throw new Error("Sync response did not include an entry ID");
-        }
-        remoteId = result.id;
-      } else {
+      if (entry.type !== "pit" && entry.type !== "match") {
         throw new Error(`Unknown entry type: ${entry.type}`);
+      }
+      const result = await this.submitEntry(entry.type, entry.data);
+      // The server already holds this entry, typically because an earlier
+      // attempt was saved but its response never arrived. There is no ID to
+      // record, but the data is uploaded, so it must not end up as an error.
+      const remoteId = result.alreadyExists ? undefined : result.id;
+      if (!result.alreadyExists && !remoteId) {
+        throw new Error("Sync response did not include an entry ID");
       }
 
       // Mark as synced and store remote ID
-      await indexedDBService.updateEntryStatus(entry.id, "synced", remoteId);
+      if (result.alreadyExists) {
+        await indexedDBService.updateEntryStatus(
+          entry.id,
+          "synced",
+          undefined,
+          "The server already had an entry for this team; nothing was overwritten.",
+        );
+      } else {
+        await indexedDBService.updateEntryStatus(entry.id, "synced", remoteId);
+      }
 
       // Clear any existing retry timeout
       const timeoutId = this.retryTimeouts.get(entry.id);
@@ -247,8 +266,15 @@ class OfflineQueueManager {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      // If we haven't exceeded max retries, schedule a retry
-      if (entry.attempts < config.maxRetries) {
+      if (error instanceof SignInRequiredError) {
+        // Not the entry's fault: keep it pending with its full retry budget.
+        await indexedDBService.resetEntryForRetry(entry.id);
+        throw error;
+      }
+
+      // `entry.attempts` predates the attempt that just failed.
+      const attemptsMade = entry.attempts + 1;
+      if (attemptsMade < config.maxRetries) {
         await indexedDBService.updateEntryStatus(
           entry.id,
           "pending",
@@ -276,9 +302,9 @@ class OfflineQueueManager {
   private async submitEntry(
     type: "pit" | "match",
     data: QueuedEntry["data"],
-  ): Promise<{ id: number }> {
+  ): Promise<{ id?: number; alreadyExists?: boolean }> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
     try {
       const response = await fetch(`/api/scouting/entries/${type}`, {
         method: "POST",
@@ -287,6 +313,8 @@ class OfflineQueueManager {
         body: JSON.stringify(data),
         signal: controller.signal,
       });
+      if (response.status === 409) return { alreadyExists: true };
+      if (response.status === 401) throw new SignInRequiredError();
       if (!response.ok) {
         throw new Error(`Failed to sync ${type} entry (${response.status})`);
       }
@@ -464,9 +492,9 @@ class OfflineQueueManager {
     await this.ensureInitialized();
     const failedEntries = await this.getEntriesByStatus("error");
 
-    // Reset failed entries to pending
+    // Reset failed entries to pending with a fresh retry budget
     for (const entry of failedEntries) {
-      await indexedDBService.updateEntryStatus(entry.id, "pending");
+      await indexedDBService.resetEntryForRetry(entry.id);
     }
 
     return this.syncPendingEntries();

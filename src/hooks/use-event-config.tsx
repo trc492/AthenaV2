@@ -30,8 +30,13 @@ interface EventContextType {
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
 export function EventProvider({ children }: { children: ReactNode }) {
-  const { status, data: session } = useSession();
+  const { data: session } = useSession();
   const guest = session?.guestEvent;
+  // Session data stays populated while next-auth refreshes it (status briefly
+  // reads "loading"), so key off the user rather than the status. Otherwise the
+  // periodic session refresh blanks the selected event and unmounts the forms.
+  const userId = guest ? null : session?.user?.id ?? null;
+  const signedIn = !!session?.user;
   const guestEvent = useMemo<Event | null>(() => guest ? { name: guest.name, eventCode: guest.eventCode, region: `${guest.competitionType} ${guest.year}` } : null, [guest]);
   const { currentYear, competitionType, isInitialized } = useGameConfig();
   const [events, setEvents] = useState<Event[]>([]);
@@ -65,10 +70,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Fetch events from TBA API and custom events
   useEffect(() => {
-    if (status === "loading") return;
-
-    if (status !== "authenticated") return;
-    if (guest) return;
+    if (!userId) return;
 
     // Don't fetch until game config is initialized
     if (!isInitialized) return;
@@ -115,11 +117,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
         // Fetch events using unified API
         let apiEvents: Event[] = [];
+        let reachedServer = false;
         try {
           const eventsResponse = await fetch(
             `/api/teams/${teamNumber}/events/${currentYear}?competitionType=${competitionType}`,
           );
           if (eventsResponse.ok) {
+            reachedServer = true;
             const eventData = await eventsResponse.json();
             // Transform events to our Event format
             if (competitionType === "FRC") {
@@ -154,6 +158,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
             `/api/events/custom-events?year=${currentYear}`,
           );
           if (customResponse.ok) {
+            reachedServer = true;
             const customEventData = await customResponse.json();
 
             // Transform custom events to our Event format
@@ -168,6 +173,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
         } catch (customError) {
           console.warn("Failed to fetch custom events:", customError);
         }
+
+        // Both requests failed (e.g. flaky venue Wi-Fi while navigator.onLine
+        // is still true): use the cached list instead of an empty one.
+        if (!reachedServer) throw new Error("Unable to reach event services");
 
         // Combine API and custom events
         const allEvents = [...apiEvents, ...customEvents];
@@ -224,7 +233,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [currentYear, competitionType, isInitialized, status, selectFromEvents, guest]);
+  }, [currentYear, competitionType, isInitialized, userId, selectFromEvents]);
 
   // Save selected event to localStorage and cookies whenever it changes
   useEffect(() => {
@@ -241,16 +250,16 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   const contextValue: EventContextType = {
-    events: guestEvent ? [guestEvent] : status === "authenticated" ? events : [],
-    selectedEvent: guestEvent ?? (status === "authenticated" ? selectedEvent : null),
+    events: guestEvent ? [guestEvent] : signedIn ? events : [],
+    selectedEvent: guestEvent ?? (signedIn ? selectedEvent : null),
     setSelectedEvent,
     setEvents,
     isLoading:
-      guest ? false : status === "authenticated"
+      guest ? false : signedIn
         ? isLoading || selection?.scopeKey !== scopeKey
         : false,
-    error: !guest && status === "authenticated" ? error : null,
-    isOfflineData: !guest && status === "authenticated" ? isOfflineData : false,
+    error: !guest && signedIn ? error : null,
+    isOfflineData: !guest && signedIn ? isOfflineData : false,
   };
 
   return (

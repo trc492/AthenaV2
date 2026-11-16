@@ -6,6 +6,7 @@ import { getOrCreateAuthSecret } from "@/lib/server/env-file";
 import "./types";
 import { resolveGuestEventLink } from "@/lib/server/guest-link-service";
 import { loadSessionUser } from "@/lib/server/session-user-cache";
+import { verifySessionRefresh } from "@/lib/server/session-refresh";
 
 export const authConfig: NextAuthConfig = {
   trustHost: true,
@@ -84,7 +85,7 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   callbacks: {
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger, session }) {
       const guestToken = user ? user.guestToken : token.guestToken;
       if (guestToken) {
         const grant = await resolveGuestEventLink(guestToken);
@@ -122,6 +123,20 @@ export const authConfig: NextAuthConfig = {
             () => users.getById(String(id)),
             trigger === "update",
           );
+          // The browser that just changed its own password proves it with a
+          // short-lived signed token and moves to the new session version.
+          if (
+            trigger === "update" &&
+            currentUser &&
+            verifySessionRefresh(
+              String(currentUser.id),
+              currentUser.sessionVersion ?? 0,
+              (session as { sessionRefresh?: unknown } | undefined)
+                ?.sessionRefresh,
+            )
+          ) {
+            token.sessionVersion = currentUser.sessionVersion ?? 0;
+          }
           if (
             !currentUser ||
             currentUser.deactivatedAt ||

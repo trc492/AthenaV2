@@ -3,6 +3,12 @@ import { hasPermission, PERMISSIONS } from "@/lib/auth/roles";
 import { getDbService } from "@/lib/server/db-service";
 import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 import { validateImportAgainstSchema } from "@/lib/server/import-schema-validator";
+import {
+  InvalidSpreadsheetError,
+  MAX_IMPORT_FILE_BYTES,
+  parseCsvImport,
+  parseXlsxImport,
+} from "@/lib/server/scouting-import-parser";
 import { MatchEntry, normalizeDriveTrain, PitEntry } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -33,13 +39,28 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (file.name.endsWith(".json")) {
+      if (file.size > MAX_IMPORT_FILE_BYTES) {
+        return NextResponse.json(
+          { error: "File is too large to import" },
+          { status: 413 },
+        );
+      }
+
+      const fileName = file.name.toLowerCase();
+      if (fileName.endsWith(".json")) {
         const text = await file.text();
         data = JSON.parse(text);
-      } else if (file.name.endsWith(".csv")) {
-        data = await parseCSV(file);
-      } else if (file.name.endsWith(".xlsx")) {
-        data = await parseXLSX(file);
+      } else if (fileName.endsWith(".csv")) {
+        data = await parseCsvImport(await file.text());
+      } else if (fileName.endsWith(".xlsx")) {
+        try {
+          data = await parseXlsxImport(await file.arrayBuffer());
+        } catch (error) {
+          if (error instanceof InvalidSpreadsheetError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+          }
+          throw error;
+        }
       } else {
         return NextResponse.json(
           { error: "Unsupported file format" },
@@ -123,274 +144,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
-
-async function parseCSV(
-  file: File,
-): Promise<{ pitEntries: PitEntry[]; matchEntries: MatchEntry[] }> {
-  const Papa = await import("papaparse");
-  const text = await file.text();
-
-  return new Promise((resolve, reject) => {
-    Papa.parse(text, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const allRows = results.data as Record<string, unknown>[];
-        const pitEntries: PitEntry[] = [];
-        const matchEntries: MatchEntry[] = [];
-
-        // Define standard fields for pit and match entries
-        const pitStandardFields = new Set([
-          "type",
-          "id",
-          "teamNumber",
-          "year",
-          "competitionType",
-          "driveTrain",
-          "weight",
-          "length",
-          "width",
-          "eventName",
-          "eventCode",
-          "userId",
-          "notes",
-          "autoDrawing",
-        ]);
-        const matchStandardFields = new Set([
-          "type",
-          "id",
-          "matchNumber",
-          "teamNumber",
-          "year",
-          "competitionType",
-          "alliance",
-          "alliancePosition",
-          "eventName",
-          "eventCode",
-          "userId",
-          "notes",
-          "timestamp",
-        ]);
-
-        allRows.forEach((row: Record<string, unknown>) => {
-          const { type, ...entryData } = row;
-
-          // Reconstruct gameSpecificData from expanded columns (one level)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const gameSpecificData: Record<string, any> = {};
-
-          for (const [key, value] of Object.entries(entryData)) {
-            if (
-              (type === "pit" && !pitStandardFields.has(key)) ||
-              (type === "match" && !matchStandardFields.has(key))
-            ) {
-              // This is a game-specific field, reconstruct the nested structure
-              const parts = key.split("_");
-              if (parts.length >= 2) {
-                const mainKey = parts[0];
-                const subKey = parts.slice(1).join("_");
-
-                if (!gameSpecificData[mainKey]) {
-                  gameSpecificData[mainKey] = {};
-                }
-                gameSpecificData[mainKey][subKey] = value;
-              } else {
-                // If no underscore, keep as top-level field
-                gameSpecificData[key] = value;
-              }
-            }
-          }
-
-          if (type === "pit") {
-            pitEntries.push({
-              id: entryData.id ? parseInt(entryData.id as string) : undefined,
-              teamNumber: parseInt(entryData.teamNumber as string),
-              year: parseInt(entryData.year as string),
-              competitionType: (
-                (entryData.competitionType as string) || "FRC"
-              ).toUpperCase() as "FRC" | "FTC",
-              driveTrain: entryData.driveTrain as
-                PitEntry["driveTrain"],
-              weight: entryData.weight
-                ? parseFloat(entryData.weight as string)
-                : undefined,
-              length: entryData.length
-                ? parseFloat(entryData.length as string)
-                : undefined,
-              width: entryData.width
-                ? parseFloat(entryData.width as string)
-                : undefined,
-              eventName: (entryData.eventName as string) || undefined,
-              eventCode: (entryData.eventCode as string) || undefined,
-              userId: (entryData.userId as string) || undefined,
-              notes: (entryData.notes as string) || undefined,
-              autoDrawing: (entryData.autoDrawing as string) || undefined,
-              gameSpecificData,
-            } as PitEntry);
-          } else if (type === "match") {
-            matchEntries.push({
-              id: entryData.id ? parseInt(entryData.id as string) : undefined,
-              matchNumber: parseInt(entryData.matchNumber as string),
-              teamNumber: parseInt(entryData.teamNumber as string),
-              year: parseInt(entryData.year as string),
-              competitionType: (
-                (entryData.competitionType as string) || "FRC"
-              ).toUpperCase() as "FRC" | "FTC",
-              alliance: entryData.alliance as "red" | "blue",
-              alliancePosition: entryData.alliancePosition
-                ? parseInt(entryData.alliancePosition as string)
-                : undefined,
-              eventName: (entryData.eventName as string) || undefined,
-              eventCode: (entryData.eventCode as string) || undefined,
-              userId: (entryData.userId as string) || undefined,
-              notes: (entryData.notes as string) || "",
-              timestamp: entryData.timestamp
-                ? new Date(entryData.timestamp as string)
-                : new Date(),
-              gameSpecificData,
-            } as MatchEntry);
-          }
-        });
-
-        resolve({ pitEntries, matchEntries });
-      },
-      error: reject,
-    });
-  });
-}
-
-async function parseXLSX(
-  file: File,
-): Promise<{ pitEntries: PitEntry[]; matchEntries: MatchEntry[] }> {
-  const XLSX = await import("xlsx-js-style");
-  const arrayBuffer = await file.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: "array" });
-
-  // Use the first sheet (should be 'Scouting Data')
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-
-  if (!worksheet) {
-    return { pitEntries: [], matchEntries: [] };
-  }
-
-  const rows = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
-  const pitEntries: PitEntry[] = [];
-  const matchEntries: MatchEntry[] = [];
-
-  // Define standard fields for pit and match entries
-  const pitStandardFields = new Set([
-    "type",
-    "id",
-    "teamNumber",
-    "year",
-    "competitionType",
-    "driveTrain",
-    "weight",
-    "length",
-    "width",
-    "eventName",
-    "eventCode",
-    "userId",
-    "notes",
-    "autoDrawing",
-  ]);
-  const matchStandardFields = new Set([
-    "type",
-    "id",
-    "matchNumber",
-    "teamNumber",
-    "year",
-    "competitionType",
-    "alliance",
-    "alliancePosition",
-    "eventName",
-    "eventCode",
-    "userId",
-    "notes",
-    "timestamp",
-  ]);
-
-  rows.forEach((row: Record<string, unknown>) => {
-    const { type, ...entryData } = row;
-
-    // Reconstruct gameSpecificData from expanded columns (one level)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const gameSpecificData: Record<string, any> = {};
-
-    for (const [key, value] of Object.entries(entryData)) {
-      if (
-        (type === "pit" && !pitStandardFields.has(key)) ||
-        (type === "match" && !matchStandardFields.has(key))
-      ) {
-        // This is a game-specific field, reconstruct the nested structure
-        const parts = key.split("_");
-        if (parts.length >= 2) {
-          const mainKey = parts[0];
-          const subKey = parts.slice(1).join("_");
-
-          if (!gameSpecificData[mainKey]) {
-            gameSpecificData[mainKey] = {};
-          }
-          gameSpecificData[mainKey][subKey] = value;
-        } else {
-          // If no underscore, keep as top-level field
-          gameSpecificData[key] = value;
-        }
-      }
-    }
-
-    if (type === "pit") {
-      pitEntries.push({
-        id: entryData.id ? parseInt(entryData.id as string) : undefined,
-        teamNumber: parseInt(entryData.teamNumber as string),
-        year: parseInt(entryData.year as string),
-        competitionType: (
-          (entryData.competitionType as string) || "FRC"
-        ).toUpperCase() as "FRC" | "FTC",
-        driveTrain: entryData.driveTrain as
-          PitEntry["driveTrain"],
-        weight: entryData.weight
-          ? parseFloat(entryData.weight as string)
-          : undefined,
-        length: entryData.length
-          ? parseFloat(entryData.length as string)
-          : undefined,
-        width: entryData.width
-          ? parseFloat(entryData.width as string)
-          : undefined,
-        eventName: (entryData.eventName as string) || undefined,
-        eventCode: (entryData.eventCode as string) || undefined,
-        userId: (entryData.userId as string) || undefined,
-        notes: (entryData.notes as string) || undefined,
-        autoDrawing: (entryData.autoDrawing as string) || undefined,
-        gameSpecificData,
-      } as PitEntry);
-    } else if (type === "match") {
-      matchEntries.push({
-        id: entryData.id ? parseInt(entryData.id as string) : undefined,
-        matchNumber: parseInt(entryData.matchNumber as string),
-        teamNumber: parseInt(entryData.teamNumber as string),
-        year: parseInt(entryData.year as string),
-        competitionType: (
-          (entryData.competitionType as string) || "FRC"
-        ).toUpperCase() as "FRC" | "FTC",
-        alliance: entryData.alliance as "red" | "blue",
-        alliancePosition: entryData.alliancePosition
-          ? parseInt(entryData.alliancePosition as string)
-          : undefined,
-        eventName: (entryData.eventName as string) || undefined,
-        eventCode: (entryData.eventCode as string) || undefined,
-        userId: (entryData.userId as string) || undefined,
-        notes: (entryData.notes as string) || "",
-        timestamp: entryData.timestamp
-          ? new Date(entryData.timestamp as string)
-          : new Date(),
-        gameSpecificData,
-      } as MatchEntry);
-    }
-  });
-
-  return { pitEntries, matchEntries };
 }

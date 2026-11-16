@@ -1,3 +1,5 @@
+import { PERMISSIONS } from "@/lib/auth/roles";
+import { requirePermission } from "@/lib/server/require-permission";
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamMedia } from "@/lib/api/tba";
 
@@ -5,6 +7,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ teamNumber: string }> },
 ) {
+  const denied = await requirePermission(PERMISSIONS.VIEW_DASHBOARD);
+  if (denied) return denied;
   try {
     const { teamNumber } = await params;
     const { searchParams } = new URL(request.url);

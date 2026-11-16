@@ -16,6 +16,13 @@ const nextConfig: NextConfig = {
     const securityHeaders = [
       { key: "X-Frame-Options", value: "DENY" },
       { key: "X-Content-Type-Options", value: "nosniff" },
+      // Deliberately limited to directives that cannot affect how Next loads
+      // its own scripts and styles; a script-src policy needs per-request nonces.
+      {
+        key: "Content-Security-Policy",
+        value:
+          "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+      },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       {
         key: "Permissions-Policy",

@@ -293,8 +293,13 @@ class IndexedDBService {
         }
 
         entry.status = status;
-        entry.lastAttempt = new Date();
-        entry.attempts += 1;
+
+        // An attempt is counted once, when it starts; its outcome is recorded
+        // by a later status update without counting it again.
+        if (status === "syncing") {
+          entry.lastAttempt = new Date();
+          entry.attempts += 1;
+        }
 
         if (remoteId) {
           entry.remoteId = remoteId;
@@ -302,6 +307,8 @@ class IndexedDBService {
 
         if (error) {
           entry.error = error;
+        } else if (status === "synced") {
+          delete entry.error;
         }
 
         const putRequest = store.put(entry);
@@ -312,6 +319,29 @@ class IndexedDBService {
 
       getRequest.onerror = () =>
         reject(new Error("Failed to get entry for update"));
+    });
+  }
+
+  // Put a failed entry back in the queue with a fresh retry budget.
+  async resetEntryForRetry(id: string): Promise<void> {
+    const db = await this.ensureDb();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.QUEUE], "readwrite");
+      const store = transaction.objectStore(STORES.QUEUE);
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        const entry = getRequest.result as QueuedEntry | undefined;
+        if (!entry) {
+          reject(new Error("Entry not found"));
+          return;
+        }
+        store.put({ ...entry, status: "pending", attempts: 0 });
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = transaction.onabort = () =>
+        reject(transaction.error ?? new Error("Failed to reset entry"));
     });
   }
 

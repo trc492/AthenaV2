@@ -16,8 +16,12 @@ export const GET = scoutingRoute(
     const service = guestDatabase(getDbService(), session);
 
     if (id) {
-      const entries = await service.getAllPitEntries();
-      const entry = entries.find((e) => e.id === id);
+      // Guests go through their event-scoped view; everyone else reads one row.
+      const database = getDbService();
+      const entry =
+        session.user.role !== "guest" && database.getPitEntryById
+          ? await database.getPitEntryById(id)
+          : (await service.getAllPitEntries()).find((e) => e.id === id);
       if (!entry) {
         return NextResponse.json({ error: "Entry not found" }, { status: 404 });
       }
@@ -27,6 +31,7 @@ export const GET = scoutingRoute(
         teamNumber,
         year,
         competitionType,
+        eventCode,
       );
       return NextResponse.json(entry || null);
     } else {

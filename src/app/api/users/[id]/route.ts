@@ -6,9 +6,8 @@ import {
   hasPermission,
   hasAnyPermission,
   PERMISSIONS,
-  ROLES,
 } from "@/lib/auth/roles";
-import { USERNAME_REGEX } from "@/lib/server/user-service";
+import { USERNAME_REGEX, VALID_ROLES } from "@/lib/server/user-service";
 import { invalidateSessionUser } from "@/lib/server/session-user-cache";
 
 interface RouteParams {
@@ -75,11 +74,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    // Check if user has permission to edit users
+    // This route can change credentials and roles, so EDIT_USERS is not enough:
+    // lead scouts hold it only to manage preferred partners.
     const session = await auth();
     if (
       !session?.user?.role ||
-      !hasPermission(session.user.role, PERMISSIONS.EDIT_USERS)
+      !hasPermission(session.user.role, PERMISSIONS.EDIT_USERS) ||
+      !hasPermission(session.user.role, PERMISSIONS.MANAGE_USER_ROLES)
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
@@ -118,10 +119,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Validate role if provided
     if (role) {
-      const validRoles = Object.values(ROLES);
-      if (!validRoles.includes(role)) {
+      // "guest" is reserved for signed event links, never a stored account.
+      if (!(VALID_ROLES as readonly string[]).includes(role)) {
         return NextResponse.json(
           { error: "Invalid role specified" },
+          { status: 400 },
+        );
+      }
+      // Another admin must do this, so the last admin cannot lock setup open.
+      if (id === session.user.id && role !== session.user.role) {
+        return NextResponse.json(
+          { error: "Cannot change your own role" },
           { status: 400 },
         );
       }

@@ -472,7 +472,11 @@ self.addEventListener(
 
     event.notification.close();
 
-    const urlToOpen = event.notification.data?.url || "/dashboard";
+    // Client URLs are absolute, so resolve the target before comparing.
+    const urlToOpen = new URL(
+      event.notification.data?.url || "/dashboard",
+      self.location.origin,
+    ).href;
 
     event.waitUntil(
       self.clients

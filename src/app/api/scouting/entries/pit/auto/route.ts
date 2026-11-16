@@ -35,7 +35,12 @@ export async function GET(request: NextRequest) {
     }
 
     const service = getDbService();
-    const entry = await service.getPitEntry(teamNumber, year, competitionType);
+    const entry = await service.getPitEntry(
+      teamNumber,
+      year,
+      competitionType,
+      searchParams.get("eventCode") || undefined,
+    );
 
     if (!entry) {
       return NextResponse.json({ autoDrawing: null });

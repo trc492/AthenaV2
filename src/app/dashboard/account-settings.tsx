@@ -237,6 +237,10 @@ export function AccountSettingsDialog({
         throw new Error(data.error || "Failed to change password");
       }
 
+      // Changing the password signs out every other session; this keeps ours.
+      if (data.sessionRefresh) {
+        await update({ sessionRefresh: data.sessionRefresh });
+      }
       toast.success("Password changed successfully");
       setCurrentPassword("");
       setNewPassword("");

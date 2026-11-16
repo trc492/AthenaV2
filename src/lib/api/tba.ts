@@ -22,8 +22,21 @@ async function getFromTba<T>(path: string): Promise<T> {
   const url = `${BASE}${path}`;
   return fetchJSON<T>(url, {
     headers: { "X-TBA-Auth-Key": loadApiKeys().tbaApiKey },
+    timeoutMs: UPSTREAM_TIMEOUT_MS,
   });
 }
+
+/** A stalled upstream must not hold our own requests open. */
+const UPSTREAM_TIMEOUT_MS = 10_000;
+
+// Team photos rarely change, and the event team list asks for one per team on
+// every load. Remember them briefly per server instance.
+const MEDIA_TTL_MS = 15 * 60_000;
+const MEDIA_CACHE_MAX = 2000;
+const mediaCache = new Map<
+  string,
+  { expiresAt: number; images: Promise<string[]> }
+>();
 
 /** 1. API Status **/
 export function getStatus(): Promise<TbaStatus> {
@@ -151,7 +164,25 @@ export function getMatchDetails(matchKey: string): Promise<TbaMatch> {
 export function getTeamInfo(teamNumber: number): Promise<TbaTeam> {
   return getFromTba(`team/frc${teamNumber}`);
 }
-export async function getTeamMedia(
+export function getTeamMedia(
+  teamNumber: number,
+  year: number,
+): Promise<string[]> {
+  const key = `${teamNumber}:${year}`;
+  const now = Date.now();
+  const hit = mediaCache.get(key);
+  if (hit && hit.expiresAt > now) return hit.images;
+  if (mediaCache.size >= MEDIA_CACHE_MAX) mediaCache.clear();
+  const images = fetchTeamMedia(teamNumber, year);
+  mediaCache.set(key, { expiresAt: now + MEDIA_TTL_MS, images });
+  // A failed lookup must not be served from cache.
+  images.catch(() => {
+    if (mediaCache.get(key)?.images === images) mediaCache.delete(key);
+  });
+  return images;
+}
+
+async function fetchTeamMedia(
   teamNumber: number,
   year: number,
 ): Promise<string[]> {

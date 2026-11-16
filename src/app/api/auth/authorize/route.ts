@@ -8,10 +8,17 @@ const LOGIN_MAX_REQUESTS = 20;
 
 export async function POST(request: NextRequest) {
   try {
+    // Share the sign-in budget so this endpoint is not a second set of guesses.
+    const body = await request.json().catch(() => null);
+    const username = typeof body?.username === "string" ? body.username : "";
+    const password = typeof body?.password === "string" ? body.password : "";
     const rateLimit = checkRateLimit(request, {
       keyPrefix: "login",
       windowMs: LOGIN_WINDOW_MS,
       maxRequests: LOGIN_MAX_REQUESTS,
+      subject: username.trim()
+        ? `user:${username.trim().toLowerCase().slice(0, 64)}`
+        : undefined,
     });
 
     if (rateLimit.limited) {
@@ -23,8 +30,6 @@ export async function POST(request: NextRequest) {
         },
       );
     }
-
-    const { username, password } = await request.json();
 
     if (!username || !password) {
       return NextResponse.json(

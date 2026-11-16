@@ -229,3 +229,10 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+/* Scouting forms: stop pull-to-refresh / overscroll navigation from reloading
+   the page mid-match (keeps normal scrolling). */
+html:has(.scout-form-page),
+html:has(.scout-form-page) body {
+  overscroll-behavior-y: contain;
+}

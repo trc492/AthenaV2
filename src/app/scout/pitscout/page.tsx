@@ -16,7 +16,7 @@ export default function Page() {
   const selectedEvent = useSelectedEvent();
 
   return (
-    <div className="min-h-screen bg-background dark:bg-background">
+    <div className="scout-form-page min-h-screen bg-background dark:bg-background">
       {/* Header Bar */}
       <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-4xl mx-auto px-4 py-3">

@@ -202,7 +202,19 @@ async function convertToCSV(data: {
   });
 
   // Combine all entries into one CSV
-  const allEntries = [...expandedPitEntries, ...expandedMatchEntries];
+  // Scout-entered text opens in a spreadsheet. Prefix anything that would be
+  // read as a formula; numbers (including negative ones) are left alone.
+  const allEntries = [...expandedPitEntries, ...expandedMatchEntries].map(
+    (entry) =>
+      Object.fromEntries(
+        Object.entries(entry).map(([key, value]) => [
+          key,
+          typeof value === "string" && /^[=+\-@\t\r]/.test(value)
+            ? `'${value}`
+            : value,
+        ]),
+      ),
+  );
   return Papa.unparse(allEntries);
 }
 
@@ -210,7 +222,7 @@ async function convertToXLSX(data: {
   pitEntries: PitEntry[];
   matchEntries: MatchEntry[];
 }): Promise<ArrayBuffer> {
-  const XLSX = await import("xlsx-js-style");
+  const XLSX = await import("xlsx");
 
   // Function to expand gameSpecificData (only one level)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

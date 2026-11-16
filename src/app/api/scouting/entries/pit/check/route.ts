@@ -1,8 +1,15 @@
+import { PERMISSIONS } from "@/lib/auth/roles";
+import { requireAnyPermission } from "@/lib/server/require-permission";
 import { NextRequest, NextResponse } from "next/server";
 import { databaseManager } from "@/db/database-manager";
 import type { CompetitionType } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
+  const denied = await requireAnyPermission([
+    PERMISSIONS.CREATE_PIT_SCOUTING,
+    PERMISSIONS.VIEW_PIT_SCOUTING,
+  ]);
+  if (denied) return denied;
   try {
     const searchParams = request.nextUrl.searchParams;
     const teamNumber = searchParams.get("teamNumber");

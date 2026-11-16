@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth/config";
 import bcrypt from "bcryptjs";
 import { databaseManager } from "@/db/database-manager";
 import { invalidateSessionUser } from "@/lib/server/session-user-cache";
+import { createSessionRefresh } from "@/lib/server/session-refresh";
 
 // PUT /api/users/me/password - Change own password
 export async function PUT(request: NextRequest) {
@@ -70,7 +71,15 @@ export async function PUT(request: NextRequest) {
     await service.updateUser(session.user.id, { passwordHash: hashedPassword });
     invalidateSessionUser(session.user.id);
 
-    return NextResponse.json({ success: true });
+    // Every other session is now signed out; let this browser keep its own.
+    const updated = await service.users.getById(session.user.id);
+    return NextResponse.json({
+      success: true,
+      sessionRefresh: createSessionRefresh(
+        session.user.id,
+        updated?.sessionVersion ?? 0,
+      ),
+    });
   } catch (error) {
     console.error("Error updating password:", error);
     return NextResponse.json(

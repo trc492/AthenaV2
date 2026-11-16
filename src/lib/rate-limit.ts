@@ -16,6 +16,12 @@ type RateLimitOptions = {
   keyPrefix: string;
   windowMs: number;
   maxRequests: number;
+  /**
+   * Who the attempt is for (e.g. the account being signed in to). Used only
+   * when no trusted client IP is available, so one caller cannot exhaust a
+   * bucket shared by every user of the deployment.
+   */
+  subject?: string;
 };
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
@@ -39,7 +45,7 @@ function cleanupExpiredEntries(now: number): void {
   }
 }
 
-function getClientIp(request: NextRequest): string {
+function getClientIp(request: NextRequest, subject?: string): string {
   // Only trust a header explicitly selected by the deployment operator. The
   // reverse proxy must overwrite it and block direct access to the application.
   const header = process.env.RATE_LIMIT_IP_HEADER?.trim().toLowerCase();
@@ -48,8 +54,9 @@ function getClientIp(request: NextRequest): string {
     if (value) return value;
   }
   // Client-controlled fingerprints would let callers bypass limits by changing
-  // headers. Without a trusted proxy, use one conservative shared bucket.
-  return "unverified-client";
+  // headers. Without a trusted proxy, limit per subject where the caller
+  // names one, and otherwise use one conservative shared bucket.
+  return subject ? `subject:${subject}` : "unverified-client";
 }
 
 export function checkRateLimit(
@@ -59,7 +66,7 @@ export function checkRateLimit(
   const now = Date.now();
   cleanupExpiredEntries(now);
 
-  const clientIp = getClientIp(request);
+  const clientIp = getClientIp(request, options.subject);
   const key = `${options.keyPrefix}:${clientIp}`;
   const existingEntry = rateLimitStore.get(key);
 

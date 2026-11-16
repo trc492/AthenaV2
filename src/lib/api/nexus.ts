@@ -14,6 +14,7 @@ async function getFromNexus<T>(path: string): Promise<T> {
   const url = `${BASE}${path}`;
   return fetchJSON<T>(url, {
     headers: { "Nexus-Api-Key": loadApiKeys().nexusApiKey },
+    timeoutMs: 10_000,
   });
 }
 

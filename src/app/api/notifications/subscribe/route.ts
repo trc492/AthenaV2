@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { databaseManager } from "@/db/database-manager";
-import { loadSubscriptionsForUser } from "@/lib/notifications";
+import {
+  loadSubscriptionsForUser,
+  MAX_SUBSCRIPTIONS_PER_USER,
+  parseSubscription,
+} from "@/lib/notifications";
 
 // POST /api/notifications/subscribe - Register a push subscription for the current user
 export async function POST(request: NextRequest) {
@@ -11,9 +15,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const subscription = await request.json();
+    const subscription = parseSubscription(
+      await request.json().catch(() => null),
+    );
 
-    if (!subscription?.endpoint) {
+    if (!subscription) {
       return NextResponse.json(
         { error: "Invalid subscription data" },
         { status: 400 },
@@ -33,6 +39,11 @@ export async function POST(request: NextRequest) {
       subscriptions[existingIndex] = subscription;
     } else {
       subscriptions.push(subscription);
+      // Keep the most recent devices; old browsers re-subscribe when opened.
+      subscriptions.splice(
+        0,
+        Math.max(0, subscriptions.length - MAX_SUBSCRIPTIONS_PER_USER),
+      );
     }
 
     // Persist via the provider-agnostic updateUser method

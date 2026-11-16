@@ -25,6 +25,76 @@ export type SendResult = {
   error?: string;
 };
 
+export const MAX_SUBSCRIPTIONS_PER_USER = 10;
+
+/**
+ * Accepts only what a browser's PushManager produces. The server later POSTs
+ * to this endpoint, so it must be a public HTTPS push service, not an address
+ * on the server's own network.
+ */
+export function parseSubscription(value: unknown): StoredSubscription | null {
+  const candidate = value as Partial<StoredSubscription> | null;
+  const endpoint = candidate?.endpoint;
+  const p256dh = candidate?.keys?.p256dh;
+  const auth = candidate?.keys?.auth;
+  if (typeof endpoint !== "string" || endpoint.length > 2048) return null;
+  if (typeof p256dh !== "string" || typeof auth !== "string") return null;
+  if (!p256dh || !auth || p256dh.length > 512 || auth.length > 512) return null;
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase();
+  const isIpLiteral = /^[\d.]+$/.test(host) || host.includes(":");
+  if (
+    url.protocol !== "https:" ||
+    isIpLiteral ||
+    !host.includes(".") ||
+    host === "localhost" ||
+    /\.(localhost|local|internal|lan|home|test)$/.test(host)
+  ) {
+    return null;
+  }
+  return { endpoint, keys: { p256dh, auth } };
+}
+
+/** The push service reports these when a subscription no longer exists. */
+function isGone(error: unknown): boolean {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  return status === 404 || status === 410;
+}
+
+/** Drop subscriptions the push service says are gone, so sends stop retrying them. */
+async function pruneSubscriptions(endpoints: string[]): Promise<void> {
+  if (endpoints.length === 0) return;
+  const gone = new Set(endpoints);
+  try {
+    const db = databaseManager.getService();
+    if (!db.users) return;
+    for (const user of await db.users.getSubscriptions()) {
+      if (!user.push_subscriptions) continue;
+      let stored: unknown;
+      try {
+        stored = JSON.parse(user.push_subscriptions);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(stored)) continue;
+      const kept = stored.filter(
+        (sub: StoredSubscription) => !gone.has(sub?.endpoint),
+      );
+      if (kept.length !== stored.length) {
+        await db.updateUser(user.id, { pushSubscriptions: JSON.stringify(kept) });
+      }
+    }
+  } catch (error) {
+    // Cleanup is best effort; the notifications themselves were already sent.
+    console.warn("Could not remove expired push subscriptions:", error);
+  }
+}
+
 function ensureVapidConfigured() {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -148,6 +218,7 @@ export async function sendPushNotification(params: {
       );
       results.push({ endpoint: targetEndpoint, success: true });
     } catch (error: unknown) {
+      if (isGone(error)) await pruneSubscriptions([targetEndpoint]);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       results.push({
@@ -165,6 +236,7 @@ export async function sendPushNotification(params: {
     };
   }
 
+  const expired: string[] = [];
   const promises = Array.from(subscriptions.entries()).map(
     async ([endpoint, subscription]) => {
       try {
@@ -174,6 +246,7 @@ export async function sendPushNotification(params: {
         );
         return { endpoint, success: true } satisfies SendResult;
       } catch (error: unknown) {
+        if (isGone(error)) expired.push(endpoint);
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         return {
@@ -186,6 +259,7 @@ export async function sendPushNotification(params: {
   );
 
   results.push(...(await Promise.all(promises)));
+  await pruneSubscriptions(expired);
 
   return {
     results,
@@ -249,6 +323,7 @@ export async function sendPushNotificationToSubscriptions(params: {
   };
 
   const results: SendResult[] = [];
+  const expiredSubscriptions: string[] = [];
   await Promise.all(
     subs.map(async (sub) => {
       try {
@@ -258,6 +333,7 @@ export async function sendPushNotificationToSubscriptions(params: {
         );
         results.push({ endpoint: sub.endpoint, success: true });
       } catch (error: unknown) {
+        if (isGone(error)) expiredSubscriptions.push(sub.endpoint);
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         results.push({
@@ -268,6 +344,7 @@ export async function sendPushNotificationToSubscriptions(params: {
       }
     }),
   );
+  await pruneSubscriptions(expiredSubscriptions);
 
   return {
     results,

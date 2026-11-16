@@ -114,6 +114,19 @@ describe("guest proxy enforcement", () => {
 });
 
 
+it("lets the signed TBA webhook through without a session", async () => {
+  getToken.mockResolvedValue(null);
+  const webhook = await proxy(new NextRequest("http://test/api/webhooks/tba", { method: "POST" }));
+  expect(webhook.headers.get("x-middleware-next")).toBe("1");
+  // Other API routes still need a session, and say so in a form clients can read.
+  const other = await proxy(new NextRequest("http://test/api/users", { method: "POST" }));
+  expect(other.status).toBe(401);
+  expect(await other.json()).toEqual({ error: "Unauthorized" });
+  // Pages still send the visitor to sign in.
+  const page = await proxy(new NextRequest("http://test/dashboard"));
+  expect(page.headers.get("location")).toContain("/login");
+});
+
 it("allows only entry creation for scouting guests", async () => {
   guest(true);
   for (const kind of ["match", "pit"]) {

@@ -36,6 +36,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     ...actual,
     mkdir: mockMkdir,
     writeFile: mockWriteFile,
+    rename: vi.fn(async () => undefined),
   };
 });
 

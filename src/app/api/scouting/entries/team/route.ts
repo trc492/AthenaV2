@@ -67,6 +67,8 @@ export async function GET(request: NextRequest) {
       parseInt(teamNumber),
       definedYear,
       competitionType,
+      // Without this, a team scouted at two events shows the wrong pit data.
+      eventCode ?? undefined,
     );
 
     // Calculate statistics if we have match data

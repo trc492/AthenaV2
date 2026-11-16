@@ -31,6 +31,7 @@ async function getFromFtc<T>(path: string): Promise<T> {
       Authorization: `Basic ${loadApiKeys().ftcApiKey}`,
       "Content-Type": "application/json",
     },
+    timeoutMs: 10_000,
   });
 }
 

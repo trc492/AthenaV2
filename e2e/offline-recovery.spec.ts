@@ -29,7 +29,9 @@ for (const kind of ["pit", "match"] as const) {
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 15_000 }).toBe(true);
     // Reload under the active worker to cache the real authenticated page and assets.
     await page.reload();
-    await fill(page, kind);
+    // The unsaved entry comes back from its local draft after the reload.
+    await expect(page.getByText(/Recovered your unsaved (pit|match) entry/)).toBeVisible();
+    await expect(page.getByPlaceholder("Enter team number (e.g. 254)")).toHaveValue("254");
     await expect.poll(() => page.evaluate(async () => !!await caches.match(location.href))).toBe(true);
     await context.setOffline(true);
     await save(page, kind).click();

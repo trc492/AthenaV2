@@ -1,7 +1,7 @@
 // React hook for detecting online/offline status and managing sync operations
 // Automatically triggers sync when connectivity is restored
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { offlineQueueManager } from "@/lib/offline-queue-manager";
 import type { SyncResult, NetworkStatus } from "@/lib/offline-types";
 import { useSession } from "next-auth/react";
@@ -36,6 +36,16 @@ export function useOffline(): UseOfflineReturn {
   const [syncInProgress, setSyncInProgress] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  // Pending reconnect auto-sync. Kept outside the event effect so a re-render
+  // (e.g. the count poll) does not cancel it, but unmount and going offline do.
+  const autoSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelAutoSync = useCallback(() => {
+    if (autoSyncTimer.current !== null) {
+      clearTimeout(autoSyncTimer.current);
+      autoSyncTimer.current = null;
+    }
+  }, []);
+  useEffect(() => cancelAutoSync, [cancelAutoSync]);
 
   // Update queue counts
   const updateCounts = useCallback(async () => {
@@ -132,7 +142,9 @@ export function useOffline(): UseOfflineReturn {
 
       // Auto-sync when coming back online if enabled
       if (autoSyncEnabled && pendingCount > 0) {
-        setTimeout(() => {
+        cancelAutoSync();
+        autoSyncTimer.current = setTimeout(() => {
+          autoSyncTimer.current = null;
           triggerSync().catch((error) => {
             console.error("Auto-sync failed after coming online:", error);
           });
@@ -141,6 +153,7 @@ export function useOffline(): UseOfflineReturn {
     };
 
     const handleOffline = () => {
+      cancelAutoSync();
       const now = new Date();
       setIsOnline(false);
       setNetworkStatus((prev) => ({
@@ -159,7 +172,7 @@ export function useOffline(): UseOfflineReturn {
         window.removeEventListener("offline", handleOffline);
       };
     }
-  }, [autoSyncEnabled, pendingCount, triggerSync]);
+  }, [autoSyncEnabled, pendingCount, triggerSync, cancelAutoSync]);
 
   // Set up sync listener
   useEffect(() => {

@@ -39,7 +39,7 @@ import {
 } from "./row-mappers";
 
 /** Bump whenever initializeTables() changes so existing databases re-run it once. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export class AzureSqlDatabaseService implements DatabaseService {
   readonly users = sqlUsers(this.query.bind(this), "azuresql");
@@ -130,13 +130,23 @@ export class AzureSqlDatabaseService implements DatabaseService {
       };
     }
 
+    // A pool per service instance: mssql.connect() returns one global pool and
+    // ignores the configuration of every call after the first.
+    const pool =
+      typeof config === "string"
+        ? new mssql.ConnectionPool(config)
+        : new mssql.ConnectionPool(config);
     try {
-      this.pool = await mssql.connect(config);
+      await pool.connect();
       console.log("Azure SQL: Connection pool created successfully");
-      await this.ensureSchema(this.pool);
-      return this.pool;
+      // Publish the pool only once the schema is ready, so no request can
+      // query tables that are still being created.
+      await this.ensureSchema(pool);
+      this.pool = pool;
+      return pool;
     } catch (error) {
       console.error("Azure SQL: Failed to create connection pool:", error);
+      await pool.close().catch(() => {});
       this.pool = null;
       this.tokenExpiresAt = null;
       throw error;
@@ -303,7 +313,7 @@ export class AzureSqlDatabaseService implements DatabaseService {
     } catch {
       // The marker table predates this check or the database is new.
     }
-    await this.initializeTables();
+    await this.initializeTables(pool);
     await pool.request().input("version", SCHEMA_VERSION).query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='athenaSchema' AND xtype='U')
       CREATE TABLE athenaSchema (version INT NOT NULL);
@@ -312,8 +322,9 @@ export class AzureSqlDatabaseService implements DatabaseService {
     `);
   }
 
-  private async initializeTables(): Promise<void> {
-    const pool = await this.getPool();
+  private async initializeTables(
+    pool: import("mssql").ConnectionPool,
+  ): Promise<void> {
 
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='guestLinks' AND xtype='U')
@@ -507,6 +518,12 @@ export class AzureSqlDatabaseService implements DatabaseService {
       ALTER TABLE users ADD avatarMimeType NVARCHAR(100)
     `);
 
+    // Push subscriptions are stored per account as a JSON array.
+    await pool.request().query(`
+      IF COL_LENGTH('users', 'push_subscriptions') IS NULL
+      ALTER TABLE users ADD push_subscriptions NVARCHAR(MAX)
+    `);
+
     // Create picklists table
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='picklists' AND xtype='U')
@@ -575,12 +592,15 @@ export class AzureSqlDatabaseService implements DatabaseService {
   }
 
   // Pit scouting methods
-  async addPitEntry(entry: Omit<PitEntry, "id">): Promise<number> {
+  async addPitEntry(
+    entry: Omit<PitEntry, "id">,
+    transaction?: import("mssql").Transaction,
+  ): Promise<number> {
     const pool = await this.getPool();
     const mssql = await import("mssql");
 
     try {
-      const result = await pool
+      const result = await (transaction ?? pool)
         .request()
         .input("teamNumber", mssql.Int, entry.teamNumber)
         .input("year", mssql.Int, entry.year)
@@ -635,6 +655,7 @@ export class AzureSqlDatabaseService implements DatabaseService {
     teamNumber: number,
     year: number,
     competitionType?: CompetitionType,
+    eventCode?: string,
   ): Promise<PitEntry | undefined> {
     const pool = await this.getPool();
     const mssql = await import("mssql");
@@ -654,6 +675,11 @@ export class AzureSqlDatabaseService implements DatabaseService {
       );
     }
 
+    if (eventCode) {
+      query += " AND eventCode = @eventCode";
+      request = request.input("eventCode", mssql.NVarChar, eventCode);
+    }
+
     const result = await request.query<PitEntryRow>(query);
 
     if (result.recordset.length === 0) {
@@ -661,6 +687,26 @@ export class AzureSqlDatabaseService implements DatabaseService {
     }
 
     return toPitEntry(result.recordset[0]);
+  }
+
+  async getPitEntryById(id: number): Promise<PitEntry | undefined> {
+    const pool = await this.getPool();
+    const mssql = await import("mssql");
+    const result = await pool
+      .request()
+      .input("id", mssql.Int, id)
+      .query<PitEntryRow>("SELECT * FROM pitEntries WHERE id = @id");
+    return result.recordset[0] ? toPitEntry(result.recordset[0]) : undefined;
+  }
+
+  async getMatchEntryById(id: number): Promise<MatchEntry | undefined> {
+    const pool = await this.getPool();
+    const mssql = await import("mssql");
+    const result = await pool
+      .request()
+      .input("id", mssql.Int, id)
+      .query<MatchEntryRow>("SELECT * FROM matchEntries WHERE id = @id");
+    return result.recordset[0] ? toMatchEntry(result.recordset[0]) : undefined;
   }
 
   async getAllPitEntries(
@@ -752,6 +798,10 @@ export class AzureSqlDatabaseService implements DatabaseService {
       setParts.push("notes = @notes");
       request.input("notes", mssql.NVarChar, updates.notes);
     }
+    if (updates.autoDrawing !== undefined) {
+      setParts.push("autoDrawing = @autoDrawing");
+      request.input("autoDrawing", mssql.NVarChar, updates.autoDrawing);
+    }
 
     if (setParts.length > 0) {
       const query = `UPDATE pitEntries SET ${setParts.join(", ")} WHERE id = @id`;
@@ -797,12 +847,15 @@ export class AzureSqlDatabaseService implements DatabaseService {
   }
 
   // Match scouting methods
-  async addMatchEntry(entry: Omit<MatchEntry, "id">): Promise<number> {
+  async addMatchEntry(
+    entry: Omit<MatchEntry, "id">,
+    transaction?: import("mssql").Transaction,
+  ): Promise<number> {
     const pool = await this.getPool();
     const mssql = await import("mssql");
 
     try {
-      const result = await pool
+      const result = await (transaction ?? pool)
         .request()
         .input("matchNumber", mssql.Int, entry.matchNumber)
         .input("teamNumber", mssql.Int, entry.teamNumber)
@@ -1628,40 +1681,22 @@ export class AzureSqlDatabaseService implements DatabaseService {
     const pool = await this.getPool();
     const mssql = await import("mssql");
 
-    const pitEntries = data.pitEntries || [];
-    const matchEntries = data.matchEntries || [];
-
-    // Clear existing data only for the years and types being imported
-    if (pitEntries.length > 0) {
-      const pitYears = new Set<number>();
-      pitEntries.forEach((entry) => pitYears.add(entry.year));
-      for (const year of pitYears) {
-        await pool
-          .request()
-          .input("year", mssql.Int, year)
-          .query("DELETE FROM pitEntries WHERE year = @year");
+    // Append like the other providers. Deleting a year first would wipe every
+    // event and program for that season, and a failed import could not undo it.
+    const transaction = new mssql.Transaction(pool);
+    await transaction.begin();
+    try {
+      for (const entry of data.pitEntries || []) {
+        await this.addPitEntry(entry, transaction);
       }
-    }
-
-    if (matchEntries.length > 0) {
-      const matchYears = new Set<number>();
-      matchEntries.forEach((entry) => matchYears.add(entry.year));
-      for (const year of matchYears) {
-        await pool
-          .request()
-          .input("year", mssql.Int, year)
-          .query("DELETE FROM matchEntries WHERE year = @year");
+      for (const entry of data.matchEntries || []) {
+        await this.addMatchEntry(entry, transaction);
       }
-    }
-
-    // Import pit entries
-    for (const entry of pitEntries) {
-      await this.addPitEntry(entry);
-    }
-
-    // Import match entries
-    for (const entry of matchEntries) {
-      await this.addMatchEntry(entry);
+      await transaction.commit();
+    } catch (error) {
+      // A failed statement may already have aborted the transaction.
+      await transaction.rollback().catch(() => {});
+      throw error;
     }
   }
 
@@ -1712,7 +1747,11 @@ export class AzureSqlDatabaseService implements DatabaseService {
       req.input("username", mssql.NVarChar, updates.username);
     }
     if (updates.passwordHash !== undefined) {
-      setParts.push("password_hash = @passwordHash");
+      // A new password signs out every existing session for the account.
+      setParts.push(
+        "password_hash = @passwordHash",
+        "sessionVersion = sessionVersion + 1",
+      );
       req.input("passwordHash", mssql.NVarChar, updates.passwordHash);
     }
     if (updates.role !== undefined) {

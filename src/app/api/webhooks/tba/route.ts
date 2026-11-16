@@ -46,8 +46,10 @@ function constantTimeEquals(a: string, b: string) {
 }
 
 function getMatchNumberFromMatchKey(matchKey: string): number | null {
-  // Examples: 2014necmp_f1m1, 2025miket_qm23
-  const m = matchKey.match(/m(\d+)$/);
+  // Schedules cover qualification matches only (2025miket_qm23). Playoff keys
+  // such as 2014necmp_f1m1 end in a match-within-set number, which would
+  // otherwise be mistaken for qualification match 1.
+  const m = /_qm(\d+)$/.exec(matchKey);
   if (!m) return null;
   const n = parseInt(m[1], 10);
   return Number.isFinite(n) ? n : null;
@@ -95,6 +97,9 @@ export async function POST(req: NextRequest) {
   }
 
   const data = (payload as UpcomingMatchPayload).message_data;
+  if (typeof data?.match_key !== "string" || typeof data.event_key !== "string") {
+    return NextResponse.json({ ok: true }, { status: 200 });
+  }
   const matchNumber = getMatchNumberFromMatchKey(data.match_key);
   if (!matchNumber) {
     return NextResponse.json({ ok: true }, { status: 200 });

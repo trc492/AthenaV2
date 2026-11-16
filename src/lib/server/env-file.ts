@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
+import { writePrivateFile } from "./private-file";
 import { join } from "node:path";
 import { DatabaseConfig } from "@/lib/types";
 
@@ -34,10 +35,9 @@ export async function saveSystemSettings(
   const current = loadSystemSettings();
   const updated: SystemSettings = { ...current, ...patch };
   await mkdir(RUNTIME_DIR, { recursive: true });
-  await writeFile(
+  await writePrivateFile(
     SYSTEM_SETTINGS_PATH,
     `${JSON.stringify(updated, null, 2)}\n`,
-    "utf8",
   );
   return updated;
 }
@@ -54,10 +54,9 @@ export function loadPersistedDatabaseConfig(): DatabaseConfig | null {
 
 export async function savePersistedDatabaseConfig(config: DatabaseConfig) {
   await mkdir(RUNTIME_DIR, { recursive: true });
-  await writeFile(
+  await writePrivateFile(
     DATABASE_CONFIG_PATH,
     `${JSON.stringify(config, null, 2)}\n`,
-    "utf8",
   );
 }
 
@@ -94,9 +93,8 @@ export function loadAppConfig(): AppConfig | null {
 
 export async function saveAppConfig(config: AppConfig): Promise<void> {
   await mkdir(RUNTIME_DIR, { recursive: true });
-  await writeFile(
+  await writePrivateFile(
     APP_CONFIG_PATH,
     `${JSON.stringify(config, null, 2)}\n`,
-    "utf8",
   );
 }

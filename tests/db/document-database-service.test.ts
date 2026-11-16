@@ -127,9 +127,10 @@ describe("document database domain behavior", () => {
     expect(await service.users.list()).toEqual([]);
     expect(await service.users.getByIds(["one"], true)).toEqual([]);
     expect(await service.users.getSubscriptions()).toEqual([]);
-    expect(await service.users.getById("one")).toMatchObject({ sessionVersion: 1 });
+    // The password change above already ended the account's sessions once.
+    expect(await service.users.getById("one")).toMatchObject({ sessionVersion: 2 });
     await service.users.setActive("one", true);
-    expect(await service.users.getById("one")).toMatchObject({ sessionVersion: 2, deactivatedAt: null });
+    expect(await service.users.getById("one")).toMatchObject({ sessionVersion: 3, deactivatedAt: null });
   });
   it("reserves case-insensitive usernames atomically and releases old names on rename", async () => {
     const results = await Promise.allSettled([service.users.create(account), service.users.create({ ...account, id: "two", username: "SCOUTONE" })]);
@@ -166,10 +167,15 @@ describe("document database domain behavior", () => {
     await service.revokeGuestLink("guest", 123);
     expect(await service.getGuestLink("guest")).toMatchObject({ revokedAt: 123 });
     expect(await service.exportData()).not.toHaveProperty("guestLinks");
+    const adminBeforeReset = await service.users.hasAdmin();
+    const linksBeforeReset = await service.getGuestLinks();
+    const scheduleBeforeReset = await service.getScheduleAssignments(scope);
     await service.resetDatabase();
-    expect(await service.users.hasAdmin()).toBe(false);
-    expect(await service.getGuestLinks()).toEqual([]);
+    // A reset clears scouting entries only; accounts and setup survive it.
     expect(await service.getAllPitEntries()).toEqual([]);
-    expect(await service.getScheduleAssignments(scope)).toEqual([]);
+    expect(await service.getAllMatchEntries()).toEqual([]);
+    expect(await service.users.hasAdmin()).toBe(adminBeforeReset);
+    expect(await service.getGuestLinks()).toEqual(linksBeforeReset);
+    expect(await service.getScheduleAssignments(scope)).toEqual(scheduleBeforeReset);
   });
 });

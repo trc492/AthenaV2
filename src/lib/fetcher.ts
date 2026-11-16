@@ -23,6 +23,8 @@ export async function fetchJSON<T>(
   options: {
     headers?: Record<string, string>;
     queryParams?: Record<string, string>;
+    /** Abort the request after this long instead of waiting indefinitely. */
+    timeoutMs?: number;
   } = {},
 ): Promise<T> {
   // Build URL with query params if provided
@@ -32,5 +34,8 @@ export async function fetchJSON<T>(
 
   return requestJSON(finalUrl, {
     headers: { "Content-Type": "application/json", ...options.headers },
+    ...(options.timeoutMs
+      ? { signal: AbortSignal.timeout(options.timeoutMs) }
+      : {}),
   }, `Failed to fetch ${finalUrl}`);
 }

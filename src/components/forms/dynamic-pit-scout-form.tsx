@@ -29,6 +29,8 @@ import { pitApi } from "@/lib/api/database-client";
 import { HttpError } from "@/lib/fetcher";
 import { ScoutSelector } from "@/components/scout-selector";
 import { FieldDrawingCanvas } from "@/components/forms/field-drawing-canvas";
+import { useFormDraft } from "@/hooks/use-form-draft";
+import { draftKey, sameFormValues } from "@/lib/form-drafts";
 import { driveTrainSlug, normalizeDriveTrain, type PitEntry } from "@/lib/types";
 import type {
   DynamicPitData,
@@ -214,6 +216,41 @@ export function DynamicPitScoutForm() {
       } : defaults);
     }
   }
+
+  // Keep an unsubmitted entry across reloads and remounts.
+  const draftUser = session?.user?.id ?? (session?.guestEvent ? "guest" : null);
+  const pitDraftKey =
+    editId || !gameConfig
+      ? null
+      : draftKey("pit", [draftUser, season, selectedEvent?.eventCode]);
+  const isPitDraftDirty =
+    !!gameConfig && !sameFormValues(formData, initializePitFormData(gameConfig));
+  const restoredDraftKey = useFormDraft<DynamicPitData>({
+    key: pitDraftKey,
+    data: formData,
+    isDirty: isPitDraftDirty,
+    onRestore: (draft) => {
+      if (!gameConfig) return;
+      const defaults = initializePitFormData(gameConfig);
+      setFormData({
+        ...defaults,
+        ...draft,
+        gameSpecificData: { ...defaults.gameSpecificData, ...draft.gameSpecificData },
+      });
+    },
+  });
+
+  useEffect(() => {
+    if (!restoredDraftKey || !gameConfig) return;
+    toast.info("Recovered your unsaved pit entry", {
+      id: restoredDraftKey,
+      description: "Your in-progress data was restored after the page reloaded.",
+      action: {
+        label: "Discard",
+        onClick: () => setFormData(initializePitFormData(gameConfig)),
+      },
+    });
+  }, [restoredDraftKey, gameConfig]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
+import { writePrivateFile } from "./private-file";
 import { join } from "node:path";
 
 const RUNTIME_DIR = join(/* turbopackIgnore: true */ process.cwd(), ".runtime");
@@ -113,11 +114,7 @@ export async function saveApiKeys(keys: Partial<ApiKeys>): Promise<void> {
   });
 
   await mkdir(RUNTIME_DIR, { recursive: true });
-  await writeFile(
-    API_KEYS_PATH,
-    JSON.stringify(merged, null, 2) + "\n",
-    "utf8",
-  );
+  await writePrivateFile(API_KEYS_PATH, JSON.stringify(merged, null, 2) + "\n");
 
   // Mirror to process.env for convenience in Node scripts/libraries
   if (merged.tbaApiKey !== undefined) {
